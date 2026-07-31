@@ -218,10 +218,10 @@
     <div class="card">
       <h2 class="row between" style="display:flex">
         <span>Bedingungen</span>
-        <button class="btn sm" id="btn-wx" style="font-weight:600">Wetter holen</button>
+        <button class="btn sm" id="btn-wx" style="font-weight:600">Werte holen</button>
       </h2>
       <div class="tiny muted" id="wx-info" style="margin:-4px 0 10px">
-        Standort setzen → Luftwerte kommen automatisch.
+        Standort setzen → Luft- und Wasserwerte kommen automatisch.
       </div>
       <div class="g2 fld">
         <div>
@@ -243,7 +243,7 @@
           <input class="in" id="f-windstaerke" type="number" inputmode="decimal" step="0.1" placeholder="11">
         </div>
       </div>
-      <div class="g2 fld">
+      <div class="g2">
         <div>
           <label class="f" for="f-wasser">Wassertemperatur (°C)</label>
           <input class="in" id="f-wasser" type="number" inputmode="decimal" step="0.1" placeholder="19,0">
@@ -253,6 +253,7 @@
           <input class="in" id="f-tiefe" type="number" inputmode="decimal" step="0.1" placeholder="3,5">
         </div>
       </div>
+      <div class="tiny muted fld" id="wt-info" style="margin-top:6px"></div>
       <div class="fld">
         <label class="f">Tageszeit</label>
         <div class="chips" id="ch-phase"></div>
@@ -446,7 +447,7 @@ const state = {
   view: 'log',
   catches: [],      // im Speicher, absteigend nach Zeit sortiert
   editId: null,     // gesetzt = bestehenden Fang bearbeiten
-  form: { photos: [], lat: null, lon: null, farbe: '', phase: '' },
+  form: { photos: [], lat: null, lon: null, farbe: '', phase: '', wasserAuto: null },
   detailId: null,
   urls: []          // ObjectURLs, die beim Ansichtswechsel wieder freigegeben werden
 };
@@ -612,15 +613,91 @@ $('#btn-gps-clear').onclick = () => {
   $('#minimap-hint').hidden = true;
 };
 
-/* ---------------------------- Wetter ---------------------------- */
+/* ---------------------------- Wassertemperatur ---------------------------- */
+// Zwei Quellen, in dieser Reihenfolge:
+//   1. PEGELONLINE (WSV) — echte Messwerte an den Bundeswasserstraßen, minütlich.
+//      Deckt Flüsse und Kanäle ab, keine privaten Seen oder Teiche.
+//   2. Open-Meteo Marine — Oberflächentemperatur, aber nur auf See/an der Küste.
+// Findet keine der beiden etwas, bleibt das Feld leer und muss gemessen werden;
+// ein geschätzter Wert wäre für spätere Auswertungen schlimmer als gar keiner.
+const PEGEL = 'https://www.pegelonline.wsv.de/webservices/rest-api/v2';
+
+function distKm(a1, o1, a2, o2){
+  const r = Math.PI / 180;
+  const dLa = (a2 - a1) * r, dLo = (o2 - o1) * r;
+  const s = Math.sin(dLa/2)**2 + Math.cos(a1*r) * Math.cos(a2*r) * Math.sin(dLo/2)**2;
+  return 2 * 6371 * Math.asin(Math.sqrt(s));
+}
+
+async function pegelAt(uuid, t){
+  // Enges Fenster statt kompletter Historie — spart am Wasser mobile Daten.
+  const iso = ms => new Date(ms).toISOString().replace(/\.\d+Z$/, 'Z');
+  const url = `${PEGEL}/stations/${uuid}/WT/measurements.json`
+            + `?start=${encodeURIComponent(iso(t - 45*60e3))}&end=${encodeURIComponent(iso(t + 45*60e3))}`;
+  const r = await fetch(url);
+  if (!r.ok) return null;
+  const rows = await r.json();
+  if (!rows.length) return null;
+  let best = null, bd = Infinity;
+  rows.forEach(m => {
+    const d = Math.abs(new Date(m.timestamp).getTime() - t);
+    if (d < bd){ bd = d; best = m; }
+  });
+  return best ? best.value : null;
+}
+
+async function waterTemp(lat, lon, when){
+  const t = new Date(when).getTime();
+
+  try {
+    const r = await fetch(`${PEGEL}/stations.json?latitude=${lat}&longitude=${lon}`
+                        + '&radius=25&includeTimeseries=true&includeCurrentMeasurement=true');
+    if (r.ok){
+      const near = (await r.json())
+        .filter(s => s.latitude != null && (s.timeseries || []).some(ts => ts.shortname === 'WT'))
+        .map(s => ({ s, km: distKm(lat, lon, s.latitude, s.longitude) }))
+        .sort((a, b) => a.km - b.km)[0];
+      if (near){
+        const ts = near.s.timeseries.find(x => x.shortname === 'WT');
+        // Für einen Fang von gerade eben reicht der Momentanwert aus der Stationsliste.
+        let val = (Math.abs(Date.now() - t) < 45*60e3 && ts.currentMeasurement)
+          ? ts.currentMeasurement.value : null;
+        if (val == null) val = await pegelAt(near.s.uuid, t);
+        if (val != null){
+          const ort = (near.s.longname || '').replace(/\s+/g, ' ').trim();
+          const fluss = (near.s.water || {}).longname || '';
+          return { wert: val, quelle: 'pegel',
+                   station: `${ort}${fluss ? ' / ' + fluss : ''}, ${near.km.toFixed(1)} km` };
+        }
+      }
+    }
+  } catch {}
+
+  try {
+    const r = await fetch('https://marine-api.open-meteo.com/v1/marine'
+      + `?latitude=${lat}&longitude=${lon}&hourly=sea_surface_temperature`
+      + '&timezone=auto&past_days=7&forecast_days=2');
+    if (r.ok){
+      const j = await r.json();
+      const i = j.hourly.time.indexOf(when.slice(0, 13) + ':00');
+      const v = i >= 0 ? j.hourly.sea_surface_temperature[i] : null;
+      if (v != null) return { wert: v, quelle: 'meer', station: 'Meeresoberfläche (Modellwert)' };
+    }
+  } catch {}
+
+  return null;
+}
+
+/* ---------------------------- Werte holen ---------------------------- */
 // Open-Meteo liefert Stundenwerte inkl. Vergangenheit (past_days) — damit
 // stimmen die Werte auch, wenn der Fang erst abends nachgetragen wird.
-async function loadWeather(){
+async function loadWeather(force){
   const { lat, lon } = state.form;
   const when = $('#f-zeit').value;
   if (lat == null){ toast('Erst Standort setzen'); return; }
   if (!when){ toast('Erst Datum & Uhrzeit setzen'); return; }
 
+  loadWater(lat, lon, when, force);
   $('#wx-info').innerHTML = '<span class="spin"></span>Wetter wird geholt …';
   const url = 'https://api.open-meteo.com/v1/forecast'
     + `?latitude=${lat}&longitude=${lon}`
@@ -650,12 +727,17 @@ async function loadWeather(){
       i = best;
     }
 
-    const set = (sel, v) => { if (v != null) $(sel).value = Math.round(v * 10) / 10; };
+    // Ohne "force" nur leere Felder füllen — von Hand Eingetragenes hat Vorrang.
+    const set = (sel, v) => {
+      if (v == null) return;
+      if (!force && $(sel).value !== '') return;
+      $(sel).value = Math.round(v * 10) / 10;
+    };
     set('#f-luft',        j.hourly.temperature_2m[i]);
     set('#f-druck',       j.hourly.pressure_msl[i]);
     set('#f-windstaerke', j.hourly.wind_speed_10m[i]);
     const wd = j.hourly.wind_direction_10m[i];
-    if (wd != null) $('#f-windrichtung').value = dirLabel(wd);
+    if (wd != null && (force || $('#f-windrichtung').value === '')) $('#f-windrichtung').value = dirLabel(wd);
 
     const ph = phaseFor(when, j.daily);
     if (ph && !state.form.phase) selectPhase(ph);
@@ -678,7 +760,22 @@ function phaseFor(when, daily){
   if (Math.abs(t - ss) <= W) return 'abend';
   return (t > sr && t < ss) ? 'tag' : 'nacht';
 }
-$('#btn-wx').onclick = loadWeather;
+async function loadWater(lat, lon, when, force){
+  if (!force && $('#f-wasser').value !== '') return;
+  $('#wt-info').innerHTML = '<span class="spin"></span>Wassertemperatur wird gesucht …';
+  let res = null;
+  try { res = await waterTemp(lat, lon, when); } catch {}
+  if (res){
+    $('#f-wasser').value = Math.round(res.wert * 10) / 10;
+    state.form.wasserAuto = res;
+    $('#wt-info').textContent = 'Gemessen: ' + res.station;
+  } else {
+    state.form.wasserAuto = null;
+    $('#wt-info').textContent =
+      'Keine Messstelle in der Nähe — für Seen und Teiche gibt es keine Daten, bitte selbst messen.';
+  }
+}
+$('#btn-wx').onclick = () => loadWeather(true);
 
 /* ---------------------------- Formular ---------------------------- */
 function buildStatics(){
@@ -712,7 +809,11 @@ function refreshWaterList(){
 
 function resetForm(rec){
   state.editId = rec ? rec.id : null;
-  state.form   = { photos: rec ? (rec.photos || []).slice() : [], lat: null, lon: null, farbe: '', phase: '' };
+  state.form   = { photos: rec ? (rec.photos || []).slice() : [],
+                   lat: null, lon: null, farbe: '', phase: '',
+                   wasserAuto: (rec && rec.wasserQuelle && rec.wasserQuelle !== 'manuell')
+                     ? { wert: rec.wasser, quelle: rec.wasserQuelle, station: rec.wasserStation || '' }
+                     : null };
 
   $('#form-title').textContent = rec ? 'Fang bearbeiten' : 'Neuer Fang';
   $('#btn-del').classList.toggle('hidden', !rec);
@@ -742,7 +843,8 @@ function resetForm(rec){
   $('#minimap').classList.add('hidden');
   $('#minimap-hint').hidden = true;
   $('#gps-info').textContent = 'Noch kein Standort gesetzt.';
-  $('#wx-info').textContent  = 'Standort setzen → Luftwerte kommen automatisch.';
+  $('#wx-info').textContent  = 'Standort setzen → Luft- und Wasserwerte kommen automatisch.';
+  $('#wt-info').textContent  = state.form.wasserAuto ? 'Gemessen: ' + state.form.wasserAuto.station : '';
   if (rec && rec.lat != null) setCoords(rec.lat, rec.lon, null);
 
   renderPhotos();
@@ -755,6 +857,13 @@ $('#btn-save').onclick = async () => {
   const when = $('#f-zeit').value;
   if (!when) return toast('Datum & Uhrzeit fehlen');
   if (!art && !$('#f-laenge').value) return toast('Mindestens Fischart oder Länge angeben');
+
+  // Herkunft festhalten: eine Messstelle 8 km flussab ist etwas anderes als ein
+  // Thermometer an der Rutenspitze. Ohne diese Kennzeichnung wären die Zahlen
+  // später nicht sauber vergleichbar.
+  const wasserWert = num($('#f-wasser').value);
+  const wa = state.form.wasserAuto;
+  const vonQuelle = wa && wasserWert != null && Math.abs(wa.wert - wasserWert) < 0.05;
 
   const rec = {
     id: state.editId || uid(),
@@ -769,7 +878,9 @@ $('#btn-save').onclick = async () => {
     druck:         num($('#f-druck').value),
     windRichtung:  $('#f-windrichtung').value,
     windKmh:       num($('#f-windstaerke').value),
-    wasser:        num($('#f-wasser').value),
+    wasser:        wasserWert,
+    wasserQuelle:  wasserWert == null ? '' : (vonQuelle ? wa.quelle : 'manuell'),
+    wasserStation: vonQuelle ? wa.station : '',
     tiefe:         num($('#f-tiefe').value),
     phase:         state.form.phase,
     koeder:        $('#f-koeder').value.trim(),
@@ -902,6 +1013,9 @@ function renderDetail(){
     <div class="card">
       <h2>Bedingungen</h2>
       ${kv('Wassertemperatur', c.wasser != null && dec(c.wasser) + ' °C')}
+      ${kv('Herkunft', c.wasserQuelle === 'pegel' ? 'Messstelle ' + (c.wasserStation || '')
+                     : c.wasserQuelle === 'meer'  ? (c.wasserStation || 'Meeresoberfläche')
+                     : c.wasserQuelle === 'manuell' ? 'selbst gemessen' : '')}
       ${kv('Wassertiefe', c.tiefe != null && dec(c.tiefe) + ' m')}
       ${kv('Lufttemperatur', c.luft != null && dec(c.luft) + ' °C')}
       ${kv('Luftdruck', c.druck != null && dec(c.druck) + ' hPa')}
