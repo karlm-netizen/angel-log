@@ -640,8 +640,11 @@ $('#in-lib').onchange = async e => { await addPhotos(e.target.files); e.target.v
 /* ---------------------------- Karte (Leaflet, faul geladen) ---------------------------- */
 // Leaflet liegt im Repo statt bei einem CDN: ein kurzer Aussetzer bei unpkg hat
 // sonst als "kein Internet" gemeldet, obwohl die Verbindung stand.
+// Name bewusst nicht "leaflet": die Bibliothek legt beim Laden selbst ein
+// globales "leaflet" an und würde eine gleichnamige Funktion überschreiben —
+// ab dem zweiten Aufruf gäbe es dann einen Fehler statt einer Karte.
 let _leafletP = null;
-function leaflet(){
+function ladeKarte(){
   if (_leafletP) return _leafletP;
   _leafletP = new Promise((res, rej) => {
     if (window.L) return res(window.L);
@@ -670,7 +673,7 @@ async function showMiniMap(){
   $('#minimap').classList.remove('hidden');
   $('#minimap-hint').hidden = false;
   let L;
-  try { L = await leaflet(); }
+  try { L = await ladeKarte(); }
   catch { $('#minimap').classList.add('hidden'); $('#minimap-hint').hidden = true; return; }
 
   if (!miniMap){
@@ -1253,7 +1256,7 @@ async function renderMap(){
 
   let L;
   try {
-    L = await leaflet();
+    L = await ladeKarte();
     $('#map-error').classList.add('hidden');
     $('#map').classList.remove('hidden');
   } catch {
@@ -1289,7 +1292,10 @@ document.addEventListener('click', e => {
   const a = e.target.closest('[data-open]');
   if (a){ e.preventDefault(); openDetail(a.dataset.open); }
 });
-$('#btn-map-retry').onclick = () => { _leafletP = null; renderMap(); };
+$('#btn-map-retry').onclick = () => {
+  if (!window.L) _leafletP = null;   // nur neu laden, wenn wirklich nichts da ist
+  renderMap();
+};
 
 /* ---------------------------- Backup ---------------------------- */
 const blobToDataURL = b => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
