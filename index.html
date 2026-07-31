@@ -15,7 +15,7 @@
   :root{
     --bg:#0e1418; --card:#161d23; --card2:#1f2830; --line:#2a3540;
     --txt:#e8eef2; --muted:#8ba0ae; --accent:#3fd0b0; --accent-ink:#06140f;
-    --danger:#ff6b6b; --r:16px; --sp:16px;
+    --danger:#ff6b6b; --warn:#f5c14e; --r:16px; --sp:16px;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
   html,body{margin:0; background:var(--bg); color:var(--txt);
@@ -53,7 +53,11 @@
   label.f{display:block; font-size:12px; color:var(--muted); margin:0 0 5px 2px; font-weight:600}
   .in{width:100%; background:var(--card2); border:1px solid var(--line); border-radius:11px;
     color:var(--txt); padding:12px; font-size:16px}
-  .in::placeholder{color:#5d6c78}
+  .in::placeholder{color:var(--muted); opacity:.6}
+  /* Safari und Chromium geben Datums-Feldern eine feste Mindestbreite. Ohne das
+     hier schiebt das Feld die ganze Seite seitlich raus — genau der Grund, warum
+     rechts alles abgeschnitten war. */
+  input[type="datetime-local"]{ -webkit-appearance:none; appearance:none; min-width:0; max-width:100% }
   textarea.in{min-height:76px; resize:vertical}
   .g2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
   .g3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px}
@@ -83,6 +87,27 @@
   .item .t1{font-size:15px; font-weight:700}
   .item .t2{font-size:12px; color:var(--muted); margin-top:2px}
   .item .tags{display:flex; gap:5px; margin-top:6px; flex-wrap:wrap}
+  .item.entwurf{border-color:var(--warn); box-shadow:inset 3px 0 0 var(--warn)}
+  .pill.warn{background:var(--warn); color:#241a02; font-weight:700}
+
+  /* Speichern-Haken — spart das Scrollen ans Formularende */
+  .fab{position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom) + 76px);
+    width:58px; height:58px; border-radius:99px; background:var(--accent);
+    color:var(--accent-ink); display:none; place-items:center; z-index:950;
+    box-shadow:0 8px 22px rgba(0,0,0,.45)}
+  .fab.on{display:grid}
+  .fab:active{filter:brightness(.9)}
+  .fab svg{width:28px; height:28px}
+
+  /* Farbpaletten in den Einstellungen */
+  .pal{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px}
+  .pal button{display:flex; align-items:center; gap:9px; padding:11px 12px; border-radius:12px;
+    border:1px solid var(--line); background:var(--card2); font-size:13px; font-weight:600;
+    text-align:left; color:var(--txt)}
+  .pal button.on{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent)}
+  .pal .dots{display:flex; gap:3px; flex:0 0 auto}
+  .pal .dots i{width:12px; height:12px; border-radius:99px; display:block;
+    border:1px solid rgba(128,128,128,.35)}
   .empty{text-align:center; color:var(--muted); padding:44px 20px; font-size:14px; line-height:1.6}
 
   /* Karte */
@@ -105,8 +130,9 @@
   .gal img{width:100%; border-radius:12px; display:block}
 
   /* Tableiste */
-  .tabs{position:fixed; left:0; right:0; bottom:0; background:rgba(14,20,24,.94);
-    backdrop-filter:blur(12px); border-top:1px solid var(--line); display:flex;
+  /* deckend statt durchscheinend — sonst passt die Leiste nicht zu hellen Paletten */
+  .tabs{position:fixed; left:0; right:0; bottom:0; background:var(--bg);
+    border-top:1px solid var(--line); display:flex;
     padding:8px 10px calc(env(safe-area-inset-bottom) + 8px); gap:6px; z-index:900}
   .tabs > div{max-width:560px; margin:0 auto; width:100%; display:flex; gap:6px}
   .tab{flex:1; background:transparent; border-radius:12px; padding:8px 4px; font-size:11px;
@@ -143,11 +169,10 @@
 <section id="v-log">
   <div class="head">
     <h1>Angel-Log</h1>
-    <button class="iconbtn" id="btn-menu" aria-label="Menü">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none"/>
-        <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
-        <circle cx="12" cy="19" r="1.4" fill="currentColor" stroke="none"/>
+    <button class="iconbtn" id="btn-menu" aria-label="Einstellungen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3.2"/>
+        <path d="M12 2.6v2.6M12 18.8v2.6M21.4 12h-2.6M5.2 12H2.6M18.6 5.4l-1.8 1.8M7.2 16.8l-1.8 1.8M18.6 18.6l-1.8-1.8M7.2 7.2L5.4 5.4"/>
       </svg>
     </button>
   </div>
@@ -209,6 +234,19 @@
         <button class="btn sm" id="btn-gps-clear" style="flex:0 0 auto">Löschen</button>
       </div>
       <div class="tiny muted" id="gps-info" style="margin-top:8px">Noch kein Standort gesetzt.</div>
+      <div class="g2" style="margin-top:12px">
+        <div>
+          <label class="f" for="f-lat">Breitengrad</label>
+          <input class="in" id="f-lat" type="text" inputmode="decimal" placeholder="53.5511">
+        </div>
+        <div>
+          <label class="f" for="f-lon">Längengrad</label>
+          <input class="in" id="f-lon" type="text" inputmode="decimal" placeholder="9.9937">
+        </div>
+      </div>
+      <div class="tiny muted" style="margin-top:6px">
+        Von Hand eintippen geht auch — Punkt als Dezimaltrennzeichen.
+      </div>
       <div id="minimap" class="hidden"></div>
       <div class="tiny muted" id="minimap-hint" style="margin-top:6px" hidden>
         Pin antippen &amp; ziehen oder auf die Karte tippen, um die Stelle zu korrigieren.
@@ -326,8 +364,11 @@
 <!-- ======================= MENÜ ======================= -->
 <div class="sheet" id="sheet">
   <div class="inner">
-    <h2 style="font-size:17px; margin-bottom:4px">Angel-Log</h2>
-    <p class="tiny muted" style="margin:0 0 16px">
+    <h2 style="font-size:17px; margin-bottom:12px">Einstellungen</h2>
+    <label class="f">Farbpalette</label>
+    <div class="pal" id="pal"></div>
+    <label class="f">Sicherung</label>
+    <p class="tiny muted" style="margin:0 0 12px">
       Alle Daten liegen nur auf diesem Gerät. Mach ab und zu ein Backup —
       wenn du Safari-Daten löschst oder die App vom Homescreen wirfst, sind die Fänge weg.
     </p>
@@ -337,6 +378,12 @@
     <button class="btn" id="btn-close-sheet">Schließen</button>
   </div>
 </div>
+
+<button class="fab" id="fab-save" aria-label="Fang speichern">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 12.5l5.5 5.5L20 7"/>
+  </svg>
+</button>
 
 <div class="viewer" id="viewer"><img id="viewer-img" alt=""></div>
 <div class="toast" id="toast"></div>
@@ -387,6 +434,22 @@ const FARBEN = [
 ];
 
 const PHASEN = [['morgen','Morgendämmerung'],['tag','Tag'],['abend','Abenddämmerung'],['nacht','Nacht']];
+
+// Farbpaletten — dunkle zuerst, helle unten. "ink" ist die Schrift auf Akzentflächen.
+const PALETTEN = {
+  'tiefes-wasser': ['Tiefes Wasser', {bg:'#0e1418',card:'#161d23',card2:'#1f2830',line:'#2a3540',txt:'#e8eef2',muted:'#8ba0ae',accent:'#3fd0b0',ink:'#06140f',danger:'#ff6b6b',warn:'#f5c14e'}],
+  'mitternacht':   ['Mitternacht',   {bg:'#0b0f1a',card:'#141a2b',card2:'#1d2540',line:'#2b3556',txt:'#e6ebf7',muted:'#8e9ac0',accent:'#6f8cff',ink:'#050916',danger:'#ff6b6b',warn:'#f5c14e'}],
+  'waldsee':       ['Waldsee',       {bg:'#0d1410',card:'#151f18',card2:'#1e2b22',line:'#2b3b31',txt:'#e6f0e8',muted:'#8faa97',accent:'#7ac47f',ink:'#07150a',danger:'#ff6b6b',warn:'#f5c14e'}],
+  'daemmerung':    ['Dämmerung',     {bg:'#150f14',card:'#1f1720',card2:'#2b2029',line:'#3a2c37',txt:'#f4e9ef',muted:'#b294a6',accent:'#ff8a5b',ink:'#1c0b03',danger:'#ff6b6b',warn:'#f5c14e'}],
+  'kohle':         ['Kohle',         {bg:'#101012',card:'#191a1d',card2:'#232428',line:'#313337',txt:'#eeeef2',muted:'#9a9ba3',accent:'#e6e9ef',ink:'#131316',danger:'#ff6b6b',warn:'#f5c14e'}],
+  'bernstein':     ['Bernstein',     {bg:'#14100a',card:'#1e1810',card2:'#2a2217',line:'#3a2f20',txt:'#f3ead9',muted:'#ab9877',accent:'#e0a94a',ink:'#170f02',danger:'#ff6b6b',warn:'#f5c14e'}],
+  'nordlicht':     ['Nordlicht',     {bg:'#0a1216',card:'#111d23',card2:'#182b33',line:'#23404b',txt:'#e2f2f6',muted:'#84a6b2',accent:'#57e0e8',ink:'#03151a',danger:'#ff6b6b',warn:'#f5c14e'}],
+  'rost':          ['Rost',          {bg:'#150e0c',card:'#1f1512',card2:'#2c1e19',line:'#3d2a23',txt:'#f2e6e1',muted:'#b0938a',accent:'#e07a52',ink:'#1a0803',danger:'#ff6b6b',warn:'#f5c14e'}],
+  'papier':        ['Papier',        {bg:'#f4efe6',card:'#fffdf8',card2:'#ece5d8',line:'#d9cfbd',txt:'#2b241a',muted:'#7a6d5a',accent:'#a2683a',ink:'#fff8f0',danger:'#c0392b',warn:'#9a7212'}],
+  'tageslicht':    ['Tageslicht',    {bg:'#f2f5f9',card:'#ffffff',card2:'#e8edf4',line:'#d3dbe6',txt:'#16202c',muted:'#61707f',accent:'#1f6feb',ink:'#ffffff',danger:'#c0392b',warn:'#9a7212'}],
+  'sand':          ['Sand',          {bg:'#efeade',card:'#fbf8f1',card2:'#e5dfd0',line:'#cfc7b4',txt:'#2a2a20',muted:'#726b58',accent:'#6b7f3a',ink:'#f8fbf0',danger:'#b03a2e',warn:'#8f6a0d'}],
+  'nebel':         ['Nebel',         {bg:'#eef2f3',card:'#ffffff',card2:'#e3e9eb',line:'#ccd6d9',txt:'#18242a',muted:'#5d6f77',accent:'#0f7f83',ink:'#ffffff',danger:'#b03a2e',warn:'#8f6a0d'}]
+};
 
 const DIRS = ['N','NNO','NO','ONO','O','OSO','SO','SSO','S','SSW','SW','WSW','W','WNW','NW','NNW'];
 const dirLabel = deg => DIRS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
@@ -442,11 +505,38 @@ async function removeCatch(id){
   });
 }
 
+/* ---------------------------- Farbpalette ---------------------------- */
+const PAL_KEY = 'angellog-palette';
+function setPalette(key, speichern){
+  const p = (PALETTEN[key] || PALETTEN['tiefes-wasser'])[1];
+  const s = document.documentElement.style;
+  s.setProperty('--bg', p.bg);         s.setProperty('--card', p.card);
+  s.setProperty('--card2', p.card2);   s.setProperty('--line', p.line);
+  s.setProperty('--txt', p.txt);       s.setProperty('--muted', p.muted);
+  s.setProperty('--accent', p.accent); s.setProperty('--accent-ink', p.ink);
+  s.setProperty('--danger', p.danger); s.setProperty('--warn', p.warn);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = p.bg;       // färbt die Statusleiste am iPhone mit
+  if (speichern !== false){ try { localStorage.setItem(PAL_KEY, key); } catch {} }
+  $$('#pal button').forEach(b => b.classList.toggle('on', b.dataset.pal === key));
+}
+function renderPalettes(){
+  $('#pal').innerHTML = Object.entries(PALETTEN).map(([k, [name, p]]) =>
+    `<button data-pal="${k}"><span class="dots"><i style="background:${p.bg}"></i>`
+    + `<i style="background:${p.card2}"></i><i style="background:${p.accent}"></i></span>${name}</button>`
+  ).join('');
+}
+$('#pal').addEventListener('click', e => {
+  const b = e.target.closest('[data-pal]');
+  if (b) setPalette(b.dataset.pal);
+});
+
 /* ---------------------------- Zustand ---------------------------- */
 const state = {
   view: 'log',
   catches: [],      // im Speicher, absteigend nach Zeit sortiert
-  editId: null,     // gesetzt = bestehenden Fang bearbeiten
+  editId: null,     // gesetzt = an diesem Eintrag wird gerade geschrieben
+  editWasSaved: false, // true = fertiger Fang in Bearbeitung, kein Entwurf
   form: { photos: [], lat: null, lon: null, farbe: '', phase: '', wasserAuto: null },
   detailId: null,
   urls: []          // ObjectURLs, die beim Ansichtswechsel wieder freigegeben werden
@@ -501,12 +591,21 @@ function shrink(file, max, quality){
   });
 }
 async function addPhotos(files){
+  let roh = 0;
   for (const f of files){
-    if (!f.type.startsWith('image/')) continue;
+    if (!f.type.startsWith('image/') && !/\.(jpe?g|png|heic|heif|webp)$/i.test(f.name || '')) continue;
     const full  = await shrink(f, 1400, 0.78);
     const thumb = await shrink(f, 260, 0.7);
-    if (full) state.form.photos.push({ full, thumb: thumb || full });
+    if (full){
+      state.form.photos.push({ full, thumb: thumb || full });
+    } else {
+      // Kann der Browser das Format nicht in ein Canvas zeichnen (kommt bei
+      // HEIC vom iPhone vor), lieber unverkleinert behalten als still verlieren.
+      state.form.photos.push({ full: f, thumb: f });
+      roh++;
+    }
   }
+  if (roh) toast('Foto ließ sich nicht verkleinern — im Original gespeichert.');
   renderPhotos();
 }
 function renderPhotos(){
@@ -519,6 +618,7 @@ function renderPhotos(){
     box.appendChild(d);
   });
   $('#photos-empty').classList.toggle('hidden', state.form.photos.length > 0);
+  scheduleDraft();
 }
 $('#photos').addEventListener('click', e => {
   const i = e.target.dataset.rm;
@@ -582,13 +682,26 @@ async function showMiniMap(){
   }
   setTimeout(() => miniMap.invalidateSize(), 60);
 }
-function setCoords(lat, lon, acc){
+function setCoords(lat, lon, acc, vonHand){
   state.form.lat = +lat.toFixed(6);
   state.form.lon = +lon.toFixed(6);
+  if (!vonHand){                       // beim Tippen nicht ins eigene Feld grätschen
+    $('#f-lat').value = state.form.lat;
+    $('#f-lon').value = state.form.lon;
+  }
   $('#gps-info').textContent =
     `${state.form.lat.toFixed(5)}, ${state.form.lon.toFixed(5)}` + (acc ? ` (±${Math.round(acc)} m)` : '');
   showMiniMap();
+  scheduleDraft();
 }
+function coordsVonHand(){
+  const la = parseFloat($('#f-lat').value.replace(',', '.'));
+  const lo = parseFloat($('#f-lon').value.replace(',', '.'));
+  if (!isFinite(la) || !isFinite(lo) || Math.abs(la) > 90 || Math.abs(lo) > 180) return;
+  setCoords(la, lo, null, true);
+}
+$('#f-lat').addEventListener('change', coordsVonHand);
+$('#f-lon').addEventListener('change', coordsVonHand);
 
 $('#btn-gps').onclick = () => {
   if (!navigator.geolocation) return toast('Standort wird nicht unterstützt');
@@ -608,6 +721,7 @@ $('#btn-gps').onclick = () => {
 };
 $('#btn-gps-clear').onclick = () => {
   state.form.lat = state.form.lon = null;
+  $('#f-lat').value = $('#f-lon').value = '';
   $('#gps-info').textContent = 'Noch kein Standort gesetzt.';
   $('#minimap').classList.add('hidden');
   $('#minimap-hint').hidden = true;
@@ -646,29 +760,40 @@ async function pegelAt(uuid, t){
   return best ? best.value : null;
 }
 
-async function waterTemp(lat, lon, when){
-  const t = new Date(when).getTime();
-
-  try {
-    const r = await fetch(`${PEGEL}/stations.json?latitude=${lat}&longitude=${lon}`
-                        + '&radius=25&includeTimeseries=true&includeCurrentMeasurement=true');
-    if (r.ok){
+// Erst eng suchen, dann weiter — die nahe Abfrage ist klein und deckt den
+// Normalfall ab; die weiten laufen nur an, wenn gar nichts in der Nähe misst.
+async function pegelNear(lat, lon){
+  for (const [radius, mitWert] of [[25, true], [120, false], [300, false]]){
+    try {
+      const r = await fetch(`${PEGEL}/stations.json?latitude=${lat}&longitude=${lon}&radius=${radius}`
+                          + '&includeTimeseries=true' + (mitWert ? '&includeCurrentMeasurement=true' : ''));
+      if (!r.ok) continue;
       const near = (await r.json())
         .filter(s => s.latitude != null && (s.timeseries || []).some(ts => ts.shortname === 'WT'))
         .map(s => ({ s, km: distKm(lat, lon, s.latitude, s.longitude) }))
         .sort((a, b) => a.km - b.km)[0];
-      if (near){
-        const ts = near.s.timeseries.find(x => x.shortname === 'WT');
-        // Für einen Fang von gerade eben reicht der Momentanwert aus der Stationsliste.
-        let val = (Math.abs(Date.now() - t) < 45*60e3 && ts.currentMeasurement)
-          ? ts.currentMeasurement.value : null;
-        if (val == null) val = await pegelAt(near.s.uuid, t);
-        if (val != null){
-          const ort = (near.s.longname || '').replace(/\s+/g, ' ').trim();
-          const fluss = (near.s.water || {}).longname || '';
-          return { wert: val, quelle: 'pegel',
-                   station: `${ort}${fluss ? ' / ' + fluss : ''}, ${near.km.toFixed(1)} km` };
-        }
+      if (near) return near;
+    } catch {}
+  }
+  return null;
+}
+
+async function waterTemp(lat, lon, when){
+  const t = new Date(when).getTime();
+
+  try {
+    const near = await pegelNear(lat, lon);
+    if (near){
+      const ts = near.s.timeseries.find(x => x.shortname === 'WT');
+      // Für einen Fang von gerade eben reicht der Momentanwert aus der Stationsliste.
+      let val = (Math.abs(Date.now() - t) < 45*60e3 && ts.currentMeasurement)
+        ? ts.currentMeasurement.value : null;
+      if (val == null) val = await pegelAt(near.s.uuid, t);
+      if (val != null){
+        const ort = (near.s.longname || '').replace(/\s+/g, ' ').trim();
+        const fluss = (near.s.water || {}).longname || '';
+        return { wert: val, quelle: 'pegel',
+                 station: `${ort}${fluss ? ' / ' + fluss : ''}, ${near.km.toFixed(1)} km` };
       }
     }
   } catch {}
@@ -769,18 +894,32 @@ async function loadWater(lat, lon, when, force){
     $('#f-wasser').value = Math.round(res.wert * 10) / 10;
     state.form.wasserAuto = res;
     $('#wt-info').textContent = 'Gemessen: ' + res.station;
+    scheduleDraft();
   } else {
     state.form.wasserAuto = null;
-    $('#wt-info').textContent =
-      'Keine Messstelle in der Nähe — für Seen und Teiche gibt es keine Daten, bitte selbst messen.';
+    $('#wt-info').textContent = 'Keine Messstelle gefunden — bitte selbst messen.';
   }
 }
 $('#btn-wx').onclick = () => loadWeather(true);
 
 /* ---------------------------- Formular ---------------------------- */
+// Vorschläge erst ab dem ersten Buchstaben — eine Liste mit 24 Arten beim
+// Antippen des leeren Feldes verdeckt nur die halbe Maske.
+function bindSuggest(inputSel, listSel, quelle){
+  const el = $(inputSel), dl = $(listSel);
+  const fill = () => {
+    const q = el.value.trim().toLowerCase();
+    dl.innerHTML = !q ? '' : quelle
+      .filter(a => a.toLowerCase().includes(q))
+      .slice(0, 12).map(a => `<option value="${a}">`).join('');
+  };
+  el.addEventListener('input', fill);
+  fill();
+}
+
 function buildStatics(){
-  $('#dl-art').innerHTML     = ARTEN.map(a => `<option value="${a}">`).join('');
-  $('#dl-koeder').innerHTML  = KOEDER.map(a => `<option value="${a}">`).join('');
+  bindSuggest('#f-art',    '#dl-art',    ARTEN);
+  bindSuggest('#f-koeder', '#dl-koeder', KOEDER);
   $('#f-windrichtung').innerHTML =
     '<option value="">—</option>' + DIRS.map(d => `<option value="${d}">${d}</option>`).join('');
   $('#ch-phase').innerHTML = PHASEN.map(([k, l]) => `<button class="chip" data-phase="${k}">${l}</button>`).join('');
@@ -790,10 +929,12 @@ function buildStatics(){
 function selectPhase(k){
   state.form.phase = (state.form.phase === k) ? '' : k;
   $$('#ch-phase .chip').forEach(c => c.classList.toggle('on', c.dataset.phase === state.form.phase));
+  scheduleDraft();
 }
 function selectFarbe(n){
   state.form.farbe = (state.form.farbe === n) ? '' : n;
   $$('#ch-farbe .chip').forEach(c => c.classList.toggle('on', c.dataset.farbe === state.form.farbe));
+  scheduleDraft();
 }
 $('#ch-phase').addEventListener('click', e => {
   const b = e.target.closest('[data-phase]'); if (b) selectPhase(b.dataset.phase);
@@ -808,16 +949,17 @@ function refreshWaterList(){
 }
 
 function resetForm(rec){
-  state.editId = rec ? rec.id : null;
+  state.editId       = rec ? rec.id : null;
+  state.editWasSaved = !!(rec && !rec.entwurf);
   state.form   = { photos: rec ? (rec.photos || []).slice() : [],
                    lat: null, lon: null, farbe: '', phase: '',
                    wasserAuto: (rec && rec.wasserQuelle && rec.wasserQuelle !== 'manuell')
                      ? { wert: rec.wasser, quelle: rec.wasserQuelle, station: rec.wasserStation || '' }
                      : null };
 
-  $('#form-title').textContent = rec ? 'Fang bearbeiten' : 'Neuer Fang';
+  $('#form-title').textContent = !rec ? 'Neuer Fang' : (rec.entwurf ? 'Entwurf' : 'Fang bearbeiten');
   $('#btn-del').classList.toggle('hidden', !rec);
-  $('#btn-save').textContent = rec ? 'Änderungen speichern' : 'Fang speichern';
+  $('#btn-save').textContent = state.editWasSaved ? 'Änderungen speichern' : 'Fang speichern';
 
   const v = (sel, val) => { $(sel).value = (val == null ? '' : val); };
   v('#f-art',          rec && rec.art);
@@ -842,6 +984,7 @@ function resetForm(rec){
 
   $('#minimap').classList.add('hidden');
   $('#minimap-hint').hidden = true;
+  $('#f-lat').value = $('#f-lon').value = '';
   $('#gps-info').textContent = 'Noch kein Standort gesetzt.';
   $('#wx-info').textContent  = 'Standort setzen → Luft- und Wasserwerte kommen automatisch.';
   $('#wt-info').textContent  = state.form.wasserAuto ? 'Gemessen: ' + state.form.wasserAuto.station : '';
@@ -852,24 +995,21 @@ function resetForm(rec){
   window.scrollTo(0, 0);
 }
 
-$('#btn-save').onclick = async () => {
-  const art  = $('#f-art').value.trim();
-  const when = $('#f-zeit').value;
-  if (!when) return toast('Datum & Uhrzeit fehlen');
-  if (!art && !$('#f-laenge').value) return toast('Mindestens Fischart oder Länge angeben');
-
-  // Herkunft festhalten: eine Messstelle 8 km flussab ist etwas anderes als ein
-  // Thermometer an der Rutenspitze. Ohne diese Kennzeichnung wären die Zahlen
-  // später nicht sauber vergleichbar.
+function buildRecord(entwurf){
+  // Herkunft der Wassertemperatur festhalten: eine Messstelle 8 km flussab ist
+  // etwas anderes als ein Thermometer an der Rutenspitze. Ohne diese
+  // Kennzeichnung wären die Zahlen später nicht sauber vergleichbar.
   const wasserWert = num($('#f-wasser').value);
   const wa = state.form.wasserAuto;
   const vonQuelle = wa && wasserWert != null && Math.abs(wa.wert - wasserWert) < 0.05;
+  const when = $('#f-zeit').value || localIsoNow();
 
-  const rec = {
+  return {
     id: state.editId || uid(),
+    entwurf: !!entwurf,
     when,
     ts: new Date(when).getTime(),
-    art,
+    art:           $('#f-art').value.trim(),
     laenge:        num($('#f-laenge').value),
     gewicht:       num($('#f-gewicht').value),
     gewaesser:     $('#f-gewaesser').value.trim(),
@@ -887,18 +1027,56 @@ $('#btn-save').onclick = async () => {
     koederGroesse: num($('#f-koedergroesse').value),
     farbe:         state.form.farbe,
     notiz:         $('#f-notiz').value.trim(),
-    photos:        state.form.photos,
-    created:       state.editId ? undefined : Date.now()
+    photos:        state.form.photos
   };
-  if (rec.created === undefined) delete rec.created;
+}
 
+/* Autospeichern: alles, was im Formular steht, landet kurz nach der Eingabe in
+   der Datenbank. Wer mitten im Erfassen die App wegwischt, findet den Fang beim
+   nächsten Start als gelben Entwurf wieder — erst der Haken macht ihn fertig. */
+let draftTimer = null;
+function formHatInhalt(){
+  const felder = ['#f-art','#f-laenge','#f-gewicht','#f-gewaesser','#f-luft','#f-druck',
+                  '#f-windstaerke','#f-wasser','#f-tiefe','#f-koeder','#f-koedergroesse','#f-notiz'];
+  return felder.some(s => $(s).value.trim() !== '')
+      || state.form.photos.length > 0 || state.form.lat != null
+      || !!state.form.phase || !!state.form.farbe;
+}
+function scheduleDraft(){
+  if (state.view !== 'new') return;
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(saveDraft, 700);
+}
+async function saveDraft(){
+  if (state.view !== 'new' || !formHatInhalt()) return;
+  if (!state.editId) state.editId = uid();   // ab jetzt wird derselbe Eintrag fortgeschrieben
+  try {
+    // Beim Bearbeiten eines fertigen Fangs bleibt er fertig — nur neue Erfassungen
+    // sind Entwürfe.
+    await putCatch(buildRecord(!state.editWasSaved));
+    await reload();
+  } catch {}
+}
+$('#v-new').addEventListener('input',  scheduleDraft);
+$('#v-new').addEventListener('change', scheduleDraft);
+
+async function saveNow(){
+  const art  = $('#f-art').value.trim();
+  const when = $('#f-zeit').value;
+  if (!when) return toast('Datum & Uhrzeit fehlen');
+  if (!art && !$('#f-laenge').value) return toast('Mindestens Fischart oder Länge angeben');
+
+  clearTimeout(draftTimer);
+  const war = state.editWasSaved;
+  const rec = buildRecord(false);
   const btn = $('#btn-save');
   btn.disabled = true;
   try {
     await putCatch(rec);
     await reload();
-    toast(state.editId ? 'Gespeichert' : 'Fang gespeichert 🎣');
+    toast(war ? 'Gespeichert' : 'Fang gespeichert 🎣');
     state.editId = null;
+    state.editWasSaved = false;
     go('log');
   } catch {
     // Lieber laut scheitern, als einen Fang stillschweigend verlieren.
@@ -906,14 +1084,18 @@ $('#btn-save').onclick = async () => {
   } finally {
     btn.disabled = false;
   }
-};
+}
+$('#btn-save').onclick = saveNow;
+$('#fab-save').onclick = saveNow;
 
 $('#btn-del').onclick = async () => {
   if (!state.editId) return;
   if (!confirm('Diesen Fang wirklich löschen?')) return;
+  clearTimeout(draftTimer);
   try {
     await removeCatch(state.editId);
     state.editId = null;
+    state.editWasSaved = false;
     await reload();
     toast('Gelöscht');
     go('log');
@@ -922,8 +1104,10 @@ $('#btn-del').onclick = async () => {
   }
 };
 $('#btn-cancel').onclick = () => {
-  const back = state.editId ? 'detail' : 'log';
-  state.editId = null;          // sonst überschreibt der nächste Fang den bearbeiteten
+  // Nichts geht verloren: der Stand liegt bereits als Entwurf in der Liste.
+  const back = state.editWasSaved ? 'detail' : 'log';
+  state.editId = null;
+  state.editWasSaved = false;
   go(back);
 };
 
@@ -945,12 +1129,12 @@ function renderList(){
 
   rows.forEach(c => {
     const el = document.createElement('div');
-    el.className = 'item';
+    el.className = 'item' + (c.entwurf ? ' entwurf' : '');
     el.dataset.id = c.id;
 
     const size = [c.laenge && c.laenge + ' cm', c.gewicht && String(c.gewicht).replace('.', ',') + ' kg']
       .filter(Boolean).join(' · ');
-    const tags = [
+    const tags = (c.entwurf ? '<span class="pill warn">Entwurf</span>' : '') + [
       c.phase && phaseLabel(c.phase),
       c.koeder && (c.koeder + (c.farbe ? ' · ' + c.farbe : '')),
       c.druck  && c.druck + ' hPa',
@@ -971,15 +1155,19 @@ function renderList(){
     list.appendChild(el);
   });
 
-  const waters = new Set(state.catches.map(c => c.gewaesser).filter(Boolean));
-  const best = state.catches.reduce((a, c) => (c.laenge && (!a || c.laenge > a.laenge)) ? c : a, null);
-  $('#st-count').textContent  = state.catches.length + (state.catches.length === 1 ? ' Fang' : ' Fänge');
+  const fertig = state.catches.filter(c => !c.entwurf);
+  const waters = new Set(fertig.map(c => c.gewaesser).filter(Boolean));
+  const best = fertig.reduce((a, c) => (c.laenge && (!a || c.laenge > a.laenge)) ? c : a, null);
+  $('#st-count').textContent  = fertig.length + (fertig.length === 1 ? ' Fang' : ' Fänge');
   $('#st-waters').textContent = waters.size + (waters.size === 1 ? ' Gewässer' : ' Gewässer');
   $('#st-best').textContent   = best ? `Größter: ${best.laenge} cm${best.art ? ' ' + best.art : ''}` : 'Noch kein Maß';
 }
 $('#list').addEventListener('click', e => {
   const it = e.target.closest('.item');
-  if (it) openDetail(it.dataset.id);
+  if (!it) return;
+  const c = state.catches.find(x => x.id === it.dataset.id);
+  // Ein Entwurf springt direkt zurück ins Formular, um ihn fertig zu machen.
+  if (c && c.entwurf){ go('new'); resetForm(c); } else openDetail(it.dataset.id);
 });
 $('#q').addEventListener('input', renderList);
 
@@ -1147,6 +1335,7 @@ function go(view){
   freeURLs();
   state.view = view;
   ['log', 'new', 'map', 'detail'].forEach(v => $('#v-' + v).classList.toggle('hidden', v !== view));
+  $('#fab-save').classList.toggle('on', view === 'new');
   $$('.tab').forEach(t => t.classList.toggle('on',
     t.dataset.go === view || (view === 'detail' && t.dataset.go === 'log')));
 
@@ -1157,7 +1346,7 @@ function go(view){
   window.scrollTo(0, 0);
 }
 $$('.tab').forEach(t => t.onclick = () => {
-  if (t.dataset.go === 'new') state.editId = null;
+  if (t.dataset.go === 'new'){ state.editId = null; state.editWasSaved = false; }
   go(t.dataset.go);
 });
 
@@ -1172,6 +1361,10 @@ window.addEventListener('unhandledrejection', e =>
   toast('Fehler: ' + ((e.reason && e.reason.message) || 'unbekannt')));
 
 (async function init(){
+  renderPalettes();
+  let pal = 'tiefes-wasser';
+  try { pal = localStorage.getItem(PAL_KEY) || pal; } catch {}
+  setPalette(pal, false);
   buildStatics();
   go('log');                       // Oberfläche steht sofort, auch wenn der Speicher klemmt
   try {
