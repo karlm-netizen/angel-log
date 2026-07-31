@@ -1,0 +1,1044 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1418">
+<title>Angel-Log</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Angel-Log">
+<style>
+  :root{
+    --bg:#0e1418; --card:#161d23; --card2:#1f2830; --line:#2a3540;
+    --txt:#e8eef2; --muted:#8ba0ae; --accent:#3fd0b0; --accent-ink:#06140f;
+    --danger:#ff6b6b; --r:16px; --sp:16px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; background:var(--bg); color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  body{max-width:560px; margin:0 auto; padding:0 0 96px;
+    padding-top:calc(env(safe-area-inset-top) + 14px)}
+  h1,h2,h3{margin:0; font-weight:700}
+  button{font-family:inherit; cursor:pointer; border:none; color:var(--txt)}
+  input,select,textarea{font-family:inherit}
+  .wrap{padding:0 var(--sp)}
+  .muted{color:var(--muted)} .tiny{font-size:12px} .center{text-align:center}
+  .row{display:flex; align-items:center; gap:10px}
+  .between{justify-content:space-between}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--r);
+    padding:14px; margin:12px 0}
+  .card h2{font-size:15px; margin-bottom:10px}
+  .btn{background:var(--card2); border:1px solid var(--line); border-radius:12px;
+    padding:12px 14px; font-size:15px; font-weight:600; width:100%; text-align:center}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+  .btn.primary:active{filter:brightness(.9)}
+  .btn.sm{width:auto; padding:9px 12px; font-size:13px}
+  .btn.danger{color:var(--danger)}
+  .btn[disabled]{opacity:.5}
+  .pill{font-size:11px; padding:3px 9px; border-radius:999px; background:var(--card2);
+    color:var(--muted); white-space:nowrap}
+
+  /* Kopf */
+  .head{display:flex; align-items:center; justify-content:space-between; padding:0 var(--sp) 4px}
+  .head h1{font-size:22px; letter-spacing:-.4px}
+  .iconbtn{width:38px; height:38px; flex:0 0 38px; display:grid; place-items:center;
+    background:var(--card2); border:1px solid var(--line); border-radius:11px; color:var(--muted)}
+
+  /* Formular */
+  label.f{display:block; font-size:12px; color:var(--muted); margin:0 0 5px 2px; font-weight:600}
+  .in{width:100%; background:var(--card2); border:1px solid var(--line); border-radius:11px;
+    color:var(--txt); padding:12px; font-size:16px}
+  .in::placeholder{color:#5d6c78}
+  textarea.in{min-height:76px; resize:vertical}
+  .g2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .g3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px}
+  .fld{margin-bottom:12px}
+  .fld:last-child{margin-bottom:0}
+  .chips{display:flex; flex-wrap:wrap; gap:7px}
+  .chip{background:var(--card2); border:1px solid var(--line); border-radius:999px;
+    padding:9px 13px; font-size:13px; font-weight:600; color:var(--muted)}
+  .chip.on{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+  .chip .sw{width:12px; height:12px; border-radius:99px; display:inline-block;
+    vertical-align:-1px; margin-right:6px; border:1px solid rgba(255,255,255,.25)}
+
+  /* Fotos */
+  .photos{display:flex; flex-wrap:wrap; gap:8px}
+  .ph{position:relative; width:74px; height:74px; border-radius:12px; overflow:hidden;
+    border:1px solid var(--line)}
+  .ph img{width:100%; height:100%; object-fit:cover; display:block}
+  .ph b{position:absolute; top:2px; right:2px; width:22px; height:22px; border-radius:99px;
+    background:rgba(0,0,0,.65); color:#fff; display:grid; place-items:center; font-size:14px}
+
+  /* Liste */
+  .item{display:flex; gap:12px; align-items:center; background:var(--card);
+    border:1px solid var(--line); border-radius:14px; padding:10px; margin:10px 0}
+  .item .th{width:56px; height:56px; flex:0 0 56px; border-radius:10px; overflow:hidden;
+    background:var(--card2); display:grid; place-items:center; color:var(--muted); font-size:20px}
+  .item .th img{width:100%; height:100%; object-fit:cover; display:block}
+  .item .t1{font-size:15px; font-weight:700}
+  .item .t2{font-size:12px; color:var(--muted); margin-top:2px}
+  .item .tags{display:flex; gap:5px; margin-top:6px; flex-wrap:wrap}
+  .empty{text-align:center; color:var(--muted); padding:44px 20px; font-size:14px; line-height:1.6}
+
+  /* Karte */
+  #map{height:calc(100vh - 210px); min-height:320px; border-radius:14px; overflow:hidden;
+    border:1px solid var(--line)}
+  #minimap{height:190px; border-radius:12px; overflow:hidden; border:1px solid var(--line);
+    margin-top:10px}
+  .leaflet-container{background:#0b1013}
+  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--card); color:var(--txt)}
+  .leaflet-popup-content{margin:10px 12px; font-size:13px}
+  .leaflet-popup-content img{width:100%; border-radius:8px; margin-bottom:6px; display:block}
+  .leaflet-popup-content b{font-size:14px}
+
+  /* Detail */
+  .kv{display:flex; justify-content:space-between; gap:12px; padding:9px 0;
+    border-bottom:1px solid var(--line); font-size:14px}
+  .kv:last-child{border-bottom:none}
+  .kv span{color:var(--muted)}
+  .gal{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  .gal img{width:100%; border-radius:12px; display:block}
+
+  /* Tableiste */
+  .tabs{position:fixed; left:0; right:0; bottom:0; background:rgba(14,20,24,.94);
+    backdrop-filter:blur(12px); border-top:1px solid var(--line); display:flex;
+    padding:8px 10px calc(env(safe-area-inset-bottom) + 8px); gap:6px; z-index:900}
+  .tabs > div{max-width:560px; margin:0 auto; width:100%; display:flex; gap:6px}
+  .tab{flex:1; background:transparent; border-radius:12px; padding:8px 4px; font-size:11px;
+    font-weight:600; color:var(--muted); display:grid; gap:3px; justify-items:center}
+  .tab.on{color:var(--accent)}
+  .tab svg{width:22px; height:22px}
+
+  /* Overlays */
+  .sheet{position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:1000; display:none;
+    align-items:flex-end}
+  .sheet.on{display:flex}
+  .sheet .inner{background:var(--card); width:100%; max-width:560px; margin:0 auto;
+    border-radius:20px 20px 0 0; padding:18px 18px calc(env(safe-area-inset-bottom) + 18px);
+    max-height:86vh; overflow:auto}
+  .viewer{position:fixed; inset:0; background:#000; z-index:1100; display:none;
+    align-items:center; justify-content:center; padding:12px}
+  .viewer.on{display:flex}
+  .viewer img{max-width:100%; max-height:100%; border-radius:8px}
+  .toast{position:fixed; left:50%; transform:translateX(-50%); bottom:104px; background:var(--card2);
+    border:1px solid var(--line); color:var(--txt); padding:11px 16px; border-radius:999px;
+    font-size:13px; font-weight:600; z-index:1200; opacity:0; pointer-events:none;
+    transition:opacity .2s; max-width:90vw; text-align:center}
+  .toast.on{opacity:1}
+  .hidden{display:none !important}
+  .spin{display:inline-block; width:13px; height:13px; border:2px solid var(--muted);
+    border-top-color:transparent; border-radius:99px; animation:sp .7s linear infinite;
+    vertical-align:-2px; margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<!-- ======================= LOG ======================= -->
+<section id="v-log">
+  <div class="head">
+    <h1>Angel-Log</h1>
+    <button class="iconbtn" id="btn-menu" aria-label="Menü">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none"/>
+        <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+        <circle cx="12" cy="19" r="1.4" fill="currentColor" stroke="none"/>
+      </svg>
+    </button>
+  </div>
+  <div class="wrap">
+    <div class="row" style="gap:8px; margin:8px 0 4px">
+      <span class="pill" id="st-count">0 Fänge</span>
+      <span class="pill" id="st-waters">0 Gewässer</span>
+      <span class="pill" id="st-best">—</span>
+    </div>
+    <input class="in" id="q" placeholder="Suchen: Art, Gewässer, Köder …" style="margin-top:10px">
+    <div id="list"></div>
+  </div>
+</section>
+
+<!-- ======================= NEU / BEARBEITEN ======================= -->
+<section id="v-new" class="hidden">
+  <div class="head">
+    <h1 id="form-title">Neuer Fang</h1>
+    <button class="iconbtn" id="btn-cancel" aria-label="Abbrechen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M6 6l12 12M18 6L6 18"/>
+      </svg>
+    </button>
+  </div>
+  <div class="wrap">
+
+    <div class="card">
+      <h2>Fisch</h2>
+      <div class="fld">
+        <label class="f" for="f-art">Fischart</label>
+        <input class="in" id="f-art" list="dl-art" placeholder="z. B. Hecht" autocomplete="off">
+        <datalist id="dl-art"></datalist>
+      </div>
+      <div class="g2 fld">
+        <div>
+          <label class="f" for="f-laenge">Länge (cm)</label>
+          <input class="in" id="f-laenge" type="number" inputmode="decimal" step="0.5" placeholder="78">
+        </div>
+        <div>
+          <label class="f" for="f-gewicht">Gewicht (kg)</label>
+          <input class="in" id="f-gewicht" type="number" inputmode="decimal" step="0.01" placeholder="4,2">
+        </div>
+      </div>
+      <div class="fld">
+        <label class="f" for="f-zeit">Datum &amp; Uhrzeit</label>
+        <input class="in" id="f-zeit" type="datetime-local">
+      </div>
+      <div class="fld">
+        <label class="f" for="f-gewaesser">Gewässer</label>
+        <input class="in" id="f-gewaesser" list="dl-gewaesser" placeholder="z. B. Elbe-Altarm" autocomplete="off">
+        <datalist id="dl-gewaesser"></datalist>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Standort</h2>
+      <div class="row" style="gap:8px">
+        <button class="btn sm primary" id="btn-gps" style="flex:1">📍 Standort holen</button>
+        <button class="btn sm" id="btn-gps-clear" style="flex:0 0 auto">Löschen</button>
+      </div>
+      <div class="tiny muted" id="gps-info" style="margin-top:8px">Noch kein Standort gesetzt.</div>
+      <div id="minimap" class="hidden"></div>
+      <div class="tiny muted" id="minimap-hint" style="margin-top:6px" hidden>
+        Pin antippen &amp; ziehen oder auf die Karte tippen, um die Stelle zu korrigieren.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="row between" style="display:flex">
+        <span>Bedingungen</span>
+        <button class="btn sm" id="btn-wx" style="font-weight:600">Wetter holen</button>
+      </h2>
+      <div class="tiny muted" id="wx-info" style="margin:-4px 0 10px">
+        Standort setzen → Luftwerte kommen automatisch.
+      </div>
+      <div class="g2 fld">
+        <div>
+          <label class="f" for="f-luft">Lufttemperatur (°C)</label>
+          <input class="in" id="f-luft" type="number" inputmode="decimal" step="0.1" placeholder="18,4">
+        </div>
+        <div>
+          <label class="f" for="f-druck">Luftdruck (hPa)</label>
+          <input class="in" id="f-druck" type="number" inputmode="decimal" step="0.1" placeholder="1013">
+        </div>
+      </div>
+      <div class="g2 fld">
+        <div>
+          <label class="f" for="f-windrichtung">Windrichtung</label>
+          <select class="in" id="f-windrichtung"></select>
+        </div>
+        <div>
+          <label class="f" for="f-windstaerke">Wind (km/h)</label>
+          <input class="in" id="f-windstaerke" type="number" inputmode="decimal" step="0.1" placeholder="11">
+        </div>
+      </div>
+      <div class="g2 fld">
+        <div>
+          <label class="f" for="f-wasser">Wassertemperatur (°C)</label>
+          <input class="in" id="f-wasser" type="number" inputmode="decimal" step="0.1" placeholder="19,0">
+        </div>
+        <div>
+          <label class="f" for="f-tiefe">Wassertiefe (m)</label>
+          <input class="in" id="f-tiefe" type="number" inputmode="decimal" step="0.1" placeholder="3,5">
+        </div>
+      </div>
+      <div class="fld">
+        <label class="f">Tageszeit</label>
+        <div class="chips" id="ch-phase"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Köder</h2>
+      <div class="fld">
+        <label class="f" for="f-koeder">Köder</label>
+        <input class="in" id="f-koeder" list="dl-koeder" placeholder="z. B. Gummifisch" autocomplete="off">
+        <datalist id="dl-koeder"></datalist>
+      </div>
+      <div class="fld">
+        <label class="f" for="f-koedergroesse">Ködergröße (cm)</label>
+        <input class="in" id="f-koedergroesse" type="number" inputmode="decimal" step="0.5" placeholder="12">
+      </div>
+      <div class="fld">
+        <label class="f">Köderfarbe</label>
+        <div class="chips" id="ch-farbe"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Fotos</h2>
+      <div class="row" style="gap:8px; margin-bottom:10px">
+        <button class="btn sm" id="btn-cam" style="flex:1">📷 Aufnehmen</button>
+        <button class="btn sm" id="btn-lib" style="flex:1">🖼 Aus Galerie</button>
+      </div>
+      <input type="file" id="in-cam" accept="image/*" capture="environment" class="hidden">
+      <input type="file" id="in-lib" accept="image/*" multiple class="hidden">
+      <div class="photos" id="photos"></div>
+      <div class="tiny muted" id="photos-empty">Noch keine Fotos.</div>
+    </div>
+
+    <div class="card">
+      <h2>Notiz</h2>
+      <textarea class="in" id="f-notiz" placeholder="Drill, Stelle, Führung, Besonderheiten …"></textarea>
+    </div>
+
+    <button class="btn primary" id="btn-save" style="margin:14px 0 6px">Fang speichern</button>
+    <button class="btn danger hidden" id="btn-del">Fang löschen</button>
+  </div>
+</section>
+
+<!-- ======================= KARTE ======================= -->
+<section id="v-map" class="hidden">
+  <div class="head"><h1>Karte</h1><span class="pill" id="map-count">—</span></div>
+  <div class="wrap"><div id="map"></div></div>
+</section>
+
+<!-- ======================= DETAIL ======================= -->
+<section id="v-detail" class="hidden">
+  <div class="head">
+    <button class="iconbtn" id="btn-back" aria-label="Zurück">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 5l-7 7 7 7"/>
+      </svg>
+    </button>
+    <h1 id="d-title" style="flex:1; font-size:19px; margin-left:12px">Fang</h1>
+    <button class="iconbtn" id="btn-edit" aria-label="Bearbeiten">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 20h4l10-10-4-4L4 16v4z"/>
+      </svg>
+    </button>
+  </div>
+  <div class="wrap" id="d-body"></div>
+</section>
+
+<!-- ======================= MENÜ ======================= -->
+<div class="sheet" id="sheet">
+  <div class="inner">
+    <h2 style="font-size:17px; margin-bottom:4px">Angel-Log</h2>
+    <p class="tiny muted" style="margin:0 0 16px">
+      Alle Daten liegen nur auf diesem Gerät. Mach ab und zu ein Backup —
+      wenn du Safari-Daten löschst oder die App vom Homescreen wirfst, sind die Fänge weg.
+    </p>
+    <button class="btn" id="btn-export" style="margin-bottom:8px">⬇︎ Backup exportieren</button>
+    <button class="btn" id="btn-import" style="margin-bottom:8px">⬆︎ Backup einlesen</button>
+    <input type="file" id="in-import" accept="application/json,.json" class="hidden">
+    <button class="btn" id="btn-close-sheet">Schließen</button>
+  </div>
+</div>
+
+<div class="viewer" id="viewer"><img id="viewer-img" alt=""></div>
+<div class="toast" id="toast"></div>
+
+<!-- ======================= TABS ======================= -->
+<nav class="tabs">
+  <div>
+    <button class="tab on" data-go="log">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 6h16M4 12h16M4 18h10"/>
+      </svg>Log
+    </button>
+    <button class="tab" data-go="new">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <path d="M12 5v14M5 12h14"/>
+      </svg>Neuer Fang
+    </button>
+    <button class="tab" data-go="map">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/>
+      </svg>Karte
+    </button>
+  </div>
+</nav>
+
+<script>
+/* =======================================================================
+   Angel-Log — Fangbuch als PWA.
+   Alles läuft lokal: IndexedDB für Fänge + Fotos, kein Server, kein Account.
+   Aus dem Netz kommt nur zweierlei: Kartenkacheln (OSM) und die Wetterwerte
+   zum Fangzeitpunkt (Open-Meteo, ohne Key). Beides ist optional — ohne Netz
+   lässt sich jeder Fang trotzdem vollständig erfassen.
+   ======================================================================= */
+
+const ARTEN = ['Hecht','Zander','Barsch','Wels','Aal','Karpfen','Schleie','Brasse','Rotauge',
+  'Rotfeder','Döbel','Rapfen','Bachforelle','Regenbogenforelle','Seeforelle','Saibling','Äsche',
+  'Karausche','Güster','Quappe','Hasel','Nase','Graskarpfen','Stör'];
+
+const KOEDER = ['Gummifisch','Wobbler','Blinker','Spinner','Jerkbait','Crankbait','Spinnerbait',
+  'Chatterbait','Dropshot-Gummi','Creature Bait','Fliege','Streamer','Tauwurm','Made','Mais',
+  'Boilie','Pellet','Köderfisch','Teig','Kirschmade'];
+
+const FARBEN = [
+  ['Weiß','#f2f2f2'],['Schwarz','#1c1c1c'],['Rot','#e03131'],['Orange','#f76707'],
+  ['Gelb','#fcc419'],['Grün','#2f9e44'],['Blau','#1971c2'],['Silber','#c3ccd6'],
+  ['Gold','#d4a017'],['Braun','#8b5e34'],['Motoroil','#4a4b2f'],['Pink/UV','#e64980'],
+  ['Perlmutt','#e8dfd0'],['Naturdekor','#93a58c']
+];
+
+const PHASEN = [['morgen','Morgendämmerung'],['tag','Tag'],['abend','Abenddämmerung'],['nacht','Nacht']];
+
+const DIRS = ['N','NNO','NO','ONO','O','OSO','SO','SSO','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+const dirLabel = deg => DIRS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
+
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+
+/* ---------------------------- Datenbank ---------------------------- */
+const DBN = 'angellog', STORE = 'catches';
+let _db = null;
+
+function db(){
+  if (_db) return Promise.resolve(_db);
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DBN, 1);
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE, { keyPath: 'id' });
+    };
+    r.onsuccess = () => { _db = r.result; res(_db); };
+    r.onerror   = () => rej(r.error);
+  });
+}
+async function allCatches(){
+  const d = await db();
+  return new Promise((res, rej) => {
+    const r = d.transaction(STORE).objectStore(STORE).getAll();
+    r.onsuccess = () => res(r.result || []);
+    r.onerror   = () => rej(r.error);
+  });
+}
+async function putCatch(rec){
+  const d = await db();
+  return new Promise((res, rej) => {
+    const t = d.transaction(STORE, 'readwrite');
+    t.objectStore(STORE).put(rec);
+    t.oncomplete = () => res(rec);
+    t.onerror    = () => rej(t.error);
+  });
+}
+async function removeCatch(id){
+  const d = await db();
+  return new Promise((res, rej) => {
+    const t = d.transaction(STORE, 'readwrite');
+    t.objectStore(STORE).delete(id);
+    t.oncomplete = () => res();
+    t.onerror    = () => rej(t.error);
+  });
+}
+
+/* ---------------------------- Zustand ---------------------------- */
+const state = {
+  view: 'log',
+  catches: [],      // im Speicher, absteigend nach Zeit sortiert
+  editId: null,     // gesetzt = bestehenden Fang bearbeiten
+  form: { photos: [], lat: null, lon: null, farbe: '', phase: '' },
+  detailId: null,
+  urls: []          // ObjectURLs, die beim Ansichtswechsel wieder freigegeben werden
+};
+
+const uid = () => (crypto.randomUUID ? crypto.randomUUID()
+                                     : Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+function objURL(blob){ const u = URL.createObjectURL(blob); state.urls.push(u); return u; }
+function freeURLs(){ state.urls.forEach(URL.revokeObjectURL); state.urls = []; }
+
+let toastTimer;
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('on'), 2600);
+}
+
+/* ---------------------------- Formatierung ---------------------------- */
+const pad = n => String(n).padStart(2, '0');
+function localIsoNow(){
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function fmtDate(iso){
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
+const phaseLabel = k => (PHASEN.find(p => p[0] === k) || [,''])[1];
+
+/* ---------------------------- Fotos ---------------------------- */
+// iPhone-Bilder sind 3–5 MB. Runterrechnen, sonst ist der Gerätespeicher
+// nach 50 Fängen voll und die Liste ruckelt.
+function shrink(file, max, quality){
+  return new Promise(res => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const sc = Math.min(1, max / Math.max(img.width, img.height));
+      const w = Math.round(img.width * sc), h = Math.round(img.height * sc);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      c.toBlob(b => { URL.revokeObjectURL(url); res(b); }, 'image/jpeg', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); res(null); };
+    img.src = url;
+  });
+}
+async function addPhotos(files){
+  for (const f of files){
+    if (!f.type.startsWith('image/')) continue;
+    const full  = await shrink(f, 1400, 0.78);
+    const thumb = await shrink(f, 260, 0.7);
+    if (full) state.form.photos.push({ full, thumb: thumb || full });
+  }
+  renderPhotos();
+}
+function renderPhotos(){
+  const box = $('#photos');
+  box.innerHTML = '';
+  state.form.photos.forEach((p, i) => {
+    const d = document.createElement('div');
+    d.className = 'ph';
+    d.innerHTML = `<img src="${objURL(p.thumb)}" alt=""><b data-rm="${i}">×</b>`;
+    box.appendChild(d);
+  });
+  $('#photos-empty').classList.toggle('hidden', state.form.photos.length > 0);
+}
+$('#photos').addEventListener('click', e => {
+  const i = e.target.dataset.rm;
+  if (i === undefined) return;
+  state.form.photos.splice(+i, 1);
+  renderPhotos();
+});
+$('#btn-cam').onclick = () => $('#in-cam').click();
+$('#btn-lib').onclick = () => $('#in-lib').click();
+$('#in-cam').onchange = async e => { await addPhotos(e.target.files); e.target.value = ''; };
+$('#in-lib').onchange = async e => { await addPhotos(e.target.files); e.target.value = ''; };
+
+/* ---------------------------- Karte (Leaflet, faul geladen) ---------------------------- */
+let _leafletP = null;
+function leaflet(){
+  if (_leafletP) return _leafletP;
+  _leafletP = new Promise((res, rej) => {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(css);
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    s.onload  = () => res(window.L);
+    s.onerror = () => { _leafletP = null; rej(new Error('offline')); };
+    document.head.appendChild(s);
+  });
+  return _leafletP;
+}
+function tileLayer(L){
+  return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '&copy; OpenStreetMap'
+  });
+}
+
+let miniMap, miniMarker;
+async function showMiniMap(){
+  const { lat, lon } = state.form;
+  if (lat == null) return;
+  $('#minimap').classList.remove('hidden');
+  $('#minimap-hint').hidden = false;
+  let L;
+  try { L = await leaflet(); }
+  catch { $('#minimap').classList.add('hidden'); $('#minimap-hint').hidden = true; return; }
+
+  if (!miniMap){
+    miniMap = L.map('minimap', { attributionControl: false }).setView([lat, lon], 15);
+    tileLayer(L).addTo(miniMap);
+    miniMarker = L.marker([lat, lon], { draggable: true }).addTo(miniMap);
+    miniMarker.on('dragend', () => {
+      const p = miniMarker.getLatLng();
+      setCoords(p.lat, p.lng, null);
+    });
+    miniMap.on('click', e => {
+      miniMarker.setLatLng(e.latlng);
+      setCoords(e.latlng.lat, e.latlng.lng, null);
+    });
+  } else {
+    miniMarker.setLatLng([lat, lon]);
+    miniMap.setView([lat, lon], Math.max(miniMap.getZoom(), 15));
+  }
+  setTimeout(() => miniMap.invalidateSize(), 60);
+}
+function setCoords(lat, lon, acc){
+  state.form.lat = +lat.toFixed(6);
+  state.form.lon = +lon.toFixed(6);
+  $('#gps-info').textContent =
+    `${state.form.lat.toFixed(5)}, ${state.form.lon.toFixed(5)}` + (acc ? ` (±${Math.round(acc)} m)` : '');
+  showMiniMap();
+}
+
+$('#btn-gps').onclick = () => {
+  if (!navigator.geolocation) return toast('Standort wird nicht unterstützt');
+  $('#gps-info').innerHTML = '<span class="spin"></span>Standort wird gesucht …';
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      setCoords(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+      loadWeather();               // Standort da → Luftwerte direkt hinterher
+    },
+    err => {
+      $('#gps-info').textContent = err.code === 1
+        ? 'Standort abgelehnt — in den iPhone-Einstellungen für Safari freigeben.'
+        : 'Standort nicht gefunden. Du kannst die Stelle gleich auf der Karte antippen.';
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+  );
+};
+$('#btn-gps-clear').onclick = () => {
+  state.form.lat = state.form.lon = null;
+  $('#gps-info').textContent = 'Noch kein Standort gesetzt.';
+  $('#minimap').classList.add('hidden');
+  $('#minimap-hint').hidden = true;
+};
+
+/* ---------------------------- Wetter ---------------------------- */
+// Open-Meteo liefert Stundenwerte inkl. Vergangenheit (past_days) — damit
+// stimmen die Werte auch, wenn der Fang erst abends nachgetragen wird.
+async function loadWeather(){
+  const { lat, lon } = state.form;
+  const when = $('#f-zeit').value;
+  if (lat == null){ toast('Erst Standort setzen'); return; }
+  if (!when){ toast('Erst Datum & Uhrzeit setzen'); return; }
+
+  $('#wx-info').innerHTML = '<span class="spin"></span>Wetter wird geholt …';
+  const url = 'https://api.open-meteo.com/v1/forecast'
+    + `?latitude=${lat}&longitude=${lon}`
+    + '&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m'
+    + '&daily=sunrise,sunset&timezone=auto&past_days=7&forecast_days=2';
+
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+
+    // Passende Stunde suchen — Open-Meteo liefert lokale Zeit ohne Zonensuffix,
+    // das Formularfeld ebenso, also lässt sich direkt vergleichen.
+    const target = when.slice(0, 13) + ':00';
+    let i = j.hourly.time.indexOf(target);
+    if (i < 0){
+      const t = new Date(when).getTime();
+      let best = -1, bd = Infinity;
+      j.hourly.time.forEach((s, k) => {
+        const d = Math.abs(new Date(s).getTime() - t);
+        if (d < bd){ bd = d; best = k; }
+      });
+      if (bd > 6 * 3600e3){
+        $('#wx-info').textContent = 'Für diesen Zeitpunkt gibt es keine Daten (älter als 7 Tage) — bitte manuell eintragen.';
+        return;
+      }
+      i = best;
+    }
+
+    const set = (sel, v) => { if (v != null) $(sel).value = Math.round(v * 10) / 10; };
+    set('#f-luft',        j.hourly.temperature_2m[i]);
+    set('#f-druck',       j.hourly.pressure_msl[i]);
+    set('#f-windstaerke', j.hourly.wind_speed_10m[i]);
+    const wd = j.hourly.wind_direction_10m[i];
+    if (wd != null) $('#f-windrichtung').value = dirLabel(wd);
+
+    const ph = phaseFor(when, j.daily);
+    if (ph && !state.form.phase) selectPhase(ph);
+
+    $('#wx-info').textContent = 'Automatisch übernommen — Werte kannst du überschreiben.';
+  } catch {
+    $('#wx-info').textContent = 'Kein Netz — Luftwerte bitte manuell eintragen.';
+  }
+}
+// Dämmerung großzügig als ±50 min um Sonnenauf-/untergang.
+function phaseFor(when, daily){
+  if (!daily || !daily.time) return null;
+  const k = daily.time.indexOf(when.slice(0, 10));
+  if (k < 0) return null;
+  const t  = new Date(when).getTime();
+  const sr = new Date(daily.sunrise[k]).getTime();
+  const ss = new Date(daily.sunset[k]).getTime();
+  const W  = 50 * 60e3;
+  if (Math.abs(t - sr) <= W) return 'morgen';
+  if (Math.abs(t - ss) <= W) return 'abend';
+  return (t > sr && t < ss) ? 'tag' : 'nacht';
+}
+$('#btn-wx').onclick = loadWeather;
+
+/* ---------------------------- Formular ---------------------------- */
+function buildStatics(){
+  $('#dl-art').innerHTML     = ARTEN.map(a => `<option value="${a}">`).join('');
+  $('#dl-koeder').innerHTML  = KOEDER.map(a => `<option value="${a}">`).join('');
+  $('#f-windrichtung').innerHTML =
+    '<option value="">—</option>' + DIRS.map(d => `<option value="${d}">${d}</option>`).join('');
+  $('#ch-phase').innerHTML = PHASEN.map(([k, l]) => `<button class="chip" data-phase="${k}">${l}</button>`).join('');
+  $('#ch-farbe').innerHTML = FARBEN.map(([n, hex]) =>
+    `<button class="chip" data-farbe="${n}"><i class="sw" style="background:${hex}"></i>${n}</button>`).join('');
+}
+function selectPhase(k){
+  state.form.phase = (state.form.phase === k) ? '' : k;
+  $$('#ch-phase .chip').forEach(c => c.classList.toggle('on', c.dataset.phase === state.form.phase));
+}
+function selectFarbe(n){
+  state.form.farbe = (state.form.farbe === n) ? '' : n;
+  $$('#ch-farbe .chip').forEach(c => c.classList.toggle('on', c.dataset.farbe === state.form.farbe));
+}
+$('#ch-phase').addEventListener('click', e => {
+  const b = e.target.closest('[data-phase]'); if (b) selectPhase(b.dataset.phase);
+});
+$('#ch-farbe').addEventListener('click', e => {
+  const b = e.target.closest('[data-farbe]'); if (b) selectFarbe(b.dataset.farbe);
+});
+
+function refreshWaterList(){
+  const waters = [...new Set(state.catches.map(c => c.gewaesser).filter(Boolean))].sort();
+  $('#dl-gewaesser').innerHTML = waters.map(w => `<option value="${w}">`).join('');
+}
+
+function resetForm(rec){
+  state.editId = rec ? rec.id : null;
+  state.form   = { photos: rec ? (rec.photos || []).slice() : [], lat: null, lon: null, farbe: '', phase: '' };
+
+  $('#form-title').textContent = rec ? 'Fang bearbeiten' : 'Neuer Fang';
+  $('#btn-del').classList.toggle('hidden', !rec);
+  $('#btn-save').textContent = rec ? 'Änderungen speichern' : 'Fang speichern';
+
+  const v = (sel, val) => { $(sel).value = (val == null ? '' : val); };
+  v('#f-art',          rec && rec.art);
+  v('#f-laenge',       rec && rec.laenge);
+  v('#f-gewicht',      rec && rec.gewicht);
+  v('#f-zeit',         rec ? rec.when : localIsoNow());
+  v('#f-gewaesser',    rec && rec.gewaesser);
+  v('#f-luft',         rec && rec.luft);
+  v('#f-druck',        rec && rec.druck);
+  v('#f-windstaerke',  rec && rec.windKmh);
+  v('#f-windrichtung', (rec && rec.windRichtung) || '');
+  v('#f-wasser',       rec && rec.wasser);
+  v('#f-tiefe',        rec && rec.tiefe);
+  v('#f-koeder',       rec && rec.koeder);
+  v('#f-koedergroesse',rec && rec.koederGroesse);
+  v('#f-notiz',        rec && rec.notiz);
+
+  $$('#ch-phase .chip').forEach(c => c.classList.remove('on'));
+  $$('#ch-farbe .chip').forEach(c => c.classList.remove('on'));
+  if (rec && rec.phase) selectPhase(rec.phase);
+  if (rec && rec.farbe) selectFarbe(rec.farbe);
+
+  $('#minimap').classList.add('hidden');
+  $('#minimap-hint').hidden = true;
+  $('#gps-info').textContent = 'Noch kein Standort gesetzt.';
+  $('#wx-info').textContent  = 'Standort setzen → Luftwerte kommen automatisch.';
+  if (rec && rec.lat != null) setCoords(rec.lat, rec.lon, null);
+
+  renderPhotos();
+  refreshWaterList();
+  window.scrollTo(0, 0);
+}
+
+$('#btn-save').onclick = async () => {
+  const art  = $('#f-art').value.trim();
+  const when = $('#f-zeit').value;
+  if (!when) return toast('Datum & Uhrzeit fehlen');
+  if (!art && !$('#f-laenge').value) return toast('Mindestens Fischart oder Länge angeben');
+
+  const rec = {
+    id: state.editId || uid(),
+    when,
+    ts: new Date(when).getTime(),
+    art,
+    laenge:        num($('#f-laenge').value),
+    gewicht:       num($('#f-gewicht').value),
+    gewaesser:     $('#f-gewaesser').value.trim(),
+    lat: state.form.lat, lon: state.form.lon,
+    luft:          num($('#f-luft').value),
+    druck:         num($('#f-druck').value),
+    windRichtung:  $('#f-windrichtung').value,
+    windKmh:       num($('#f-windstaerke').value),
+    wasser:        num($('#f-wasser').value),
+    tiefe:         num($('#f-tiefe').value),
+    phase:         state.form.phase,
+    koeder:        $('#f-koeder').value.trim(),
+    koederGroesse: num($('#f-koedergroesse').value),
+    farbe:         state.form.farbe,
+    notiz:         $('#f-notiz').value.trim(),
+    photos:        state.form.photos,
+    created:       state.editId ? undefined : Date.now()
+  };
+  if (rec.created === undefined) delete rec.created;
+
+  await putCatch(rec);
+  await reload();
+  toast(state.editId ? 'Gespeichert' : 'Fang gespeichert 🎣');
+  state.editId = null;
+  go('log');
+};
+
+$('#btn-del').onclick = async () => {
+  if (!state.editId) return;
+  if (!confirm('Diesen Fang wirklich löschen?')) return;
+  await removeCatch(state.editId);
+  state.editId = null;
+  await reload();
+  toast('Gelöscht');
+  go('log');
+};
+$('#btn-cancel').onclick = () => go(state.editId ? 'detail' : 'log');
+
+/* ---------------------------- Liste ---------------------------- */
+function renderList(){
+  const q = $('#q').value.trim().toLowerCase();
+  const rows = state.catches.filter(c => !q || [c.art, c.gewaesser, c.koeder, c.farbe, c.notiz]
+    .filter(Boolean).join(' ').toLowerCase().includes(q));
+
+  const list = $('#list');
+  list.innerHTML = '';
+
+  if (!state.catches.length){
+    list.innerHTML = `<div class="empty">Noch kein Fang drin.<br>
+      Tipp unten auf <b>Neuer Fang</b>, sobald der Erste im Kescher liegt.</div>`;
+  } else if (!rows.length){
+    list.innerHTML = '<div class="empty">Nichts gefunden.</div>';
+  }
+
+  rows.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'item';
+    el.dataset.id = c.id;
+
+    const size = [c.laenge && c.laenge + ' cm', c.gewicht && String(c.gewicht).replace('.', ',') + ' kg']
+      .filter(Boolean).join(' · ');
+    const tags = [
+      c.phase && phaseLabel(c.phase),
+      c.koeder && (c.koeder + (c.farbe ? ' · ' + c.farbe : '')),
+      c.druck  && c.druck + ' hPa',
+      c.windRichtung && ('Wind ' + c.windRichtung)
+    ].filter(Boolean).map(t => `<span class="pill">${t}</span>`).join('');
+
+    const th = (c.photos && c.photos[0])
+      ? `<img src="${objURL(c.photos[0].thumb)}" alt="">`
+      : '🐟';
+
+    el.innerHTML = `
+      <div class="th">${th}</div>
+      <div style="flex:1; min-width:0">
+        <div class="t1">${c.art || 'Fang'}${size ? ' · ' + size : ''}</div>
+        <div class="t2">${fmtDate(c.when)}${c.gewaesser ? ' · ' + c.gewaesser : ''}</div>
+        <div class="tags">${tags}</div>
+      </div>`;
+    list.appendChild(el);
+  });
+
+  const waters = new Set(state.catches.map(c => c.gewaesser).filter(Boolean));
+  const best = state.catches.reduce((a, c) => (c.laenge && (!a || c.laenge > a.laenge)) ? c : a, null);
+  $('#st-count').textContent  = state.catches.length + (state.catches.length === 1 ? ' Fang' : ' Fänge');
+  $('#st-waters').textContent = waters.size + (waters.size === 1 ? ' Gewässer' : ' Gewässer');
+  $('#st-best').textContent   = best ? `Größter: ${best.laenge} cm${best.art ? ' ' + best.art : ''}` : 'Noch kein Maß';
+}
+$('#list').addEventListener('click', e => {
+  const it = e.target.closest('.item');
+  if (it) openDetail(it.dataset.id);
+});
+$('#q').addEventListener('input', renderList);
+
+/* ---------------------------- Detail ---------------------------- */
+function openDetail(id){
+  state.detailId = id;
+  go('detail');
+}
+function renderDetail(){
+  const c = state.catches.find(x => x.id === state.detailId);
+  if (!c) return go('log');
+
+  $('#d-title').textContent = c.art || 'Fang';
+  const kv = (k, v) => v == null || v === '' ? '' : `<div class="kv"><span>${k}</span><b>${v}</b></div>`;
+  const dec = v => String(v).replace('.', ',');
+
+  const gal = (c.photos || []).length
+    ? `<div class="card"><div class="gal">${c.photos.map((p, i) =>
+        `<img src="${objURL(p.thumb)}" data-full="${i}" alt="">`).join('')}</div></div>`
+    : '';
+
+  $('#d-body').innerHTML = gal + `
+    <div class="card">
+      ${kv('Datum', fmtDate(c.when))}
+      ${kv('Fischart', c.art)}
+      ${kv('Länge', c.laenge && dec(c.laenge) + ' cm')}
+      ${kv('Gewicht', c.gewicht && dec(c.gewicht) + ' kg')}
+      ${kv('Gewässer', c.gewaesser)}
+      ${kv('Tageszeit', phaseLabel(c.phase))}
+    </div>
+    <div class="card">
+      <h2>Bedingungen</h2>
+      ${kv('Wassertemperatur', c.wasser != null && dec(c.wasser) + ' °C')}
+      ${kv('Wassertiefe', c.tiefe != null && dec(c.tiefe) + ' m')}
+      ${kv('Lufttemperatur', c.luft != null && dec(c.luft) + ' °C')}
+      ${kv('Luftdruck', c.druck != null && dec(c.druck) + ' hPa')}
+      ${kv('Wind', [c.windRichtung, c.windKmh != null && dec(c.windKmh) + ' km/h'].filter(Boolean).join(' · '))}
+    </div>
+    <div class="card">
+      <h2>Köder</h2>
+      ${kv('Köder', c.koeder)}
+      ${kv('Größe', c.koederGroesse != null && dec(c.koederGroesse) + ' cm')}
+      ${kv('Farbe', c.farbe)}
+    </div>
+    ${c.notiz ? `<div class="card"><h2>Notiz</h2><div style="font-size:14px; line-height:1.55">${
+      c.notiz.replace(/</g, '&lt;').replace(/\n/g, '<br>')}</div></div>` : ''}
+    ${c.lat != null ? `<div class="card">
+      ${kv('Koordinaten', c.lat.toFixed(5) + ', ' + c.lon.toFixed(5))}
+      <a class="btn sm" style="display:block; margin-top:10px; text-decoration:none"
+         href="https://maps.apple.com/?ll=${c.lat},${c.lon}&q=Fangstelle">In Karten öffnen</a>
+    </div>` : ''}`;
+
+  $('#d-body').querySelectorAll('[data-full]').forEach(img => {
+    img.onclick = () => {
+      $('#viewer-img').src = objURL(c.photos[+img.dataset.full].full);
+      $('#viewer').classList.add('on');
+    };
+  });
+  window.scrollTo(0, 0);
+}
+$('#viewer').onclick = () => $('#viewer').classList.remove('on');
+$('#btn-back').onclick = () => go('log');
+$('#btn-edit').onclick = () => {
+  const c = state.catches.find(x => x.id === state.detailId);
+  if (c){ go('new'); resetForm(c); }
+};
+
+/* ---------------------------- Kartenansicht ---------------------------- */
+let bigMap, markerLayer;
+async function renderMap(){
+  const withPos = state.catches.filter(c => c.lat != null);
+  $('#map-count').textContent = withPos.length + ' mit Standort';
+
+  let L;
+  try { L = await leaflet(); }
+  catch {
+    $('#map').innerHTML = '<div class="empty">Karte braucht Internet.<br>Fänge erfassen geht trotzdem.</div>';
+    return;
+  }
+  if (!bigMap){
+    bigMap = L.map('map').setView([51.2, 10.4], 5);
+    tileLayer(L).addTo(bigMap);
+    markerLayer = L.layerGroup().addTo(bigMap);
+  }
+  markerLayer.clearLayers();
+
+  withPos.forEach(c => {
+    const size = [c.laenge && c.laenge + ' cm', c.gewicht && String(c.gewicht).replace('.', ',') + ' kg']
+      .filter(Boolean).join(' · ');
+    const img = (c.photos && c.photos[0]) ? `<img src="${objURL(c.photos[0].thumb)}" alt="">` : '';
+    const m = L.marker([c.lat, c.lon]).addTo(markerLayer);
+    m.bindPopup(`${img}<b>${c.art || 'Fang'}</b>${size ? '<br>' + size : ''}
+      <br>${fmtDate(c.when)}${c.gewaesser ? '<br>' + c.gewaesser : ''}
+      <br><a href="#" data-open="${c.id}" style="color:var(--accent)">Details</a>`);
+  });
+
+  if (withPos.length){
+    bigMap.fitBounds(L.latLngBounds(withPos.map(c => [c.lat, c.lon])).pad(0.25),
+                     { maxZoom: 15 });
+  }
+  setTimeout(() => bigMap.invalidateSize(), 60);
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-open]');
+  if (a){ e.preventDefault(); openDetail(a.dataset.open); }
+});
+
+/* ---------------------------- Backup ---------------------------- */
+const blobToDataURL = b => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
+const dataURLToBlob = async d => (await fetch(d)).blob();
+
+$('#btn-menu').onclick = () => $('#sheet').classList.add('on');
+$('#btn-close-sheet').onclick = () => $('#sheet').classList.remove('on');
+$('#sheet').onclick = e => { if (e.target.id === 'sheet') $('#sheet').classList.remove('on'); };
+
+$('#btn-export').onclick = async () => {
+  toast('Backup wird gebaut …');
+  const out = [];
+  for (const c of state.catches){
+    const copy = { ...c };
+    copy.photos = [];
+    for (const p of (c.photos || [])){
+      copy.photos.push({ full: await blobToDataURL(p.full), thumb: await blobToDataURL(p.thumb) });
+    }
+    out.push(copy);
+  }
+  const blob = new Blob([JSON.stringify({ app: 'angel-log', version: 1, exported: new Date().toISOString(), catches: out })],
+                        { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `angel-log-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+};
+
+$('#btn-import').onclick = () => $('#in-import').click();
+$('#in-import').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const j = JSON.parse(await f.text());
+    if (!j.catches) throw new Error('Format');
+    if (!confirm(`${j.catches.length} Fänge einlesen? Vorhandene Einträge mit gleicher ID werden überschrieben.`)) return;
+    for (const c of j.catches){
+      const rec = { ...c, photos: [] };
+      for (const p of (c.photos || [])){
+        rec.photos.push({ full: await dataURLToBlob(p.full), thumb: await dataURLToBlob(p.thumb) });
+      }
+      if (!rec.id) rec.id = uid();
+      await putCatch(rec);
+    }
+    await reload();
+    $('#sheet').classList.remove('on');
+    toast('Backup eingelesen');
+  } catch {
+    toast('Datei konnte nicht gelesen werden');
+  }
+};
+
+/* ---------------------------- Navigation ---------------------------- */
+function go(view){
+  freeURLs();
+  state.view = view;
+  ['log', 'new', 'map', 'detail'].forEach(v => $('#v-' + v).classList.toggle('hidden', v !== view));
+  $$('.tab').forEach(t => t.classList.toggle('on',
+    t.dataset.go === view || (view === 'detail' && t.dataset.go === 'log')));
+
+  if (view === 'log')    renderList();
+  if (view === 'map')    renderMap();
+  if (view === 'detail') renderDetail();
+  if (view === 'new' && !state.editId) resetForm(null);
+  window.scrollTo(0, 0);
+}
+$$('.tab').forEach(t => t.onclick = () => {
+  if (t.dataset.go === 'new') state.editId = null;
+  go(t.dataset.go);
+});
+
+/* ---------------------------- Start ---------------------------- */
+async function reload(){
+  state.catches = (await allCatches()).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  refreshWaterList();
+}
+(async function init(){
+  buildStatics();
+  try { await reload(); }
+  catch { toast('Datenbank nicht verfügbar — im Privat-Modus speichert Safari nichts.'); }
+  go('log');
+  if (location.protocol.startsWith('http') && 'serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+})();
+</script>
+</body>
+</html>
