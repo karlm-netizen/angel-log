@@ -332,15 +332,21 @@
       <textarea class="in" id="f-notiz" placeholder="Drill, Stelle, Führung, Besonderheiten …"></textarea>
     </div>
 
-    <button class="btn primary" id="btn-save" style="margin:14px 0 6px">Fang speichern</button>
-    <button class="btn danger hidden" id="btn-del">Fang löschen</button>
+    <button class="btn danger hidden" id="btn-del" style="margin-top:14px">Fang löschen</button>
   </div>
 </section>
 
 <!-- ======================= KARTE ======================= -->
 <section id="v-map" class="hidden">
   <div class="head"><h1>Karte</h1><span class="pill" id="map-count">—</span></div>
-  <div class="wrap"><div id="map"></div></div>
+  <div class="wrap">
+    <div id="map"></div>
+    <div id="map-error" class="hidden">
+      <div class="empty">Die Karte ließ sich nicht laden.<br>
+        Erfassen und Fotos funktionieren davon unabhängig weiter.</div>
+      <button class="btn" id="btn-map-retry">Nochmal versuchen</button>
+    </div>
+  </div>
 </section>
 
 <!-- ======================= DETAIL ======================= -->
@@ -632,18 +638,21 @@ $('#in-cam').onchange = async e => { await addPhotos(e.target.files); e.target.v
 $('#in-lib').onchange = async e => { await addPhotos(e.target.files); e.target.value = ''; };
 
 /* ---------------------------- Karte (Leaflet, faul geladen) ---------------------------- */
+// Leaflet liegt im Repo statt bei einem CDN: ein kurzer Aussetzer bei unpkg hat
+// sonst als "kein Internet" gemeldet, obwohl die Verbindung stand.
 let _leafletP = null;
 function leaflet(){
   if (_leafletP) return _leafletP;
   _leafletP = new Promise((res, rej) => {
+    if (window.L) return res(window.L);
     const css = document.createElement('link');
     css.rel = 'stylesheet';
-    css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    css.href = 'leaflet/leaflet.css';
     document.head.appendChild(css);
     const s = document.createElement('script');
-    s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    s.src = 'leaflet/leaflet.js';
     s.onload  = () => res(window.L);
-    s.onerror = () => { _leafletP = null; rej(new Error('offline')); };
+    s.onerror = () => { _leafletP = null; rej(new Error('Karte nicht ladbar')); };
     document.head.appendChild(s);
   });
   return _leafletP;
@@ -959,7 +968,6 @@ function resetForm(rec){
 
   $('#form-title').textContent = !rec ? 'Neuer Fang' : (rec.entwurf ? 'Entwurf' : 'Fang bearbeiten');
   $('#btn-del').classList.toggle('hidden', !rec);
-  $('#btn-save').textContent = state.editWasSaved ? 'Änderungen speichern' : 'Fang speichern';
 
   const v = (sel, val) => { $(sel).value = (val == null ? '' : val); };
   v('#f-art',          rec && rec.art);
@@ -1069,7 +1077,7 @@ async function saveNow(){
   clearTimeout(draftTimer);
   const war = state.editWasSaved;
   const rec = buildRecord(false);
-  const btn = $('#btn-save');
+  const btn = $('#fab-save');
   btn.disabled = true;
   try {
     await putCatch(rec);
@@ -1085,7 +1093,6 @@ async function saveNow(){
     btn.disabled = false;
   }
 }
-$('#btn-save').onclick = saveNow;
 $('#fab-save').onclick = saveNow;
 
 $('#btn-del').onclick = async () => {
@@ -1245,9 +1252,14 @@ async function renderMap(){
   $('#map-count').textContent = withPos.length + ' mit Standort';
 
   let L;
-  try { L = await leaflet(); }
-  catch {
-    $('#map').innerHTML = '<div class="empty">Karte braucht Internet.<br>Fänge erfassen geht trotzdem.</div>';
+  try {
+    L = await leaflet();
+    $('#map-error').classList.add('hidden');
+    $('#map').classList.remove('hidden');
+  } catch {
+    // Karte-Container nicht überschreiben, sonst ist ein zweiter Versuch tot.
+    $('#map').classList.add('hidden');
+    $('#map-error').classList.remove('hidden');
     return;
   }
   if (!bigMap){
@@ -1277,6 +1289,7 @@ document.addEventListener('click', e => {
   const a = e.target.closest('[data-open]');
   if (a){ e.preventDefault(); openDetail(a.dataset.open); }
 });
+$('#btn-map-retry').onclick = () => { _leafletP = null; renderMap(); };
 
 /* ---------------------------- Backup ---------------------------- */
 const blobToDataURL = b => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });

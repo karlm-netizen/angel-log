@@ -2,9 +2,12 @@
 // Eigene Dateien: Netz zuerst, damit Updates sofort ankommen — Cache nur als Offline-Rückfall.
 // Kartenkacheln und Leaflet: Cache zuerst, denn am Wasser ist oft kein Netz und einmal
 // angeschaute Gewässer sollen offline noch da sein. Wetter-API: nie cachen.
-const CACHE  = 'angellog-v3';
+const CACHE  = 'angellog-v4';
 const TILES  = 'angellog-tiles';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
+const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png',
+  './leaflet/leaflet.js', './leaflet/leaflet.css',
+  './leaflet/images/marker-icon.png', './leaflet/images/marker-icon-2x.png',
+  './leaflet/images/marker-shadow.png', './leaflet/images/layers.png', './leaflet/images/layers-2x.png'];
 const TILE_MAX = 800;
 
 self.addEventListener('install', e => {
@@ -40,16 +43,15 @@ self.addEventListener('fetch', e => {
   // Wetterdaten immer frisch holen.
   if (url.hostname === 'api.open-meteo.com') return;
 
-  const isTile  = url.hostname.endsWith('tile.openstreetmap.org');
-  const isVendor = url.hostname === 'unpkg.com';
-
-  if (isTile || isVendor){
+  // Kartenkacheln: erst Cache, dann Netz — und ein Netzfehler darf die Anfrage
+  // nicht platzen lassen, sonst meldet die Karte fälschlich einen Ausfall.
+  if (url.hostname.endsWith('tile.openstreetmap.org')){
     e.respondWith(
       caches.open(TILES).then(c =>
         c.match(req).then(hit => hit || fetch(req).then(r => {
-          if (r.ok || r.type === 'opaque'){ c.put(req, r.clone()); if (isTile) trimTiles(); }
+          if (r.ok || r.type === 'opaque'){ c.put(req, r.clone()); trimTiles(); }
           return r;
-        }))
+        }).catch(() => Response.error()))
       )
     );
     return;
