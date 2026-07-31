@@ -400,13 +400,18 @@ let _db = null;
 function db(){
   if (_db) return Promise.resolve(_db);
   return new Promise((res, rej) => {
+    // Safari im privaten Modus lässt open() auch mal ewig hängen, ohne je
+    // onerror zu feuern. Deshalb ein Wecker — sonst wartet die App stumm.
+    const guard = setTimeout(() => rej(new Error('Speicher antwortet nicht')), 6000);
+    const done = fn => (...a) => { clearTimeout(guard); fn(...a); };
     const r = indexedDB.open(DBN, 1);
     r.onupgradeneeded = () => {
       const d = r.result;
       if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE, { keyPath: 'id' });
     };
-    r.onsuccess = () => { _db = r.result; res(_db); };
-    r.onerror   = () => rej(r.error);
+    r.onsuccess = done(() => { _db = r.result; res(_db); });
+    r.onerror   = done(() => rej(r.error || new Error('Speicher nicht verfügbar')));
+    r.onblocked = done(() => rej(new Error('Speicher blockiert')));
   });
 }
 async function allCatches(){
@@ -776,23 +781,40 @@ $('#btn-save').onclick = async () => {
   };
   if (rec.created === undefined) delete rec.created;
 
-  await putCatch(rec);
-  await reload();
-  toast(state.editId ? 'Gespeichert' : 'Fang gespeichert 🎣');
-  state.editId = null;
-  go('log');
+  const btn = $('#btn-save');
+  btn.disabled = true;
+  try {
+    await putCatch(rec);
+    await reload();
+    toast(state.editId ? 'Gespeichert' : 'Fang gespeichert 🎣');
+    state.editId = null;
+    go('log');
+  } catch {
+    // Lieber laut scheitern, als einen Fang stillschweigend verlieren.
+    toast('Speichern fehlgeschlagen — Eintrag bleibt offen, bitte erneut versuchen.');
+  } finally {
+    btn.disabled = false;
+  }
 };
 
 $('#btn-del').onclick = async () => {
   if (!state.editId) return;
   if (!confirm('Diesen Fang wirklich löschen?')) return;
-  await removeCatch(state.editId);
-  state.editId = null;
-  await reload();
-  toast('Gelöscht');
-  go('log');
+  try {
+    await removeCatch(state.editId);
+    state.editId = null;
+    await reload();
+    toast('Gelöscht');
+    go('log');
+  } catch {
+    toast('Löschen fehlgeschlagen');
+  }
 };
-$('#btn-cancel').onclick = () => go(state.editId ? 'detail' : 'log');
+$('#btn-cancel').onclick = () => {
+  const back = state.editId ? 'detail' : 'log';
+  state.editId = null;          // sonst überschreibt der nächste Fang den bearbeiteten
+  go(back);
+};
 
 /* ---------------------------- Liste ---------------------------- */
 function renderList(){
@@ -1030,11 +1052,21 @@ async function reload(){
   state.catches = (await allCatches()).sort((a, b) => (b.ts || 0) - (a.ts || 0));
   refreshWaterList();
 }
+// Fehler sollen sichtbar sein — auf dem Handy gibt es keine Konsole zum Nachsehen.
+window.addEventListener('error', e => toast('Fehler: ' + (e.message || 'unbekannt')));
+window.addEventListener('unhandledrejection', e =>
+  toast('Fehler: ' + ((e.reason && e.reason.message) || 'unbekannt')));
+
 (async function init(){
   buildStatics();
-  try { await reload(); }
-  catch { toast('Datenbank nicht verfügbar — im Privat-Modus speichert Safari nichts.'); }
-  go('log');
+  go('log');                       // Oberfläche steht sofort, auch wenn der Speicher klemmt
+  try {
+    await reload();
+    renderList();
+  } catch {
+    $('#list').innerHTML = `<div class="empty">Der Speicher dieses Browsers ist nicht erreichbar.<br>
+      Im privaten Modus von Safari lässt sich nichts sichern — normales Fenster benutzen.</div>`;
+  }
   if (location.protocol.startsWith('http') && 'serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
