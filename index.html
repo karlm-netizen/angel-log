@@ -310,7 +310,7 @@
         <input class="in" id="f-koedergroesse" type="number" inputmode="decimal" step="0.5" placeholder="12">
       </div>
       <div class="fld">
-        <label class="f">Köderfarbe</label>
+        <label class="f">Köderfarbe <span class="muted" style="font-weight:500">— mehrere möglich</span></label>
         <div class="chips" id="ch-farbe"></div>
       </div>
     </div>
@@ -432,11 +432,16 @@ const KOEDER = ['Gummifisch','Wobbler','Blinker','Spinner','Jerkbait','Crankbait
   'Chatterbait','Dropshot-Gummi','Creature Bait','Fliege','Streamer','Tauwurm','Made','Mais',
   'Boilie','Pellet','Köderfisch','Teig','Kirschmade'];
 
+// Mehrfachauswahl möglich — ein Köder hat selten nur eine Farbe.
+// Der zweite Eintrag ist ein CSS-Hintergrund, kein reiner Farbwert: Muster wie
+// Firetiger lassen sich als einzelner Farbfleck nicht ehrlich darstellen.
 const FARBEN = [
   ['Weiß','#f2f2f2'],['Schwarz','#1c1c1c'],['Rot','#e03131'],['Orange','#f76707'],
   ['Gelb','#fcc419'],['Grün','#2f9e44'],['Blau','#1971c2'],['Silber','#c3ccd6'],
   ['Gold','#d4a017'],['Braun','#8b5e34'],['Motoroil','#4a4b2f'],['Pink/UV','#e64980'],
-  ['Perlmutt','#e8dfd0'],['Naturdekor','#93a58c']
+  ['Perlmutt','#e8dfd0'],['Naturdekor','#93a58c'],
+  ['Firetiger','repeating-linear-gradient(90deg,transparent 0 3px,rgba(0,0,0,.85) 3px 4.5px),' +
+               'linear-gradient(180deg,#1f7a34 0 30%,#d7e600 30% 66%,#f76707 66%)']
 ];
 
 const PHASEN = [['morgen','Morgendämmerung'],['tag','Tag'],['abend','Abenddämmerung'],['nacht','Nacht']];
@@ -543,7 +548,7 @@ const state = {
   catches: [],      // im Speicher, absteigend nach Zeit sortiert
   editId: null,     // gesetzt = an diesem Eintrag wird gerade geschrieben
   editWasSaved: false, // true = fertiger Fang in Bearbeitung, kein Entwurf
-  form: { photos: [], lat: null, lon: null, farbe: '', phase: '', wasserAuto: null },
+  form: { photos: [], lat: null, lon: null, farben: [], phase: '', wasserAuto: null },
   detailId: null,
   urls: []          // ObjectURLs, die beim Ansichtswechsel wieder freigegeben werden
 };
@@ -943,9 +948,18 @@ function selectPhase(k){
   $$('#ch-phase .chip').forEach(c => c.classList.toggle('on', c.dataset.phase === state.form.phase));
   scheduleDraft();
 }
+/* Farben sind eine Mehrfachauswahl. Fänge aus der Zeit davor haben ein einzelnes
+   `farbe` — deshalb liest alles über farbenVon(), geschrieben wird nur noch `farben`. */
+function farbenVon(rec){
+  if (!rec) return [];
+  if (Array.isArray(rec.farben)) return rec.farben;
+  return rec.farbe ? [rec.farbe] : [];
+}
 function selectFarbe(n){
-  state.form.farbe = (state.form.farbe === n) ? '' : n;
-  $$('#ch-farbe .chip').forEach(c => c.classList.toggle('on', c.dataset.farbe === state.form.farbe));
+  const f = state.form.farben;
+  const i = f.indexOf(n);
+  if (i < 0) f.push(n); else f.splice(i, 1);
+  $$('#ch-farbe .chip').forEach(c => c.classList.toggle('on', f.includes(c.dataset.farbe)));
   scheduleDraft();
 }
 $('#ch-phase').addEventListener('click', e => {
@@ -964,7 +978,7 @@ function resetForm(rec){
   state.editId       = rec ? rec.id : null;
   state.editWasSaved = !!(rec && !rec.entwurf);
   state.form   = { photos: rec ? (rec.photos || []).slice() : [],
-                   lat: null, lon: null, farbe: '', phase: '',
+                   lat: null, lon: null, farben: [], phase: '',
                    wasserAuto: (rec && rec.wasserQuelle && rec.wasserQuelle !== 'manuell')
                      ? { wert: rec.wasser, quelle: rec.wasserQuelle, station: rec.wasserStation || '' }
                      : null };
@@ -991,7 +1005,7 @@ function resetForm(rec){
   $$('#ch-phase .chip').forEach(c => c.classList.remove('on'));
   $$('#ch-farbe .chip').forEach(c => c.classList.remove('on'));
   if (rec && rec.phase) selectPhase(rec.phase);
-  if (rec && rec.farbe) selectFarbe(rec.farbe);
+  farbenVon(rec).forEach(n => selectFarbe(n));
 
   $('#minimap').classList.add('hidden');
   $('#minimap-hint').hidden = true;
@@ -1036,7 +1050,7 @@ function buildRecord(entwurf){
     phase:         state.form.phase,
     koeder:        $('#f-koeder').value.trim(),
     koederGroesse: num($('#f-koedergroesse').value),
-    farbe:         state.form.farbe,
+    farben:        state.form.farben.slice(),
     notiz:         $('#f-notiz').value.trim(),
     photos:        state.form.photos
   };
@@ -1051,7 +1065,7 @@ function formHatInhalt(){
                   '#f-windstaerke','#f-wasser','#f-tiefe','#f-koeder','#f-koedergroesse','#f-notiz'];
   return felder.some(s => $(s).value.trim() !== '')
       || state.form.photos.length > 0 || state.form.lat != null
-      || !!state.form.phase || !!state.form.farbe;
+      || !!state.form.phase || state.form.farben.length > 0;
 }
 function scheduleDraft(){
   if (state.view !== 'new') return;
@@ -1124,7 +1138,7 @@ $('#btn-cancel').onclick = () => {
 /* ---------------------------- Liste ---------------------------- */
 function renderList(){
   const q = $('#q').value.trim().toLowerCase();
-  const rows = state.catches.filter(c => !q || [c.art, c.gewaesser, c.koeder, c.farbe, c.notiz]
+  const rows = state.catches.filter(c => !q || [c.art, c.gewaesser, c.koeder, ...farbenVon(c), c.notiz]
     .filter(Boolean).join(' ').toLowerCase().includes(q));
 
   const list = $('#list');
@@ -1144,9 +1158,10 @@ function renderList(){
 
     const size = [c.laenge && c.laenge + ' cm', c.gewicht && String(c.gewicht).replace('.', ',') + ' kg']
       .filter(Boolean).join(' · ');
+    const farben = farbenVon(c).join(', ');
     const tags = (c.entwurf ? '<span class="pill warn">Entwurf</span>' : '') + [
       c.phase && phaseLabel(c.phase),
-      c.koeder && (c.koeder + (c.farbe ? ' · ' + c.farbe : '')),
+      [c.koeder, farben].filter(Boolean).join(' · '),
       c.druck  && c.druck + ' hPa',
       c.windRichtung && ('Wind ' + c.windRichtung)
     ].filter(Boolean).map(t => `<span class="pill">${t}</span>`).join('');
@@ -1223,7 +1238,7 @@ function renderDetail(){
       <h2>Köder</h2>
       ${kv('Köder', c.koeder)}
       ${kv('Größe', c.koederGroesse != null && dec(c.koederGroesse) + ' cm')}
-      ${kv('Farbe', c.farbe)}
+      ${kv(farbenVon(c).length > 1 ? 'Farben' : 'Farbe', farbenVon(c).join(', '))}
     </div>
     ${c.notiz ? `<div class="card"><h2>Notiz</h2><div style="font-size:14px; line-height:1.55">${
       c.notiz.replace(/</g, '&lt;').replace(/\n/g, '<br>')}</div></div>` : ''}
