@@ -145,6 +145,29 @@
   .tab svg{width:22px; height:22px}
 
   /* Overlays */
+  /* Am PC. Die App ist fürs Handy gebaut und bleibt es auch — hier wird nur die
+     Fläche genutzt, die ohnehin da ist, statt einer 560-px-Säule in der Mitte.
+     Bewusst *nicht* alles breiter: die Fangliste und die Karte gewinnen durch
+     Platz, ein Eingabeformular über die volle Breite liest sich schlechter, nicht
+     besser. Deshalb bleiben Formular und Detailansicht schmal und mittig. */
+  @media (min-width: 900px){
+    body{max-width:1060px}
+    .tabs > div{max-width:1060px}
+    /* Fangliste mehrspaltig — der eigentliche Gewinn am großen Bildschirm. */
+    #list{display:grid; grid-template-columns:repeat(auto-fill, minmax(330px, 1fr));
+      gap:12px; align-items:start}
+    #list .item{margin:0}
+    #list .empty{grid-column:1 / -1}
+    /* Formular und Detail behalten Lesebreite. */
+    #v-new .wrap, #v-detail .wrap{max-width:620px; margin:0 auto}
+    #map{height:calc(100vh - 190px)}
+    .gal{grid-template-columns:repeat(3, 1fr)}
+    /* Der Speichern-Knopf bleibt am rechten Rand des Inhalts, nicht am Fensterrand
+       — sonst schwebt er bei 1440 px einsam in der Wüste. max() fängt die Breiten
+       zwischen 900 und 1060 px ab, wo die Rechnung sonst negativ würde. */
+    .fab{right:max(16px, calc((100vw - 1060px) / 2 + 16px))}
+  }
+
   .sheet{position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:1000; display:none;
     align-items:flex-end}
   .sheet.on{display:flex}
@@ -181,7 +204,17 @@
     </button>
   </div>
   <div class="wrap">
-    <div class="row" style="gap:8px; margin:8px 0 4px">
+    <div class="card" id="zeit-karte" style="margin-top:8px">
+      <div class="row between" style="display:flex; align-items:center; gap:12px">
+        <div style="min-width:0">
+          <div class="f" style="margin:0 0 3px 2px">Angelzeit gesamt</div>
+          <div id="zeit-gesamt" style="font-size:22px; font-weight:700; line-height:1.15">0 min</div>
+          <div class="tiny muted" id="zeit-laeuft" style="margin-top:3px" hidden></div>
+        </div>
+        <button class="btn sm" id="btn-zeit" style="flex:none; min-width:104px">▶︎ Start</button>
+      </div>
+    </div>
+    <div class="row" style="gap:8px; margin:10px 0 4px">
       <span class="pill" id="st-count">0 Fänge</span>
       <span class="pill" id="st-waters">0 Gewässer</span>
       <span class="pill" id="st-best">—</span>
@@ -586,6 +619,70 @@ async function removeCatch(id){
     t.onerror    = () => rej(t.error);
   });
 }
+
+/* ---------------------------- Angelzeit ----------------------------
+   Timer für die Dauer eines Ansitzes, dazu die aufsummierte Gesamtzeit.
+
+   ⚠️ Entscheidend: gespeichert wird der **Startzeitpunkt**, nicht ein
+   mitlaufender Zähler. Am iPhone wird eine PWA im Hintergrund eingefroren —
+   ein Zähler, der per Timer hochzählt, würde stehenbleiben und die Hälfte des
+   Ansitzes verschlucken. Aus Startzeitpunkt und Uhr gerechnet stimmt es auch
+   dann, wenn das Handy vier Stunden in der Tasche lag. */
+const ZEIT_KEY = 'angellog-zeit';
+let zeitTicker = null;
+
+function zeitLesen(){
+  try {
+    const j = JSON.parse(localStorage.getItem(ZEIT_KEY) || '{}');
+    return { gesamt: Number(j.gesamt) || 0, start: Number(j.start) || null };
+  } catch { return { gesamt: 0, start: null }; }
+}
+function zeitSchreiben(z){
+  try { localStorage.setItem(ZEIT_KEY, JSON.stringify(z)); } catch {}
+}
+// "3 h 25 min" — Sekunden interessieren bei einem Ansitz niemanden.
+function dauerText(ms){
+  const min = Math.floor(ms / 60000);
+  const h = Math.floor(min / 60);
+  return h ? `${h} h ${min % 60} min` : `${min} min`;
+}
+// Der laufende Ansitz dagegen mit Sekunden, sonst wirkt der Timer tot.
+function laufText(ms){
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 3600)}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`;
+}
+
+function renderZeit(){
+  const z = zeitLesen();
+  const laeuft = z.start != null;
+  // Der laufende Ansitz zählt sichtbar zur Gesamtzeit dazu, wird aber erst
+  // beim Stoppen festgeschrieben.
+  const offen = laeuft ? Math.max(0, Date.now() - z.start) : 0;
+  $('#zeit-gesamt').textContent = dauerText(z.gesamt + offen);
+  $('#zeit-laeuft').hidden = !laeuft;
+  if (laeuft) $('#zeit-laeuft').textContent = 'Läuft seit ' + laufText(offen);
+  $('#btn-zeit').textContent = laeuft ? '■ Stopp' : '▶︎ Start';
+  $('#btn-zeit').classList.toggle('danger', laeuft);
+
+  clearInterval(zeitTicker);
+  zeitTicker = laeuft ? setInterval(renderZeit, 1000) : null;
+}
+
+$('#btn-zeit').onclick = () => {
+  const z = zeitLesen();
+  if (z.start == null){
+    zeitSchreiben({ gesamt: z.gesamt, start: Date.now() });
+    toast('Angelzeit läuft');
+  } else {
+    const dauer = Math.max(0, Date.now() - z.start);
+    zeitSchreiben({ gesamt: z.gesamt + dauer, start: null });
+    toast('Ansitz gespeichert: ' + dauerText(dauer));
+  }
+  renderZeit();
+};
+
+// Kommt die App aus dem Hintergrund zurück, ist die Anzeige alt — neu rechnen.
+document.addEventListener('visibilitychange', () => { if (!document.hidden) renderZeit(); });
 
 /* ---------------------------- Farbpalette ---------------------------- */
 const PAL_KEY = 'angellog-palette';
@@ -1546,7 +1643,11 @@ $('#btn-export').onclick = async () => {
     }
     out.push(copy);
   }
-  const blob = new Blob([JSON.stringify({ app: 'angel-log', version: 1, exported: new Date().toISOString(), catches: out })],
+  // Die Angelzeit gehört mit ins Backup — sie liegt sonst nur im localStorage
+  // und wäre nach einem Wiederherstellen weg, obwohl alle Fänge wieder da sind.
+  const blob = new Blob([JSON.stringify({ app: 'angel-log', version: 1,
+                          exported: new Date().toISOString(),
+                          zeit: zeitLesen(), catches: out })],
                         { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1571,7 +1672,14 @@ $('#in-import').onchange = async e => {
       if (!rec.id) rec.id = uid();
       await putCatch(rec);
     }
+    // Angelzeit: die größere der beiden Gesamtzeiten gewinnt. Ein Backup soll
+    // nichts wegnehmen, was seit dem Export dazugekommen ist.
+    if (j.zeit && Number(j.zeit.gesamt) > 0){
+      const jetzt = zeitLesen();
+      zeitSchreiben({ gesamt: Math.max(jetzt.gesamt, Number(j.zeit.gesamt)), start: jetzt.start });
+    }
     await reload();
+    renderZeit();
     $('#sheet').classList.remove('on');
     toast('Backup eingelesen');
   } catch {
@@ -1588,7 +1696,7 @@ function go(view){
   $$('.tab').forEach(t => t.classList.toggle('on',
     t.dataset.go === view || (view === 'detail' && t.dataset.go === 'log')));
 
-  if (view === 'log')    renderList();
+  if (view === 'log'){ renderList(); renderZeit(); }
   if (view === 'map')    renderMap();
   if (view === 'detail') renderDetail();
   if (view === 'new' && !state.editId) resetForm(null);

@@ -23,8 +23,10 @@ CHROME = next((c for c in [
 if not CHROME:
     sys.exit('Chrome nicht gefunden — Pfad in pruefungen.py anpassen.')
 
+# OneDrive haelt Ordner gelegentlich fest, deshalb ueberschreiben statt loeschen.
 if WORK.exists(): shutil.rmtree(WORK, ignore_errors=True)
-shutil.copytree(SRC, WORK, ignore=shutil.ignore_patterns('.git', '.testrun', '*.py', '*.md'))
+shutil.copytree(SRC, WORK, dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns('.git', '.testrun', '*.py', '*.md'))
 
 TESTS = r"""
 <script>
@@ -168,6 +170,89 @@ TESTS = r"""
             && document.querySelector('#f-bewoelkung').value === '90')
         || (state.form.wetter + '/' + document.querySelector('#f-bewoelkung').value);
   });
+
+  // ---- Angelzeit ----
+  const zeitWeg = () => { try { localStorage.removeItem(ZEIT_KEY); } catch {} };
+
+  t('Dauer: 0',            () => dauerText(0) === '0 min' || dauerText(0));
+  t('Dauer: unter 1 min',  () => dauerText(59000) === '0 min' || dauerText(59000));
+  t('Dauer: 1 min',        () => dauerText(60000) === '1 min' || dauerText(60000));
+  t('Dauer: 90 min',       () => dauerText(90*60000) === '1 h 30 min' || dauerText(90*60000));
+  t('Dauer: glatte Stunde',() => dauerText(3600000) === '1 h 0 min' || dauerText(3600000));
+  t('Dauer: 25 h',         () => dauerText(25*3600000) === '25 h 0 min' || dauerText(25*3600000));
+  t('Laufzeit: 0',         () => laufText(0) === '0:00:00' || laufText(0));
+  t('Laufzeit: 1:01:01',   () => laufText(3661000) === '1:01:01' || laufText(3661000));
+  t('Laufzeit: Sekunden zweistellig', () => laufText(9000) === '0:00:09' || laufText(9000));
+
+  t('leerer Speicher gibt Null zurück', () => {
+    zeitWeg();
+    const z = zeitLesen();
+    return (z.gesamt === 0 && z.start === null) || JSON.stringify(z);
+  });
+  t('kaputter Speicher stürzt nicht ab', () => {
+    try { localStorage.setItem(ZEIT_KEY, 'kein json'); } catch {}
+    const z = zeitLesen();
+    return (z.gesamt === 0 && z.start === null) || JSON.stringify(z);
+  });
+  t('schreiben und lesen', () => {
+    zeitSchreiben({ gesamt: 5000, start: 1234 });
+    const z = zeitLesen();
+    return (z.gesamt === 5000 && z.start === 1234) || JSON.stringify(z);
+  });
+
+  t('Start setzt den Startzeitpunkt', () => {
+    zeitWeg(); renderZeit();
+    document.querySelector('#btn-zeit').click();
+    const z = zeitLesen();
+    return (z.start != null && z.gesamt === 0) || JSON.stringify(z);
+  });
+  t('während des Laufens heisst der Knopf Stopp',
+     () => document.querySelector('#btn-zeit').textContent.includes('Stopp')
+        || document.querySelector('#btn-zeit').textContent);
+  t('laufender Ansitz wird angezeigt',
+     () => document.querySelector('#zeit-laeuft').hidden === false || 'versteckt');
+  t('Stopp addiert auf die Gesamtzeit', () => {
+    // Start künstlich 90 Minuten zurücklegen, dann stoppen.
+    zeitSchreiben({ gesamt: 0, start: Date.now() - 90*60000 });
+    document.querySelector('#btn-zeit').click();
+    const z = zeitLesen();
+    return (z.start === null && Math.abs(z.gesamt - 90*60000) < 3000) || JSON.stringify(z);
+  });
+  t('zweiter Ansitz addiert dazu', () => {
+    zeitSchreiben({ gesamt: 90*60000, start: Date.now() - 30*60000 });
+    document.querySelector('#btn-zeit').click();
+    return Math.abs(zeitLesen().gesamt - 120*60000) < 3000 || zeitLesen().gesamt;
+  });
+  t('Gesamtzeit steht in der Anzeige', () => {
+    renderZeit();
+    return document.querySelector('#zeit-gesamt').textContent === '2 h 0 min'
+        || document.querySelector('#zeit-gesamt').textContent;
+  });
+  t('laufender Ansitz zaehlt sichtbar mit', () => {
+    zeitSchreiben({ gesamt: 60*60000, start: Date.now() - 30*60000 });
+    renderZeit();
+    return document.querySelector('#zeit-gesamt').textContent === '1 h 30 min'
+        || document.querySelector('#zeit-gesamt').textContent;
+  });
+  t('gestoppt ist der laufende Hinweis weg', () => {
+    zeitSchreiben({ gesamt: 60*60000, start: null }); renderZeit();
+    return document.querySelector('#zeit-laeuft').hidden === true || 'noch sichtbar';
+  });
+  t('Uhr verstellt gibt keine negative Zeit', () => {
+    // Start liegt in der Zukunft (Uhr zurueckgestellt) -- darf nicht abziehen.
+    zeitSchreiben({ gesamt: 0, start: Date.now() + 60000 });
+    renderZeit();
+    document.querySelector('#btn-zeit').click();
+    return zeitLesen().gesamt === 0 || zeitLesen().gesamt;
+  });
+  t('Angelzeit haengt nicht an den Faengen', () => {
+    zeitSchreiben({ gesamt: 42*60000, start: null });
+    state.catches = [];
+    renderZeit();
+    return document.querySelector('#zeit-gesamt').textContent === '42 min'
+        || document.querySelector('#zeit-gesamt').textContent;
+  });
+  zeitWeg();
 
   // ---- Trübung ----
   t('Trübungs-Chips gebaut', () => document.querySelectorAll('#ch-trueb .chip').length === TRUEBUNG.length
