@@ -219,6 +219,28 @@
         </div>
         <button class="btn sm" id="btn-zeit" style="flex:none; min-width:104px">▶︎ Start</button>
       </div>
+      <div class="tiny" id="zeit-warnung" style="margin-top:9px; color:var(--warn); line-height:1.5" hidden></div>
+      <button class="btn sm" id="btn-zeit-korr" style="margin-top:10px">Zeit korrigieren</button>
+      <div id="zeit-korr" hidden style="margin-top:12px; border-top:1px solid var(--line); padding-top:12px">
+        <div id="korr-laufend" hidden style="margin-bottom:14px">
+          <label class="f" for="korr-ende">Ansitz beenden um</label>
+          <input class="in" id="korr-ende" type="datetime-local">
+          <div class="tiny muted" style="margin-top:6px">Gestartet: <span id="korr-start">—</span></div>
+          <button class="btn sm" id="btn-korr-stop" style="margin-top:9px">Mit dieser Uhrzeit stoppen</button>
+        </div>
+        <label class="f">Gesamtzeit direkt setzen</label>
+        <div class="g2">
+          <div>
+            <label class="f" for="korr-h">Stunden</label>
+            <input class="in" id="korr-h" type="number" inputmode="numeric" min="0" step="1" placeholder="0">
+          </div>
+          <div>
+            <label class="f" for="korr-min">Minuten</label>
+            <input class="in" id="korr-min" type="number" inputmode="numeric" min="0" max="59" step="1" placeholder="0">
+          </div>
+        </div>
+        <button class="btn sm" id="btn-korr-set" style="margin-top:9px">Gesamtzeit übernehmen</button>
+      </div>
     </div>
     <div class="row" style="gap:8px; margin:10px 0 4px">
       <span class="pill" id="st-count">0 Fänge</span>
@@ -670,8 +692,18 @@ function renderZeit(){
   $('#btn-zeit').textContent = laeuft ? '■ Stopp' : '▶︎ Start';
   $('#btn-zeit').classList.toggle('danger', laeuft);
 
+  const vergessen = laeuft && offen > ZEIT_WARNGRENZE;
+  $('#zeit-warnung').hidden = !vergessen;
+  if (vergessen){
+    $('#zeit-warnung').textContent =
+      `Der Timer läuft seit ${dauerText(offen)} — vergessen zu stoppen? `
+      + 'Unter „Zeit korrigieren" kannst du die Uhrzeit nachtragen.';
+  }
+
   clearInterval(zeitTicker);
-  zeitTicker = laeuft ? setInterval(renderZeit, 1000) : null;
+  // Läuft ein Ansitz sehr lang, reicht die Anzeige im Minutentakt — jede Sekunde
+  // neu zu zeichnen kostet dann nur Akku.
+  zeitTicker = laeuft ? setInterval(renderZeit, vergessen ? 30000 : 1000) : null;
 }
 
 $('#btn-zeit').onclick = () => {
@@ -680,11 +712,69 @@ $('#btn-zeit').onclick = () => {
     zeitSchreiben({ gesamt: z.gesamt, start: Date.now() });
     toast('Angelzeit läuft');
   } else {
-    const dauer = Math.max(0, Date.now() - z.start);
-    zeitSchreiben({ gesamt: z.gesamt + dauer, start: null });
-    toast('Ansitz gespeichert: ' + dauerText(dauer));
+    ansitzBeenden(Date.now());
   }
   renderZeit();
+};
+
+/* Ansitz mit einem bestimmten Ende abschließen. Läuft über eine eigene Funktion,
+   weil es zwei Wege hierher gibt: der normale Stopp-Knopf (Ende = jetzt) und die
+   Korrektur mit nachgetragener Uhrzeit. */
+function ansitzBeenden(ende){
+  const z = zeitLesen();
+  if (z.start == null) return null;
+  const dauer = Math.max(0, ende - z.start);
+  zeitSchreiben({ gesamt: z.gesamt + dauer, start: null });
+  return dauer;
+}
+
+/* Vergessen zu stoppen — der wahrscheinlichste Bedienfehler bei einem Timer, den
+   man am Wasser startet und dann in die Tasche steckt. Dagegen zwei Wege:
+   ein Hinweis, sobald ein Ansitz unrealistisch lang läuft, und die Möglichkeit,
+   die Uhrzeit nachzutragen oder die Gesamtzeit direkt geradezuziehen. */
+const ZEIT_WARNGRENZE = 10 * 3600e3;
+
+function korrFuellen(){
+  const z = zeitLesen();
+  const laeuft = z.start != null;
+  $('#korr-laufend').hidden = !laeuft;
+  if (laeuft){
+    const d = new Date(z.start);
+    $('#korr-start').textContent = fmtDate(d.toISOString());
+    // Vorschlag ist die aktuelle Uhrzeit — von da aus tippt er sich zurück.
+    $('#korr-ende').value = localIsoNow();
+  }
+  const g = z.gesamt;
+  $('#korr-h').value   = Math.floor(g / 3600e3);
+  $('#korr-min').value = Math.floor(g / 60000) % 60;
+}
+
+$('#btn-zeit-korr').onclick = () => {
+  const auf = $('#zeit-korr').hidden;
+  $('#zeit-korr').hidden = !auf;
+  $('#btn-zeit-korr').textContent = auf ? 'Korrektur schließen' : 'Zeit korrigieren';
+  if (auf) korrFuellen();
+};
+
+$('#btn-korr-stop').onclick = () => {
+  const z = zeitLesen();
+  if (z.start == null) return;
+  const ende = new Date($('#korr-ende').value).getTime();
+  if (!isFinite(ende)) return toast('Bitte eine Uhrzeit eintragen');
+  if (ende < z.start) return toast('Das Ende liegt vor dem Start');
+  // In der Zukunft ergibt kein Ansitz Sinn — dann eben bis jetzt.
+  const dauer = ansitzBeenden(Math.min(ende, Date.now()));
+  renderZeit(); korrFuellen();
+  toast('Ansitz eingetragen: ' + dauerText(dauer));
+};
+
+$('#btn-korr-set').onclick = () => {
+  const h = Math.max(0, parseInt($('#korr-h').value, 10) || 0);
+  const m = Math.max(0, parseInt($('#korr-min').value, 10) || 0);
+  const z = zeitLesen();
+  zeitSchreiben({ gesamt: h * 3600e3 + m * 60000, start: z.start });
+  renderZeit(); korrFuellen();
+  toast('Gesamtzeit gesetzt');
 };
 
 // Kommt die App aus dem Hintergrund zurück, ist die Anzeige alt — neu rechnen.

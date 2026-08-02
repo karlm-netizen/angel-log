@@ -252,6 +252,137 @@ TESTS = r"""
     return document.querySelector('#zeit-gesamt').textContent === '42 min'
         || document.querySelector('#zeit-gesamt').textContent;
   });
+  // ---- Vergessen zu stoppen ----
+  const K = s => document.querySelector(s);
+  t('kurzer Ansitz warnt nicht', () => {
+    zeitSchreiben({ gesamt: 0, start: Date.now() - 3*3600000 });
+    renderZeit();
+    return K('#zeit-warnung').hidden === true || 'warnt zu frueh';
+  });
+  t('langer Ansitz warnt', () => {
+    zeitSchreiben({ gesamt: 0, start: Date.now() - 14*3600000 });
+    renderZeit();
+    return (K('#zeit-warnung').hidden === false
+            && K('#zeit-warnung').textContent.includes('vergessen')) || 'keine Warnung';
+  });
+  t('Korrekturfeld ist zuerst zu', () => {
+    return K('#zeit-korr').hidden === true || 'steht offen';
+  });
+  t('Korrektur oeffnet und schliesst', () => {
+    K('#btn-zeit-korr').click();
+    const auf = K('#zeit-korr').hidden === false;
+    K('#btn-zeit-korr').click();
+    const zu = K('#zeit-korr').hidden === true;
+    return (auf && zu) || (auf + '/' + zu);
+  });
+  t('Korrektur zeigt die Endzeit-Felder nur beim Laufen', () => {
+    zeitSchreiben({ gesamt: 0, start: Date.now() - 14*3600000 });
+    K('#btn-zeit-korr').click();                    // auf
+    const beiLauf = K('#korr-laufend').hidden === false;
+    K('#btn-zeit-korr').click();                    // zu
+    zeitSchreiben({ gesamt: 0, start: null });
+    K('#btn-zeit-korr').click();                    // auf
+    const ohneLauf = K('#korr-laufend').hidden === true;
+    K('#btn-zeit-korr').click();                    // zu
+    return (beiLauf && ohneLauf) || (beiLauf + '/' + ohneLauf);
+  });
+  t('Korrektur ist mit der Gesamtzeit vorbelegt', () => {
+    zeitSchreiben({ gesamt: 3*3600000 + 25*60000, start: null });
+    K('#btn-zeit-korr').click();
+    const ok = K('#korr-h').value === '3' && K('#korr-min').value === '25';
+    K('#btn-zeit-korr').click();
+    return ok || (K('#korr-h').value + ':' + K('#korr-min').value);
+  });
+
+  const stoppeUm = (startVorMs, endeIso) => {
+    zeitSchreiben({ gesamt: 0, start: Date.now() - startVorMs });
+    K('#btn-zeit-korr').click();
+    K('#korr-ende').value = endeIso;
+    K('#btn-korr-stop').click();
+    const z = zeitLesen();
+    if (K('#zeit-korr').hidden === false) K('#btn-zeit-korr').click();
+    return z;
+  };
+  const isoVor = ms => {
+    const d = new Date(Date.now() - ms), p = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+
+  t('nachgetragene Endzeit kuerzt den Ansitz', () => {
+    // Vor 14 h gestartet, tatsaechlich vor 10 h aufgehoert -> 4 h, nicht 14.
+    const z = stoppeUm(14*3600000, isoVor(10*3600000));
+    return (z.start === null && Math.abs(z.gesamt - 4*3600000) < 120000)
+        || dauerText(z.gesamt);
+  });
+  t('Ende vor dem Start wird abgelehnt', () => {
+    zeitSchreiben({ gesamt: 0, start: Date.now() - 2*3600000 });
+    K('#btn-zeit-korr').click();
+    K('#korr-ende').value = isoVor(5*3600000);       // vor dem Start
+    K('#btn-korr-stop').click();
+    const z = zeitLesen();
+    K('#btn-zeit-korr').click();
+    return (z.start != null && z.gesamt === 0) || JSON.stringify(z);
+  });
+  t('Ende in der Zukunft wird auf jetzt gekappt', () => {
+    const z = stoppeUm(3*3600000, isoVor(-5*3600000));   // 5 h in der Zukunft
+    return Math.abs(z.gesamt - 3*3600000) < 120000 || dauerText(z.gesamt);
+  });
+  t('leere Endzeit aendert nichts', () => {
+    zeitSchreiben({ gesamt: 0, start: Date.now() - 2*3600000 });
+    K('#btn-zeit-korr').click();
+    K('#korr-ende').value = '';
+    K('#btn-korr-stop').click();
+    const z = zeitLesen();
+    K('#btn-zeit-korr').click();
+    return (z.start != null && z.gesamt === 0) || JSON.stringify(z);
+  });
+
+  t('Gesamtzeit direkt setzen', () => {
+    zeitSchreiben({ gesamt: 99*3600000, start: null });
+    K('#btn-zeit-korr').click();
+    K('#korr-h').value = '12'; K('#korr-min').value = '30';
+    K('#btn-korr-set').click();
+    const z = zeitLesen();
+    K('#btn-zeit-korr').click();
+    return z.gesamt === 12*3600000 + 30*60000 || dauerText(z.gesamt);
+  });
+  t('Gesamtzeit setzen laesst den laufenden Ansitz laufen', () => {
+    const start = Date.now() - 3600000;
+    zeitSchreiben({ gesamt: 0, start });
+    K('#btn-zeit-korr').click();
+    K('#korr-h').value = '5'; K('#korr-min').value = '0';
+    K('#btn-korr-set').click();
+    const z = zeitLesen();
+    K('#btn-zeit-korr').click();
+    return (z.start === start && z.gesamt === 5*3600000) || JSON.stringify(z);
+  });
+  t('Gesamtzeit auf null setzen geht', () => {
+    zeitSchreiben({ gesamt: 5*3600000, start: null });
+    K('#btn-zeit-korr').click();
+    K('#korr-h').value = '0'; K('#korr-min').value = '0';
+    K('#btn-korr-set').click();
+    const z = zeitLesen();
+    K('#btn-zeit-korr').click();
+    return z.gesamt === 0 || z.gesamt;
+  });
+  t('Unsinn in den Feldern wird zu null statt NaN', () => {
+    zeitSchreiben({ gesamt: 5*3600000, start: null });
+    K('#btn-zeit-korr').click();
+    K('#korr-h').value = ''; K('#korr-min').value = 'abc';
+    K('#btn-korr-set').click();
+    const z = zeitLesen();
+    K('#btn-zeit-korr').click();
+    return z.gesamt === 0 || z.gesamt;
+  });
+  t('negative Eingabe wird nicht abgezogen', () => {
+    zeitSchreiben({ gesamt: 0, start: null });
+    K('#btn-zeit-korr').click();
+    K('#korr-h').value = '-4'; K('#korr-min').value = '-10';
+    K('#btn-korr-set').click();
+    const z = zeitLesen();
+    K('#btn-zeit-korr').click();
+    return z.gesamt === 0 || z.gesamt;
+  });
   zeitWeg();
 
   // ---- Trübung ----
