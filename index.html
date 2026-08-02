@@ -672,8 +672,8 @@ const state = {
   form: { photos: [], lat: null, lon: null, farben: [], phase: '', wetter: '', truebung: '',
           regen24: null, regen48: null, pegel: null, wasserAuto: null },
   detailId: null,
-  // Eine Filterzeile für alle Auswertungen, dazu die Auswahl, was gezeigt wird.
-  stats: { gewaesser: '', art: '', zeit: 'alles', zeige: ['wasser'] },
+  // Eine Filterzeile, dazu die eine Auswertung, die gerade gezeigt wird.
+  stats: { gewaesser: '', art: '', zeit: 'alles', zeige: 'wasser' },
   urls: []          // ObjectURLs, die beim Ansichtswechsel wieder freigegeben werden
 };
 
@@ -1716,15 +1716,14 @@ function renderStats(){
   // Nur zeichnen, was ausgewählt ist. Vorher standen hier dreizehn Blöcke
   // untereinander — das war eine Materialschlacht, durch die man scrollen musste,
   // statt der einen Frage, die man gerade hat.
-  const gewaehlt = AUSWERTUNGEN.filter(a => state.stats.zeige.includes(a.key));
+  // Genau eine Auswertung. Eine Liste aus dreizehn Blöcken beantwortet keine Frage,
+  // sie verschiebt sie nur nach unten — man wählt eine Sache und sieht sie.
+  const a = AUSWERTUNGEN.find(x => x.key === state.stats.zeige) || AUSWERTUNGEN[0];
   // Wichtig: eine Auswertung ohne Daten muss das *sagen*. Gäbe sie nur nichts
   // zurück, passierte beim Antippen sichtbar gar nichts und die App wirkt kaputt.
-  const inhalt = gewaehlt.length
-    ? gewaehlt.map(a => a.bau(rows) || `<div class="card"><h2>${a.kurz}</h2>
-        <div class="hint" style="margin:0">Dazu hat in dieser Auswahl noch kein Fang
-        einen Wert — oder es sind zu wenige für einen Verlauf.</div></div>`).join('')
-    : `<div class="card"><div class="hint" style="margin:0">
-         Oben auswählen, was du sehen willst — mehreres geht gleichzeitig.</div></div>`;
+  const inhalt = a.bau(rows) || `<div class="card"><h2>${a.kurz}</h2>
+    <div class="hint" style="margin:0">Dazu hat in dieser Auswahl noch kein Fang einen Wert
+    — oder es sind zu wenige für einen Verlauf.</div></div>`;
 
   body.innerHTML = kacheln + waehler() + duenn + inhalt;
 }
@@ -1789,9 +1788,9 @@ const AUSWERTUNGEN = [
 
 function waehler(){
   return `<div class="card">
-    <label class="f">Was willst du sehen?</label>
+    <label class="f">Fänge nach …</label>
     <div class="chips" id="st-wahl">${AUSWERTUNGEN.map(a =>
-      `<button class="chip${state.stats.zeige.includes(a.key) ? ' on' : ''}"
+      `<button class="chip${a.key === state.stats.zeige ? ' on' : ''}"
                data-wahl="${a.key}">${a.kurz}</button>`).join('')}</div>
   </div>`;
 }
@@ -1809,12 +1808,10 @@ $('#st-zeit').addEventListener('click', e => {
 // Der Wähler wird bei jedem Rendern neu gebaut, deshalb hängt der Zuhörer am Rahmen.
 $('#stats-body').addEventListener('click', e => {
   const b = e.target.closest('[data-wahl]');
-  if (!b) return;
-  const k = b.dataset.wahl;
-  const z = state.stats.zeige;
-  const i = z.indexOf(k);
-  if (i < 0) z.push(k); else z.splice(i, 1);
-  renderStats();
+  if (b && b.dataset.wahl !== state.stats.zeige){
+    state.stats.zeige = b.dataset.wahl;
+    renderStats();
+  }
 });
 
 /* ---------------------------- Kartenansicht ---------------------------- */
