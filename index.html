@@ -92,6 +92,7 @@
   .bl .sw{width:11px; height:11px; border-radius:99px; display:inline-block;
     vertical-align:-1px; margin-right:6px; border:1px solid rgba(128,128,128,.45)}
   .hint{font-size:12px; color:var(--muted); line-height:1.5; margin-top:10px}
+  .kurve{width:100%; height:auto; display:block; margin-top:2px; overflow:visible}
 
   /* Fotos */
   .photos{display:flex; flex-wrap:wrap; gap:8px}
@@ -323,6 +324,13 @@
         <label class="f">Wetter</label>
         <div class="chips" id="ch-wetter"></div>
       </div>
+      <div class="fld">
+        <label class="f">Wassertrübung</label>
+        <div class="chips" id="ch-trueb"></div>
+        <div class="tiny muted" id="trueb-info" style="margin-top:7px">
+          Trübung misst niemand für dich — tipp an, was du siehst.
+        </div>
+      </div>
       <div class="g2 fld">
         <div>
           <label class="f" for="f-bewoelkung">Bewölkung (%)</label>
@@ -525,6 +533,14 @@ const WETTER = [
   ['schnee','Schnee','🌨']
 ];
 
+/* Wassertrübung. Bewusst von Hand — automatisch geht es nicht: die WSV misst
+   Trübung an sechs Messstellen in ganz Deutschland (alle im Tidebereich der
+   Nordsee) und in FNU, nicht als Sichttiefe. Ein Modellwert wäre hier besonders
+   irreführend, weil Trübung an lokalem Regen, Grundeln und Bootsverkehr hängt.
+   Statt zu raten zeigt die App daneben, was sie sicher weiß — Regen der letzten
+   24/48 h und den Pegeltrend — und er tippt an, was er tatsächlich sieht. */
+const TRUEBUNG = [['klar','Klar'],['leicht','Leicht trüb'],['truebe','Trüb'],['sehr','Sehr trüb']];
+
 /* Mondphase — reine Rechnung aus Datum und Uhrzeit, ohne Schnittstelle.
    Damit ist sie der einzige automatische Wert, der auch ohne Netz stimmt und
    beliebig weit zurückreicht; Wetter und Wassertemperatur enden nach 7 Tagen.
@@ -653,7 +669,8 @@ const state = {
   catches: [],      // im Speicher, absteigend nach Zeit sortiert
   editId: null,     // gesetzt = an diesem Eintrag wird gerade geschrieben
   editWasSaved: false, // true = fertiger Fang in Bearbeitung, kein Entwurf
-  form: { photos: [], lat: null, lon: null, farben: [], phase: '', wetter: '', wasserAuto: null },
+  form: { photos: [], lat: null, lon: null, farben: [], phase: '', wetter: '', truebung: '',
+          regen24: null, regen48: null, pegel: null, wasserAuto: null },
   detailId: null,
   stats: { gewaesser: '', art: '', zeit: 'alles' },   // eine Filterzeile für alle Auswertungen
   urls: []          // ObjectURLs, die beim Ansichtswechsel wieder freigegeben werden
@@ -688,6 +705,7 @@ function fmtDate(iso){
 const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
 const phaseLabel  = k => (PHASEN.find(p => p[0] === k) || [,''])[1];
 const wetterLabel = k => (WETTER.find(w => w[0] === k) || [,''])[1];
+const truebLabel  = k => (TRUEBUNG.find(t => t[0] === k) || [,''])[1];
 const wetterIcon  = k => (WETTER.find(w => w[0] === k) || [,,''])[2];
 
 // Open-Meteo liefert die Lage als WMO-Schlüssel. Feiner als diese zehn Stufen
@@ -937,7 +955,11 @@ async function waterTemp(lat, lon, when){
         const ort = (near.s.longname || '').replace(/\s+/g, ' ').trim();
         const fluss = (near.s.water || {}).longname || '';
         return { wert: val, quelle: 'pegel',
-                 station: `${ort}${fluss ? ' / ' + fluss : ''}, ${near.km.toFixed(1)} km` };
+                 station: `${ort}${fluss ? ' / ' + fluss : ''}, ${near.km.toFixed(1)} km`,
+                 // für den Pegeltrend: nur brauchbar, wenn dieselbe Messstelle auch
+                 // den Wasserstand führt — das tun die meisten, aber nicht alle.
+                 uuid: near.s.uuid, kurz: ort,
+                 hatW: near.s.timeseries.some(x => x.shortname === 'W') };
       }
     }
   } catch {}
@@ -970,7 +992,7 @@ async function loadWeather(force){
   $('#wx-info').innerHTML = '<span class="spin"></span>Wetter wird geholt …';
   const url = 'https://api.open-meteo.com/v1/forecast'
     + `?latitude=${lat}&longitude=${lon}`
-    + '&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code,cloud_cover'
+    + '&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code,cloud_cover,precipitation'
     + '&daily=sunrise,sunset&timezone=auto&past_days=7&forecast_days=2';
 
   try {
@@ -1012,6 +1034,18 @@ async function loadWeather(force){
     const wl = wetterFor(j.hourly.weather_code && j.hourly.weather_code[i]);
     if (wl && (force || !state.form.wetter)) setWetter(wl);
 
+    // Regen vor dem Fang — Einordnungshilfe für die Trübung, aus demselben Aufruf.
+    const summe = std => {
+      const p = j.hourly.precipitation;
+      if (!p) return null;
+      let s = 0, n = 0;
+      for (let k = i; k > i - std && k >= 0; k--){ if (p[k] != null){ s += p[k]; n++; } }
+      return n ? Math.round(s * 10) / 10 : null;
+    };
+    state.form.regen24 = summe(24);
+    state.form.regen48 = summe(48);
+    renderTruebHint();
+
     const ph = phaseFor(when, j.daily);
     if (ph && !state.form.phase) selectPhase(ph);
 
@@ -1033,6 +1067,23 @@ function phaseFor(when, daily){
   if (Math.abs(t - ss) <= W) return 'abend';
   return (t > sr && t < ss) ? 'tag' : 'nacht';
 }
+// Wasserstand jetzt gegen den von vor 24 h. Steigender Pegel nach Regen heißt
+// fast immer trübes Wasser — deshalb steht das Ergebnis bei der Trübung.
+async function pegelTrend(uuid, t){
+  const iso = ms => new Date(ms).toISOString().replace(/\.\d+Z$/, 'Z');
+  const hole = async (von, bis) => {
+    const r = await fetch(`${PEGEL}/stations/${uuid}/W/measurements.json`
+      + `?start=${encodeURIComponent(iso(von))}&end=${encodeURIComponent(iso(bis))}`);
+    if (!r.ok) return null;
+    const rows = await r.json();
+    return rows.length ? rows[rows.length - 1].value : null;
+  };
+  const jetzt  = await hole(t - 60*60e3, t);
+  const vorher = await hole(t - 25*3600e3, t - 23*3600e3);
+  if (jetzt == null || vorher == null) return null;
+  return { delta: jetzt - vorher };
+}
+
 async function loadWater(lat, lon, when, force){
   if (!force && $('#f-wasser').value !== '') return;
   $('#wt-info').innerHTML = '<span class="spin"></span>Wassertemperatur wird gesucht …';
@@ -1043,6 +1094,14 @@ async function loadWater(lat, lon, when, force){
     state.form.wasserAuto = res;
     $('#wt-info').textContent = 'Gemessen: ' + res.station;
     scheduleDraft();
+    // Pegeltrend nur nebenbei — schlägt er fehl, bleibt der Trübungs-Hinweis
+    // einfach beim Regen. Kein Grund, die Wassertemperatur mit runterzuziehen.
+    if (res.hatW && res.uuid){
+      try {
+        const tr = await pegelTrend(res.uuid, new Date(when).getTime());
+        if (tr){ state.form.pegel = { delta: tr.delta, station: res.kurz }; renderTruebHint(); }
+      } catch {}
+    }
   } else {
     state.form.wasserAuto = null;
     $('#wt-info').textContent = 'Keine Messstelle gefunden — bitte selbst messen.';
@@ -1073,6 +1132,8 @@ function buildStatics(){
   $('#ch-phase').innerHTML = PHASEN.map(([k, l]) => `<button class="chip" data-phase="${k}">${l}</button>`).join('');
   $('#ch-wetter').innerHTML = WETTER.map(([k, l, ic]) =>
     `<button class="chip" data-wetter="${k}">${ic} ${l}</button>`).join('');
+  $('#ch-trueb').innerHTML = TRUEBUNG.map(([k, l]) =>
+    `<button class="chip" data-trueb="${k}">${l}</button>`).join('');
   $('#st-zeit').innerHTML = ZEITRAEUME.map(([k, l]) =>
     `<button class="chip${k === 'alles' ? ' on' : ''}" data-zeit="${k}">${l}</button>`).join('');
   $('#ch-farbe').innerHTML = FARBEN.map(([n, hex]) =>
@@ -1092,6 +1153,34 @@ function setWetter(k){
   scheduleDraft();
 }
 function selectWetter(k){ setWetter(state.form.wetter === k ? '' : k); }
+
+function setTrueb(k){
+  state.form.truebung = k || '';
+  $$('#ch-trueb .chip').forEach(c => c.classList.toggle('on', c.dataset.trueb === state.form.truebung));
+  scheduleDraft();
+}
+function selectTrueb(k){ setTrueb(state.form.truebung === k ? '' : k); }
+
+/* Der Hinweis unter den Trübungs-Chips. Er entscheidet nichts, er ordnet nur ein:
+   viel Regen und steigender Pegel sprechen für trübes Wasser. Was gilt, tippt er
+   selbst an — sonst stünde am Ende ein geratener Wert in der Auswertung. */
+function renderTruebHint(){
+  const f = state.form;
+  const teile = [];
+  if (f.regen24 != null){
+    const z = n => String(Math.round(n * 10) / 10).replace('.', ',');
+    teile.push(`24 h: ${z(f.regen24)} mm Regen`
+      + (f.regen48 != null && f.regen48 > f.regen24 + 0.05 ? ` (48 h: ${z(f.regen48)} mm)` : ''));
+  }
+  if (f.pegel){
+    const d = f.pegel.delta;
+    const richtung = d > 3 ? 'steigend' : d < -3 ? 'fallend' : 'gleichbleibend';
+    teile.push(`Pegel ${f.pegel.station}: ${d > 0 ? '+' : ''}${Math.round(d)} cm in 24 h (${richtung})`);
+  }
+  $('#trueb-info').textContent = teile.length
+    ? teile.join(' · ')
+    : 'Trübung misst niemand für dich — tipp an, was du siehst.';
+}
 
 // Die Mondphase hängt allein am Zeitfeld — sie wird angezeigt, nicht eingegeben.
 function renderMond(){
@@ -1121,6 +1210,9 @@ $('#ch-farbe').addEventListener('click', e => {
 $('#ch-wetter').addEventListener('click', e => {
   const b = e.target.closest('[data-wetter]'); if (b) selectWetter(b.dataset.wetter);
 });
+$('#ch-trueb').addEventListener('click', e => {
+  const b = e.target.closest('[data-trueb]'); if (b) selectTrueb(b.dataset.trueb);
+});
 $('#f-zeit').addEventListener('input', renderMond);
 
 function refreshWaterList(){
@@ -1132,7 +1224,9 @@ function resetForm(rec){
   state.editId       = rec ? rec.id : null;
   state.editWasSaved = !!(rec && !rec.entwurf);
   state.form   = { photos: rec ? (rec.photos || []).slice() : [],
-                   lat: null, lon: null, farben: [], phase: '', wetter: '',
+                   lat: null, lon: null, farben: [], phase: '', wetter: '', truebung: '',
+                   regen24: (rec && rec.regen24 != null) ? rec.regen24 : null,
+                   regen48: null, pegel: null,
                    wasserAuto: (rec && rec.wasserQuelle && rec.wasserQuelle !== 'manuell')
                      ? { wert: rec.wasser, quelle: rec.wasserQuelle, station: rec.wasserStation || '' }
                      : null };
@@ -1160,10 +1254,13 @@ function resetForm(rec){
   $$('#ch-phase .chip').forEach(c => c.classList.remove('on'));
   $$('#ch-farbe .chip').forEach(c => c.classList.remove('on'));
   $$('#ch-wetter .chip').forEach(c => c.classList.remove('on'));
+  $$('#ch-trueb .chip').forEach(c => c.classList.remove('on'));
   if (rec && rec.phase) selectPhase(rec.phase);
   if (rec && rec.wetter) setWetter(rec.wetter);
+  if (rec && rec.truebung) setTrueb(rec.truebung);
   farbenVon(rec).forEach(n => selectFarbe(n));
   renderMond();
+  renderTruebHint();
 
   $('#minimap').classList.add('hidden');
   $('#minimap-hint').hidden = true;
@@ -1208,6 +1305,8 @@ function buildRecord(entwurf){
     phase:         state.form.phase,
     wetter:        state.form.wetter,
     bewoelkung:    num($('#f-bewoelkung').value),
+    truebung:      state.form.truebung,
+    regen24:       state.form.regen24,
     koeder:        $('#f-koeder').value.trim(),
     koederGroesse: num($('#f-koedergroesse').value),
     farben:        state.form.farben.slice(),
@@ -1226,7 +1325,8 @@ function formHatInhalt(){
                   '#f-koedergroesse','#f-notiz'];
   return felder.some(s => $(s).value.trim() !== '')
       || state.form.photos.length > 0 || state.form.lat != null
-      || !!state.form.phase || !!state.form.wetter || state.form.farben.length > 0;
+      || !!state.form.phase || !!state.form.wetter || !!state.form.truebung
+      || state.form.farben.length > 0;
 }
 function scheduleDraft(){
   if (state.view !== 'new') return;
@@ -1393,12 +1493,14 @@ function renderDetail(){
       ${kv('Herkunft', c.wasserQuelle === 'pegel' ? 'Messstelle ' + (c.wasserStation || '')
                      : c.wasserQuelle === 'meer'  ? (c.wasserStation || 'Meeresoberfläche')
                      : c.wasserQuelle === 'manuell' ? 'selbst gemessen' : '')}
+      ${kv('Wassertrübung', truebLabel(c.truebung))}
       ${kv('Wassertiefe', c.tiefe != null && dec(c.tiefe) + ' m')}
       ${kv('Lufttemperatur', c.luft != null && dec(c.luft) + ' °C')}
       ${kv('Luftdruck', c.druck != null && dec(c.druck) + ' hPa')}
       ${kv('Wind', [c.windRichtung, c.windKmh != null && dec(c.windKmh) + ' km/h'].filter(Boolean).join(' · '))}
       ${kv('Wetter', c.wetter && `${wetterIcon(c.wetter)} ${wetterLabel(c.wetter)}`)}
       ${kv('Bewölkung', c.bewoelkung != null && Math.round(c.bewoelkung) + ' %')}
+      ${kv('Regen davor (24 h)', c.regen24 != null && dec(c.regen24) + ' mm')}
     </div>
     <div class="card">
       <h2>Köder</h2>
@@ -1469,16 +1571,6 @@ function zaehle(rows, fn){
   });
   return m;
 }
-// Messwerte in Stufen zusammenfassen. Einzelne Nachkommastellen zu zählen ergibt
-// bei 30 Fängen 30 Balken mit je einem Treffer — das zeigt kein Muster.
-function stufe(v, breite, einheit){
-  if (v == null || !isFinite(v)) return null;
-  const u = Math.floor(v / breite) * breite;
-  const z = n => String(Math.round(n * 10) / 10).replace('.', ',');
-  return `${z(u)}–${z(u + breite)} ${einheit}`;
-}
-const stufeSort = (a, b) => parseFloat(String(a).replace(',', '.')) - parseFloat(String(b).replace(',', '.'));
-
 /* Ein Balkenblock. Alle Balken derselben Farbe: die Länge trägt die Aussage,
    und die Zahl steht immer daneben — niemand muss Längen schätzen. */
 function balkenBlock(titel, eintraege, hinweis){
@@ -1492,11 +1584,78 @@ function balkenBlock(titel, eintraege, hinweis){
   return `<div class="card"><h2>${titel}</h2>${zeilen}
     ${hinweis ? `<div class="hint">${hinweis}</div>` : ''}</div>`;
 }
-// Namenlose Kategorien nach Häufigkeit, Messstufen in ihrer natürlichen Reihenfolge.
-function ausMap(m, opt){
-  const arr = [...m.entries()].map(([label, wert]) => ({ label, wert }));
-  arr.sort((a, b) => (opt && opt.sortiert) ? stufeSort(a.label, b.label) : b.wert - a.wert);
-  return (opt && opt.top) ? arr.slice(0, opt.top) : arr;
+/* Kurven für Messwerte (Temperatur, Druck, Tiefe, Monat). Bei etwas Messbarem hat
+   die Reihenfolge eine Bedeutung — 12 °C liegt zwischen 10 und 14 —, und genau das
+   zeigt eine Linie und ein Balken nicht.
+
+   Zwei Dinge sind hier wichtiger als das Aussehen:
+   1. **Leere Stufen müssen mit 0 drin sein.** Ließe man sie weg, verbände die Linie
+      8 °C direkt mit 14 °C und behauptete einen Verlauf, den es nicht gibt.
+   2. **Keine geglättete Kurve.** Gerade Abschnitte zwischen den Punkten; ein Spline
+      würde Zwischenwerte erfinden, die nie gemessen wurden.
+   Die Zahl steht an jedem Punkt, damit nichts allein an der Höhe hängt. */
+function kurvenBlock(titel, punkte, hinweis){
+  if (punkte.length < 3) return balkenBlock(titel, punkte.map(p => ({ label: p.x, wert: p.wert })), hinweis);
+
+  const W = 320, H = 148, pL = 12, pR = 12, pT = 26, pB = 24;
+  const max = Math.max(...punkte.map(p => p.wert), 1);
+  const n = punkte.length;
+  const x = i => pL + (n === 1 ? (W - pL - pR) / 2 : i * (W - pL - pR) / (n - 1));
+  const y = v => H - pB - (v / max) * (H - pT - pB);
+
+  const pts  = punkte.map((p, i) => [x(i), y(p.wert)]);
+  const linie = pts.map(([a, b], i) => (i ? 'L' : 'M') + a.toFixed(1) + ' ' + b.toFixed(1)).join(' ');
+  const flaeche = `M${pts[0][0].toFixed(1)} ${(H - pB).toFixed(1)} `
+    + pts.map(([a, b]) => `L${a.toFixed(1)} ${b.toFixed(1)}`).join(' ')
+    + ` L${pts[n-1][0].toFixed(1)} ${(H - pB).toFixed(1)} Z`;
+
+  // Bei vielen Stufen nicht jede beschriften — sonst überlappen die Achsentexte.
+  const jeder = Math.ceil(n / 7);
+  const xTexte = punkte.map((p, i) => (i % jeder === 0 || i === n - 1)
+    ? `<text x="${x(i).toFixed(1)}" y="${H - 7}" text-anchor="middle" font-size="9.5"
+             fill="var(--muted)">${p.x}</text>` : '').join('');
+  const werte = punkte.map((p, i) => p.wert === 0 ? '' :
+    `<text x="${x(i).toFixed(1)}" y="${(y(p.wert) - 9).toFixed(1)}" text-anchor="middle"
+           font-size="10" font-weight="700" fill="var(--muted)">${p.wert}</text>`).join('');
+  const punkteSvg = punkte.map((p, i) => p.wert === 0 ? '' :
+    `<circle cx="${x(i).toFixed(1)}" cy="${y(p.wert).toFixed(1)}" r="3.2"
+             fill="var(--accent)" stroke="var(--card)" stroke-width="2"/>`).join('');
+
+  return `<div class="card"><h2>${titel}</h2>
+    <svg class="kurve" viewBox="0 0 ${W} ${H}" role="img" aria-label="${titel}">
+      <line x1="${pL}" y1="${H - pB}" x2="${W - pR}" y2="${H - pB}" stroke="var(--line)" stroke-width="1"/>
+      <path d="${flaeche}" fill="var(--accent)" opacity=".13"/>
+      <path d="${linie}" fill="none" stroke="var(--accent)" stroke-width="2"
+            stroke-linejoin="round" stroke-linecap="round"/>
+      ${punkteSvg}${werte}${xTexte}
+    </svg>
+    ${hinweis ? `<div class="hint">${hinweis}</div>` : ''}</div>`;
+}
+
+/* Stufen über den ganzen beobachteten Bereich, Lücken ausdrücklich mit 0.
+   Genau daran scheitern solche Auswertungen sonst: fehlende Stufen wegzulassen
+   verwandelt eine Lücke in eine Verbindung. */
+function stufenReihe(rows, feld, breite, nachkomma){
+  const werte = rows.map(feld).filter(v => v != null && isFinite(v));
+  if (!werte.length) return [];
+  const u0 = Math.floor(Math.min(...werte) / breite);
+  const u1 = Math.floor(Math.max(...werte) / breite);
+  if (u1 - u0 > 40) return [];                 // Ausreißer würden 100 leere Stufen erzeugen
+  const z = v => String(Math.round(v * 100) / 100).replace('.', ',');
+  const reihe = [];
+  for (let k = u0; k <= u1; k++) reihe.push({ x: z(k * breite), wert: 0, k });
+  werte.forEach(v => {
+    const k = Math.floor(v / breite);
+    const e = reihe.find(r => r.k === k);
+    if (e) e.wert++;
+  });
+  return reihe;
+}
+
+// Kategorien ohne natürliche Reihenfolge (Fischart, Köder, Farbe) nach Häufigkeit.
+function ausMap(m){
+  return [...m.entries()].map(([label, wert]) => ({ label, wert }))
+                         .sort((a, b) => b.wert - a.wert);
 }
 
 function renderStats(){
@@ -1568,17 +1727,26 @@ function renderStats(){
     + balkenBlock('Mondphase', ausMap(zaehle(rows, c => {
         const m = mondFor(c.when); return m && (m.icon + ' ' + m.name);
       })))
-    + balkenBlock('Luftdruck', ausMap(zaehle(rows, c => stufe(c.druck, 5, 'hPa')), { sortiert: true }))
-    + balkenBlock('Wassertemperatur', ausMap(zaehle(rows, c => stufe(c.wasser, 2, '°C')), { sortiert: true }))
-    + balkenBlock('Wassertiefe', ausMap(zaehle(rows, c => stufe(c.tiefe, 1, 'm')), { sortiert: true }))
-    + balkenBlock('Monat', ausMap(zaehle(rows, c => {
-        const d = new Date(c.when);
-        return isNaN(d) ? null : MONATE[d.getMonth()];
-      })).sort((a, b) => MONATE.indexOf(a.label) - MONATE.indexOf(b.label)));
+    + balkenBlock('Wassertrübung', TRUEBUNG
+        .map(([k, l]) => ({ label: l, wert: rows.filter(c => c.truebung === k).length }))
+        .filter(e => e.wert > 0))
+    // Ab hier Messwerte: Kurven statt Balken, weil die Reihenfolge eine Bedeutung hat.
+    + kurvenBlock('Fänge nach Wassertemperatur (°C)', stufenReihe(rows, c => c.wasser, 2),
+        'Leere Stufen stehen mit null drin — sonst würde die Linie eine Lücke zu einem Verlauf machen.')
+    + kurvenBlock('Fänge nach Lufttemperatur (°C)', stufenReihe(rows, c => c.luft, 2))
+    + kurvenBlock('Fänge nach Luftdruck (hPa)', stufenReihe(rows, c => c.druck, 5))
+    + kurvenBlock('Fänge nach Wassertiefe (m)', stufenReihe(rows, c => c.tiefe, 1))
+    + kurvenBlock('Fänge nach Regen davor (mm/24 h)', stufenReihe(rows, c => c.regen24, 2))
+    + kurvenBlock('Fänge nach Monat', (() => {
+        const z = new Array(12).fill(0);
+        rows.forEach(c => { const d = new Date(c.when); if (!isNaN(d)) z[d.getMonth()]++; });
+        return z.map((wert, i) => ({ x: MONATE_KURZ[i], wert }));
+      })());
 }
 
 const MONATE = ['Januar','Februar','März','April','Mai','Juni','Juli','August',
                 'September','Oktober','November','Dezember'];
+const MONATE_KURZ = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
 
 $('#st-gewaesser').addEventListener('change', e => { state.stats.gewaesser = e.target.value; renderStats(); });
 $('#st-art').addEventListener('change',       e => { state.stats.art = e.target.value; renderStats(); });
