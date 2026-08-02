@@ -145,27 +145,33 @@
   .tab svg{width:22px; height:22px}
 
   /* Overlays */
-  /* Am PC. Die App ist fürs Handy gebaut und bleibt es auch — hier wird nur die
-     Fläche genutzt, die ohnehin da ist, statt einer 560-px-Säule in der Mitte.
-     Bewusst *nicht* alles breiter: die Fangliste und die Karte gewinnen durch
-     Platz, ein Eingabeformular über die volle Breite liest sich schlechter, nicht
-     besser. Deshalb bleiben Formular und Detailansicht schmal und mittig. */
+  /* Am großen Bildschirm keine feste Breite mehr, sondern mitwachsend: die
+     Fangliste füllt so viele Spalten, wie hineinpassen — bei 1440 px drei, bei
+     einem breiten Monitor fünf oder sechs. Ohne feste Grenze passt sich das von
+     selbst an jede Fenstergröße an, statt bei einer willkürlichen Zahl zu enden.
+
+     Bewusst *nicht* alles mitwachsend: Liste und Karte gewinnen durch Fläche,
+     ein Eingabeformular über die ganze Breite liest sich schlechter, nicht
+     besser. Formular und Detailansicht behalten deshalb Lesebreite, genau wie
+     die Zeile mit Timer und Suche über der Liste. */
   @media (min-width: 900px){
-    body{max-width:1060px}
-    .tabs > div{max-width:1060px}
+    :root{--sp:20px}
+    body{max-width:none}
+    /* Die Reiter dürfen nicht über einen Meter auseinanderlaufen. */
+    .tabs > div{max-width:760px}
     /* Fangliste mehrspaltig — der eigentliche Gewinn am großen Bildschirm. */
     #list{display:grid; grid-template-columns:repeat(auto-fill, minmax(330px, 1fr));
-      gap:12px; align-items:start}
+      gap:14px; align-items:start}
     #list .item{margin:0}
     #list .empty{grid-column:1 / -1}
-    /* Formular und Detail behalten Lesebreite. */
-    #v-new .wrap, #v-detail .wrap{max-width:620px; margin:0 auto}
+    /* Kopfzeile über der Liste: mitwachsend wäre ein 2000 px breites Suchfeld. */
+    #zeit-karte, #v-log .row, #q{max-width:760px}
+    /* Überschrift mittig über dem Formular, nicht am Fensterrand daneben. */
+    #v-new .wrap, #v-detail .wrap,
+    #v-new .head, #v-detail .head{max-width:640px; margin:0 auto}
     #map{height:calc(100vh - 190px)}
-    .gal{grid-template-columns:repeat(3, 1fr)}
-    /* Der Speichern-Knopf bleibt am rechten Rand des Inhalts, nicht am Fensterrand
-       — sonst schwebt er bei 1440 px einsam in der Wüste. max() fängt die Breiten
-       zwischen 900 und 1060 px ab, wo die Rechnung sonst negativ würde. */
-    .fab{right:max(16px, calc((100vw - 1060px) / 2 + 16px))}
+    .gal{grid-template-columns:repeat(auto-fill, minmax(220px, 1fr))}
+    .fab{right:24px}
   }
 
   .sheet{position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:1000; display:none;
