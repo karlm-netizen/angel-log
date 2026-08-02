@@ -74,6 +74,25 @@
   .chip .sw{width:12px; height:12px; border-radius:99px; display:inline-block;
     vertical-align:-1px; margin-right:6px; border:1px solid rgba(255,255,255,.25)}
 
+  /* Statistik. Alle Balken tragen dieselbe Farbe — die Länge ist die Aussage,
+     eine zweite Farbskala würde nur dasselbe nochmal sagen. Die Zahl steht immer
+     daneben, damit nichts allein an der Balkenlänge oder an einer Farbe hängt. */
+  .tiles{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  .tile{background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:11px 12px}
+  .tile .n{font-size:21px; font-weight:700; line-height:1.2}
+  .tile .l{font-size:11px; color:var(--muted); font-weight:600; margin-top:1px}
+  .bar{margin-bottom:11px}
+  .bar:last-child{margin-bottom:0}
+  .bl{display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+    font-size:13.5px; margin-bottom:5px}
+  .bl span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .bl b{color:var(--muted); font-weight:700; font-variant-numeric:tabular-nums; flex:none}
+  .bt{height:8px; background:var(--card2); border-radius:99px}
+  .bt i{display:block; height:100%; min-width:8px; background:var(--accent); border-radius:99px}
+  .bl .sw{width:11px; height:11px; border-radius:99px; display:inline-block;
+    vertical-align:-1px; margin-right:6px; border:1px solid rgba(128,128,128,.45)}
+  .hint{font-size:12px; color:var(--muted); line-height:1.5; margin-top:10px}
+
   /* Fotos */
   .photos{display:flex; flex-wrap:wrap; gap:8px}
   .ph{position:relative; width:74px; height:74px; border-radius:12px; overflow:hidden;
@@ -371,6 +390,31 @@
   </div>
 </section>
 
+<!-- ======================= STATISTIK ======================= -->
+<section id="v-stats" class="hidden">
+  <div class="head"><h1>Statistik</h1><span class="pill" id="stats-pill">—</span></div>
+  <div class="wrap">
+    <!-- Eine Filterzeile für alles darunter, nicht je Auswertung eine eigene. -->
+    <div class="card">
+      <div class="g2 fld">
+        <div>
+          <label class="f" for="st-gewaesser">Gewässer</label>
+          <select class="in" id="st-gewaesser"></select>
+        </div>
+        <div>
+          <label class="f" for="st-art">Fischart</label>
+          <select class="in" id="st-art"></select>
+        </div>
+      </div>
+      <div class="fld">
+        <label class="f">Zeitraum</label>
+        <div class="chips" id="st-zeit"></div>
+      </div>
+    </div>
+    <div id="stats-body"></div>
+  </div>
+</section>
+
 <!-- ======================= DETAIL ======================= -->
 <section id="v-detail" class="hidden">
   <div class="head">
@@ -433,6 +477,11 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/>
       </svg>Karte
+    </button>
+    <button class="tab" data-go="stats">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>
+      </svg>Statistik
     </button>
   </div>
 </nav>
@@ -606,6 +655,7 @@ const state = {
   editWasSaved: false, // true = fertiger Fang in Bearbeitung, kein Entwurf
   form: { photos: [], lat: null, lon: null, farben: [], phase: '', wetter: '', wasserAuto: null },
   detailId: null,
+  stats: { gewaesser: '', art: '', zeit: 'alles' },   // eine Filterzeile für alle Auswertungen
   urls: []          // ObjectURLs, die beim Ansichtswechsel wieder freigegeben werden
 };
 
@@ -1023,6 +1073,8 @@ function buildStatics(){
   $('#ch-phase').innerHTML = PHASEN.map(([k, l]) => `<button class="chip" data-phase="${k}">${l}</button>`).join('');
   $('#ch-wetter').innerHTML = WETTER.map(([k, l, ic]) =>
     `<button class="chip" data-wetter="${k}">${ic} ${l}</button>`).join('');
+  $('#st-zeit').innerHTML = ZEITRAEUME.map(([k, l]) =>
+    `<button class="chip${k === 'alles' ? ' on' : ''}" data-zeit="${k}">${l}</button>`).join('');
   $('#ch-farbe').innerHTML = FARBEN.map(([n, hex]) =>
     `<button class="chip" data-farbe="${n}"><i class="sw" style="background:${hex}"></i>${n}</button>`).join('');
 }
@@ -1377,6 +1429,164 @@ $('#btn-edit').onclick = () => {
   if (c){ go('new'); resetForm(c); }
 };
 
+/* ---------------------------- Statistik ----------------------------
+   Wichtig und leicht zu übersehen: hier stehen **Verteilungen der Fänge**, keine
+   Erfolgsquoten. Wenn 60 % der Fische auf Firetiger gingen, heißt das erstmal nur,
+   dass Firetiger am häufigsten am Band war. Für ein "welcher Köder fängt besser"
+   müssten auch die Ansitze **ohne** Fang erfasst werden — die App kennt nur Erfolge.
+   Deshalb sind alle Überschriften als Verteilung formuliert und nirgends steht
+   "bester". Das ist keine Kleinigkeit: die umgekehrte Lesart wäre schlicht falsch. */
+
+const ZEITRAEUME = [['alles','Alles'],['jahr','Dieses Jahr'],['12m','12 Monate'],['30t','30 Tage']];
+
+function statsRows(){
+  const f = state.stats;
+  const jetzt = Date.now();
+  const grenze = f.zeit === '30t' ? jetzt - 30 * 864e5
+               : f.zeit === '12m' ? jetzt - 365 * 864e5
+               : null;
+  const jahr = new Date().getFullYear();
+  return state.catches.filter(c => {
+    if (c.entwurf) return false;                       // Entwürfe zählen nirgends mit
+    if (f.gewaesser && c.gewaesser !== f.gewaesser) return false;
+    if (f.art && c.art !== f.art) return false;
+    if (grenze != null && !(c.ts >= grenze)) return false;
+    if (f.zeit === 'jahr' && new Date(c.when).getFullYear() !== jahr) return false;
+    return true;
+  });
+}
+
+// Ein Fang kann mehrere Farben haben und zählt dann in jeder mit — deshalb darf
+// die Summe der Balken größer sein als die Zahl der Fänge. Steht auch so dran.
+function zaehle(rows, fn){
+  const m = new Map();
+  rows.forEach(r => {
+    const w = fn(r);
+    (Array.isArray(w) ? w : [w]).forEach(k => {
+      if (k == null || k === '') return;
+      m.set(k, (m.get(k) || 0) + 1);
+    });
+  });
+  return m;
+}
+// Messwerte in Stufen zusammenfassen. Einzelne Nachkommastellen zu zählen ergibt
+// bei 30 Fängen 30 Balken mit je einem Treffer — das zeigt kein Muster.
+function stufe(v, breite, einheit){
+  if (v == null || !isFinite(v)) return null;
+  const u = Math.floor(v / breite) * breite;
+  const z = n => String(Math.round(n * 10) / 10).replace('.', ',');
+  return `${z(u)}–${z(u + breite)} ${einheit}`;
+}
+const stufeSort = (a, b) => parseFloat(String(a).replace(',', '.')) - parseFloat(String(b).replace(',', '.'));
+
+/* Ein Balkenblock. Alle Balken derselben Farbe: die Länge trägt die Aussage,
+   und die Zahl steht immer daneben — niemand muss Längen schätzen. */
+function balkenBlock(titel, eintraege, hinweis){
+  if (!eintraege.length) return '';
+  const max = Math.max(...eintraege.map(e => e.wert));
+  const zeilen = eintraege.map(e => `
+    <div class="bar">
+      <div class="bl"><span>${e.sw ? `<i class="sw" style="background:${e.sw}"></i>` : ''}${e.label}</span><b>${e.wert}</b></div>
+      <div class="bt"><i style="width:${Math.max(4, Math.round(e.wert / max * 100))}%"></i></div>
+    </div>`).join('');
+  return `<div class="card"><h2>${titel}</h2>${zeilen}
+    ${hinweis ? `<div class="hint">${hinweis}</div>` : ''}</div>`;
+}
+// Namenlose Kategorien nach Häufigkeit, Messstufen in ihrer natürlichen Reihenfolge.
+function ausMap(m, opt){
+  const arr = [...m.entries()].map(([label, wert]) => ({ label, wert }));
+  arr.sort((a, b) => (opt && opt.sortiert) ? stufeSort(a.label, b.label) : b.wert - a.wert);
+  return (opt && opt.top) ? arr.slice(0, opt.top) : arr;
+}
+
+function renderStats(){
+  // Filterlisten aus dem gesamten Bestand, nicht aus der gefilterten Auswahl —
+  // sonst verschwindet die Option, mit der man gerade filtert.
+  const fertig = state.catches.filter(c => !c.entwurf);
+  const opts = (sel, werte, aktuell, alle) => {
+    $(sel).innerHTML = `<option value="">${alle}</option>`
+      + werte.map(w => `<option value="${w}"${w === aktuell ? ' selected' : ''}>${w}</option>`).join('');
+  };
+  opts('#st-gewaesser', [...new Set(fertig.map(c => c.gewaesser).filter(Boolean))].sort(),
+       state.stats.gewaesser, 'Alle Gewässer');
+  opts('#st-art', [...new Set(fertig.map(c => c.art).filter(Boolean))].sort(),
+       state.stats.art, 'Alle Arten');
+  $$('#st-zeit .chip').forEach(c => c.classList.toggle('on', c.dataset.zeit === state.stats.zeit));
+
+  const rows = statsRows();
+  $('#stats-pill').textContent = rows.length + (rows.length === 1 ? ' Fang' : ' Fänge');
+  const body = $('#stats-body');
+
+  if (!fertig.length){
+    body.innerHTML = `<div class="empty">Noch keine fertigen Fänge.<br>
+      Sobald der Erste gespeichert ist, steht hier die Auswertung.</div>`;
+    return;
+  }
+  if (!rows.length){
+    body.innerHTML = '<div class="empty">Für diese Auswahl gibt es keinen Fang.</div>';
+    return;
+  }
+
+  const zahl = v => String(Math.round(v * 10) / 10).replace('.', ',');
+  const groesster = rows.reduce((a, c) => (c.laenge && (!a || c.laenge > a.laenge)) ? c : a, null);
+  const schwerster = rows.reduce((a, c) => (c.gewicht && (!a || c.gewicht > a.gewicht)) ? c : a, null);
+  const arten = new Set(rows.map(c => c.art).filter(Boolean));
+  const gew   = new Set(rows.map(c => c.gewaesser).filter(Boolean));
+
+  const kachel = (n, l) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+  const kacheln = `<div class="card"><div class="tiles">
+    ${kachel(rows.length, rows.length === 1 ? 'Fang' : 'Fänge')}
+    ${kachel(arten.size, arten.size === 1 ? 'Fischart' : 'Fischarten')}
+    ${kachel(groesster ? zahl(groesster.laenge) + ' cm' : '—', groesster && groesster.art ? 'Größter · ' + groesster.art : 'Größter')}
+    ${kachel(schwerster ? zahl(schwerster.gewicht) + ' kg' : '—', schwerster && schwerster.art ? 'Schwerster · ' + schwerster.art : 'Schwerster')}
+    ${kachel(gew.size, gew.size === 1 ? 'Gewässer' : 'Gewässer')}
+    ${kachel(rows.filter(c => (c.photos || []).length).length, 'mit Foto')}
+  </div></div>`;
+
+  // Ehrlichkeit an der richtigen Stelle: bei einer Handvoll Fängen sagt keine
+  // Verteilung etwas aus. Lieber einmal deutlich dranschreiben als Balken zeigen,
+  // aus denen jemand ein Muster liest, das nur Zufall ist.
+  const duenn = rows.length < 15
+    ? `<div class="card"><div class="hint" style="margin:0">
+         <b>${rows.length} ${rows.length === 1 ? 'Fang' : 'Fänge'} in dieser Auswahl.</b>
+         Für ein belastbares Muster sind das noch zu wenige — ab etwa 20 bis 30 wird es
+         aussagekräftig. Bis dahin zeigen die Balken schlicht, was bisher drinsteht.</div></div>`
+    : '';
+
+  const verteilung = 'Zeigt, wie sich deine Fänge verteilen — nicht, was besser fängt. '
+    + 'Dafür müssten auch Ansitze ohne Fang erfasst sein.';
+
+  body.innerHTML = kacheln + duenn
+    + balkenBlock('Fischart', ausMap(zaehle(rows, c => c.art)))
+    + balkenBlock('Köder', ausMap(zaehle(rows, c => c.koeder)), verteilung)
+    + balkenBlock('Köderfarbe', ausMap(zaehle(rows, c => farbenVon(c))).map(e => ({
+        ...e, sw: (FARBEN.find(f => f[0] === e.label) || [,'var(--muted)'])[1]
+      })), 'Ein Fang mit mehreren Farben zählt in jeder mit — die Summe kann deshalb '
+         + 'größer sein als die Zahl der Fänge.')
+    + balkenBlock('Tageszeit', ausMap(zaehle(rows, c => phaseLabel(c.phase))))
+    + balkenBlock('Wetter', ausMap(zaehle(rows, c => c.wetter && (wetterIcon(c.wetter) + ' ' + wetterLabel(c.wetter)))))
+    + balkenBlock('Mondphase', ausMap(zaehle(rows, c => {
+        const m = mondFor(c.when); return m && (m.icon + ' ' + m.name);
+      })))
+    + balkenBlock('Luftdruck', ausMap(zaehle(rows, c => stufe(c.druck, 5, 'hPa')), { sortiert: true }))
+    + balkenBlock('Wassertemperatur', ausMap(zaehle(rows, c => stufe(c.wasser, 2, '°C')), { sortiert: true }))
+    + balkenBlock('Wassertiefe', ausMap(zaehle(rows, c => stufe(c.tiefe, 1, 'm')), { sortiert: true }))
+    + balkenBlock('Monat', ausMap(zaehle(rows, c => {
+        const d = new Date(c.when);
+        return isNaN(d) ? null : MONATE[d.getMonth()];
+      })).sort((a, b) => MONATE.indexOf(a.label) - MONATE.indexOf(b.label)));
+}
+
+const MONATE = ['Januar','Februar','März','April','Mai','Juni','Juli','August',
+                'September','Oktober','November','Dezember'];
+
+$('#st-gewaesser').addEventListener('change', e => { state.stats.gewaesser = e.target.value; renderStats(); });
+$('#st-art').addEventListener('change',       e => { state.stats.art = e.target.value; renderStats(); });
+$('#st-zeit').addEventListener('click', e => {
+  const b = e.target.closest('[data-zeit]');
+  if (b){ state.stats.zeit = b.dataset.zeit; renderStats(); }
+});
+
 /* ---------------------------- Kartenansicht ---------------------------- */
 let bigMap, markerLayer;
 async function renderMap(){
@@ -1482,13 +1692,14 @@ $('#in-import').onchange = async e => {
 function go(view){
   freeURLs();
   state.view = view;
-  ['log', 'new', 'map', 'detail'].forEach(v => $('#v-' + v).classList.toggle('hidden', v !== view));
+  ['log', 'new', 'map', 'stats', 'detail'].forEach(v => $('#v-' + v).classList.toggle('hidden', v !== view));
   $('#fab-save').classList.toggle('on', view === 'new');
   $$('.tab').forEach(t => t.classList.toggle('on',
     t.dataset.go === view || (view === 'detail' && t.dataset.go === 'log')));
 
   if (view === 'log')    renderList();
   if (view === 'map')    renderMap();
+  if (view === 'stats')  renderStats();
   if (view === 'detail') renderDetail();
   if (view === 'new' && !state.editId) resetForm(null);
   window.scrollTo(0, 0);
