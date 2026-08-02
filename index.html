@@ -161,7 +161,9 @@
     .tabs > div{max-width:760px}
     /* Fangliste mehrspaltig — der eigentliche Gewinn am großen Bildschirm. */
     #list{display:grid; grid-template-columns:repeat(auto-fill, minmax(330px, 1fr));
-      gap:14px; align-items:start}
+      gap:14px; align-items:start; margin-top:14px}
+    /* gap wirkt nur zwischen den Karten — den Abstand zur Suchleiste darüber
+       muss das Raster selbst mitbringen, sonst klebt die erste Reihe daran. */
     #list .item{margin:0}
     #list .empty{grid-column:1 / -1}
     /* Kopfzeile über der Liste: mitwachsend wäre ein 2000 px breites Suchfeld. */
