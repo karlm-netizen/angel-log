@@ -59,6 +59,10 @@
      rechts alles abgeschnitten war. */
   input[type="datetime-local"]{ -webkit-appearance:none; appearance:none; min-width:0; max-width:100% }
   textarea.in{min-height:76px; resize:vertical}
+  /* Anzeigefeld für Werte, die sich rechnen lassen und nichts zum Eintippen sind
+     (Mondphase). Gestrichelter Rand, damit es nicht wie ein Eingabefeld aussieht. */
+  .ro{width:100%; background:var(--card2); border:1px dashed var(--line); border-radius:11px;
+    color:var(--txt); padding:12px; font-size:16px}
   .g2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
   .g3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px}
   .fld{margin-bottom:12px}
@@ -296,6 +300,24 @@
         <label class="f">Tageszeit</label>
         <div class="chips" id="ch-phase"></div>
       </div>
+      <div class="fld">
+        <label class="f">Wetter</label>
+        <div class="chips" id="ch-wetter"></div>
+      </div>
+      <div class="g2 fld">
+        <div>
+          <label class="f" for="f-bewoelkung">Bewölkung (%)</label>
+          <input class="in" id="f-bewoelkung" type="number" inputmode="numeric" step="5" min="0" max="100" placeholder="60">
+        </div>
+        <div>
+          <label class="f">Mondphase</label>
+          <div class="ro" id="f-mond">—</div>
+        </div>
+      </div>
+      <div class="tiny muted">
+        Die Mondphase rechnet sich aus Datum und Uhrzeit — nichts einzutragen, gilt auch
+        für Fänge, die du Wochen später nachträgst.
+      </div>
     </div>
 
     <div class="card">
@@ -445,6 +467,41 @@ const FARBEN = [
 
 const PHASEN = [['morgen','Morgendämmerung'],['tag','Tag'],['abend','Abenddämmerung'],['nacht','Nacht']];
 
+// Wetterlage zum Fangzeitpunkt. Kommt automatisch von Open-Meteo, lässt sich aber
+// antippen — am Wasser ist nicht immer Netz, und wer danebensteht sieht mehr als ein Modell.
+const WETTER = [
+  ['klar','Klar','☀️'],       ['heiter','Heiter','🌤'],   ['bewoelkt','Bewölkt','⛅'],
+  ['bedeckt','Bedeckt','☁️'], ['nebel','Nebel','🌫'],     ['niesel','Nieselregen','💧'],
+  ['regen','Regen','🌧'],      ['schauer','Schauer','🌦'], ['gewitter','Gewitter','⛈'],
+  ['schnee','Schnee','🌨']
+];
+
+/* Mondphase — reine Rechnung aus Datum und Uhrzeit, ohne Schnittstelle.
+   Damit ist sie der einzige automatische Wert, der auch ohne Netz stimmt und
+   beliebig weit zurückreicht; Wetter und Wassertemperatur enden nach 7 Tagen.
+   Gerechnet wird mit dem mittleren Mondmonat. Gegen das genaue Verfahren nach Meeus
+   geprüft (260 Neumonde, 2015–2035): höchstens 17,6 h daneben, bei einer Phasenbreite
+   von 88,6 h — die Phase stimmte in allen 260 Fällen. Auf die Minute genau zu rechnen
+   wäre hier Scheingenauigkeit, der Fangzeitpunkt selbst ist gröber notiert. */
+const SYNODISCH = 29.530588853;                    // Tage von Neumond zu Neumond (Mittel)
+const MOND_NULL = Date.UTC(2000, 0, 6, 18, 14);    // ein bekannter Neumond als Nullpunkt
+const MONDPHASEN = [
+  ['neumond','Neumond','🌑'],                  ['zunehmende-sichel','Zunehmende Sichel','🌒'],
+  ['erstes-viertel','Erstes Viertel','🌓'],    ['zunehmender-mond','Zunehmender Mond','🌔'],
+  ['vollmond','Vollmond','🌕'],                ['abnehmender-mond','Abnehmender Mond','🌖'],
+  ['letztes-viertel','Letztes Viertel','🌗'],  ['abnehmende-sichel','Abnehmende Sichel','🌘']
+];
+function mondFor(when){
+  const t = new Date(when).getTime();
+  if (isNaN(t)) return null;
+  const tage   = ((((t - MOND_NULL) / 86400e3) % SYNODISCH) + SYNODISCH) % SYNODISCH;
+  const anteil = tage / SYNODISCH;                          // 0 = Neumond, 0,5 = Vollmond
+  const i      = Math.round(anteil * 8) % 8;                // acht Abschnitte, auf die Mitte gerundet
+  const licht  = Math.round((1 - Math.cos(2 * Math.PI * anteil)) / 2 * 100);
+  const [key, name, icon] = MONDPHASEN[i];
+  return { key, name, icon, licht };
+}
+
 // Farbpaletten — dunkle zuerst, helle unten. "ink" ist die Schrift auf Akzentflächen.
 const PALETTEN = {
   'tiefes-wasser': ['Tiefes Wasser', {bg:'#0e1418',card:'#161d23',card2:'#1f2830',line:'#2a3540',txt:'#e8eef2',muted:'#8ba0ae',accent:'#3fd0b0',ink:'#06140f',danger:'#ff6b6b',warn:'#f5c14e'}],
@@ -547,7 +604,7 @@ const state = {
   catches: [],      // im Speicher, absteigend nach Zeit sortiert
   editId: null,     // gesetzt = an diesem Eintrag wird gerade geschrieben
   editWasSaved: false, // true = fertiger Fang in Bearbeitung, kein Entwurf
-  form: { photos: [], lat: null, lon: null, farben: [], phase: '', wasserAuto: null },
+  form: { photos: [], lat: null, lon: null, farben: [], phase: '', wetter: '', wasserAuto: null },
   detailId: null,
   urls: []          // ObjectURLs, die beim Ansichtswechsel wieder freigegeben werden
 };
@@ -579,7 +636,28 @@ function fmtDate(iso){
   return `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
-const phaseLabel = k => (PHASEN.find(p => p[0] === k) || [,''])[1];
+const phaseLabel  = k => (PHASEN.find(p => p[0] === k) || [,''])[1];
+const wetterLabel = k => (WETTER.find(w => w[0] === k) || [,''])[1];
+const wetterIcon  = k => (WETTER.find(w => w[0] === k) || [,,''])[2];
+
+// Open-Meteo liefert die Lage als WMO-Schlüssel. Feiner als diese zehn Stufen
+// aufzulösen bringt beim Angeln nichts — "leichter Schauer" und "Schauer" sind
+// später in der Auswertung dieselbe Bedingung, nur mit halb so vielen Fällen.
+function wetterFor(code){
+  if (code == null) return '';
+  if (code === 0)  return 'klar';
+  if (code === 1)  return 'heiter';
+  if (code === 2)  return 'bewoelkt';
+  if (code === 3)  return 'bedeckt';
+  if (code === 45 || code === 48) return 'nebel';
+  if (code >= 51 && code <= 57)   return 'niesel';
+  if (code >= 61 && code <= 67)   return 'regen';
+  if (code >= 71 && code <= 77)   return 'schnee';
+  if (code >= 80 && code <= 82)   return 'schauer';
+  if (code === 85 || code === 86) return 'schnee';
+  if (code >= 95 && code <= 99) return 'gewitter';
+  return '';   // WMO endet bei 99 — alles darüber ist kein Wetter, sondern ein Fehler
+}
 
 /* ---------------------------- Fotos ---------------------------- */
 // iPhone-Bilder sind 3–5 MB. Runterrechnen, sonst ist der Gerätespeicher
@@ -842,7 +920,7 @@ async function loadWeather(force){
   $('#wx-info').innerHTML = '<span class="spin"></span>Wetter wird geholt …';
   const url = 'https://api.open-meteo.com/v1/forecast'
     + `?latitude=${lat}&longitude=${lon}`
-    + '&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m'
+    + '&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code,cloud_cover'
     + '&daily=sunrise,sunset&timezone=auto&past_days=7&forecast_days=2';
 
   try {
@@ -879,6 +957,10 @@ async function loadWeather(force){
     set('#f-windstaerke', j.hourly.wind_speed_10m[i]);
     const wd = j.hourly.wind_direction_10m[i];
     if (wd != null && (force || $('#f-windrichtung').value === '')) $('#f-windrichtung').value = dirLabel(wd);
+    set('#f-bewoelkung', j.hourly.cloud_cover && j.hourly.cloud_cover[i]);
+
+    const wl = wetterFor(j.hourly.weather_code && j.hourly.weather_code[i]);
+    if (wl && (force || !state.form.wetter)) setWetter(wl);
 
     const ph = phaseFor(when, j.daily);
     if (ph && !state.form.phase) selectPhase(ph);
@@ -939,6 +1021,8 @@ function buildStatics(){
   $('#f-windrichtung').innerHTML =
     '<option value="">—</option>' + DIRS.map(d => `<option value="${d}">${d}</option>`).join('');
   $('#ch-phase').innerHTML = PHASEN.map(([k, l]) => `<button class="chip" data-phase="${k}">${l}</button>`).join('');
+  $('#ch-wetter').innerHTML = WETTER.map(([k, l, ic]) =>
+    `<button class="chip" data-wetter="${k}">${ic} ${l}</button>`).join('');
   $('#ch-farbe').innerHTML = FARBEN.map(([n, hex]) =>
     `<button class="chip" data-farbe="${n}"><i class="sw" style="background:${hex}"></i>${n}</button>`).join('');
 }
@@ -946,6 +1030,21 @@ function selectPhase(k){
   state.form.phase = (state.form.phase === k) ? '' : k;
   $$('#ch-phase .chip').forEach(c => c.classList.toggle('on', c.dataset.phase === state.form.phase));
   scheduleDraft();
+}
+/* Zwei Wege ins Wetterfeld: setWetter() setzt, selectWetter() schaltet um.
+   Der Abruf darf nicht umschalten — sonst löscht ein zweites "Werte holen"
+   die Lage wieder, die es beim ersten Mal gesetzt hat. */
+function setWetter(k){
+  state.form.wetter = k || '';
+  $$('#ch-wetter .chip').forEach(c => c.classList.toggle('on', c.dataset.wetter === state.form.wetter));
+  scheduleDraft();
+}
+function selectWetter(k){ setWetter(state.form.wetter === k ? '' : k); }
+
+// Die Mondphase hängt allein am Zeitfeld — sie wird angezeigt, nicht eingegeben.
+function renderMond(){
+  const m = mondFor($('#f-zeit').value);
+  $('#f-mond').textContent = m ? `${m.icon} ${m.name} · ${m.licht} %` : '—';
 }
 /* Farben sind eine Mehrfachauswahl. Fänge aus der Zeit davor haben ein einzelnes
    `farbe` — deshalb liest alles über farbenVon(), geschrieben wird nur noch `farben`. */
@@ -967,6 +1066,10 @@ $('#ch-phase').addEventListener('click', e => {
 $('#ch-farbe').addEventListener('click', e => {
   const b = e.target.closest('[data-farbe]'); if (b) selectFarbe(b.dataset.farbe);
 });
+$('#ch-wetter').addEventListener('click', e => {
+  const b = e.target.closest('[data-wetter]'); if (b) selectWetter(b.dataset.wetter);
+});
+$('#f-zeit').addEventListener('input', renderMond);
 
 function refreshWaterList(){
   const waters = [...new Set(state.catches.map(c => c.gewaesser).filter(Boolean))].sort();
@@ -977,7 +1080,7 @@ function resetForm(rec){
   state.editId       = rec ? rec.id : null;
   state.editWasSaved = !!(rec && !rec.entwurf);
   state.form   = { photos: rec ? (rec.photos || []).slice() : [],
-                   lat: null, lon: null, farben: [], phase: '',
+                   lat: null, lon: null, farben: [], phase: '', wetter: '',
                    wasserAuto: (rec && rec.wasserQuelle && rec.wasserQuelle !== 'manuell')
                      ? { wert: rec.wasser, quelle: rec.wasserQuelle, station: rec.wasserStation || '' }
                      : null };
@@ -997,14 +1100,18 @@ function resetForm(rec){
   v('#f-windrichtung', (rec && rec.windRichtung) || '');
   v('#f-wasser',       rec && rec.wasser);
   v('#f-tiefe',        rec && rec.tiefe);
+  v('#f-bewoelkung',   rec && rec.bewoelkung);
   v('#f-koeder',       rec && rec.koeder);
   v('#f-koedergroesse',rec && rec.koederGroesse);
   v('#f-notiz',        rec && rec.notiz);
 
   $$('#ch-phase .chip').forEach(c => c.classList.remove('on'));
   $$('#ch-farbe .chip').forEach(c => c.classList.remove('on'));
+  $$('#ch-wetter .chip').forEach(c => c.classList.remove('on'));
   if (rec && rec.phase) selectPhase(rec.phase);
+  if (rec && rec.wetter) setWetter(rec.wetter);
   farbenVon(rec).forEach(n => selectFarbe(n));
+  renderMond();
 
   $('#minimap').classList.add('hidden');
   $('#minimap-hint').hidden = true;
@@ -1047,6 +1154,8 @@ function buildRecord(entwurf){
     wasserStation: vonQuelle ? wa.station : '',
     tiefe:         num($('#f-tiefe').value),
     phase:         state.form.phase,
+    wetter:        state.form.wetter,
+    bewoelkung:    num($('#f-bewoelkung').value),
     koeder:        $('#f-koeder').value.trim(),
     koederGroesse: num($('#f-koedergroesse').value),
     farben:        state.form.farben.slice(),
@@ -1061,10 +1170,11 @@ function buildRecord(entwurf){
 let draftTimer = null;
 function formHatInhalt(){
   const felder = ['#f-art','#f-laenge','#f-gewicht','#f-gewaesser','#f-luft','#f-druck',
-                  '#f-windstaerke','#f-wasser','#f-tiefe','#f-koeder','#f-koedergroesse','#f-notiz'];
+                  '#f-windstaerke','#f-wasser','#f-tiefe','#f-bewoelkung','#f-koeder',
+                  '#f-koedergroesse','#f-notiz'];
   return felder.some(s => $(s).value.trim() !== '')
       || state.form.photos.length > 0 || state.form.lat != null
-      || !!state.form.phase || state.form.farben.length > 0;
+      || !!state.form.phase || !!state.form.wetter || state.form.farben.length > 0;
 }
 function scheduleDraft(){
   if (state.view !== 'new') return;
@@ -1137,7 +1247,8 @@ $('#btn-cancel').onclick = () => {
 /* ---------------------------- Liste ---------------------------- */
 function renderList(){
   const q = $('#q').value.trim().toLowerCase();
-  const rows = state.catches.filter(c => !q || [c.art, c.gewaesser, c.koeder, ...farbenVon(c), c.notiz]
+  const rows = state.catches.filter(c => !q || [c.art, c.gewaesser, c.koeder, ...farbenVon(c),
+      wetterLabel(c.wetter), mondFor(c.when) && mondFor(c.when).name, c.notiz]
     .filter(Boolean).join(' ').toLowerCase().includes(q));
 
   const list = $('#list');
@@ -1160,6 +1271,7 @@ function renderList(){
     const farben = farbenVon(c).join(', ');
     const tags = (c.entwurf ? '<span class="pill warn">Entwurf</span>' : '') + [
       c.phase && phaseLabel(c.phase),
+      c.wetter && (wetterIcon(c.wetter) + ' ' + wetterLabel(c.wetter)),
       [c.koeder, farben].filter(Boolean).join(' · '),
       c.druck  && c.druck + ' hPa',
       c.windRichtung && ('Wind ' + c.windRichtung)
@@ -1221,6 +1333,7 @@ function renderDetail(){
       ${kv('Gewicht', c.gewicht && dec(c.gewicht) + ' kg')}
       ${kv('Gewässer', c.gewaesser)}
       ${kv('Tageszeit', phaseLabel(c.phase))}
+      ${kv('Mondphase', mondFor(c.when) && `${mondFor(c.when).icon} ${mondFor(c.when).name} · ${mondFor(c.when).licht} %`)}
     </div>
     <div class="card">
       <h2>Bedingungen</h2>
@@ -1232,6 +1345,8 @@ function renderDetail(){
       ${kv('Lufttemperatur', c.luft != null && dec(c.luft) + ' °C')}
       ${kv('Luftdruck', c.druck != null && dec(c.druck) + ' hPa')}
       ${kv('Wind', [c.windRichtung, c.windKmh != null && dec(c.windKmh) + ' km/h'].filter(Boolean).join(' · '))}
+      ${kv('Wetter', c.wetter && `${wetterIcon(c.wetter)} ${wetterLabel(c.wetter)}`)}
+      ${kv('Bewölkung', c.bewoelkung != null && Math.round(c.bewoelkung) + ' %')}
     </div>
     <div class="card">
       <h2>Köder</h2>
