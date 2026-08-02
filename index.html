@@ -672,7 +672,8 @@ const state = {
   form: { photos: [], lat: null, lon: null, farben: [], phase: '', wetter: '', truebung: '',
           regen24: null, regen48: null, pegel: null, wasserAuto: null },
   detailId: null,
-  stats: { gewaesser: '', art: '', zeit: 'alles' },   // eine Filterzeile für alle Auswertungen
+  // Eine Filterzeile für alle Auswertungen, dazu die Auswahl, was gezeigt wird.
+  stats: { gewaesser: '', art: '', zeit: 'alles', zeige: ['wasser'] },
   urls: []          // ObjectURLs, die beim Ansichtswechsel wieder freigegeben werden
 };
 
@@ -1709,39 +1710,90 @@ function renderStats(){
     ? `<div class="card"><div class="hint" style="margin:0">
          <b>${rows.length} ${rows.length === 1 ? 'Fang' : 'Fänge'} in dieser Auswahl.</b>
          Für ein belastbares Muster sind das noch zu wenige — ab etwa 20 bis 30 wird es
-         aussagekräftig. Bis dahin zeigen die Balken schlicht, was bisher drinsteht.</div></div>`
+         aussagekräftig. Bis dahin zeigt die Auswertung schlicht, was bisher drinsteht.</div></div>`
     : '';
 
-  const verteilung = 'Zeigt, wie sich deine Fänge verteilen — nicht, was besser fängt. '
-    + 'Dafür müssten auch Ansitze ohne Fang erfasst sein.';
+  // Nur zeichnen, was ausgewählt ist. Vorher standen hier dreizehn Blöcke
+  // untereinander — das war eine Materialschlacht, durch die man scrollen musste,
+  // statt der einen Frage, die man gerade hat.
+  const gewaehlt = AUSWERTUNGEN.filter(a => state.stats.zeige.includes(a.key));
+  // Wichtig: eine Auswertung ohne Daten muss das *sagen*. Gäbe sie nur nichts
+  // zurück, passierte beim Antippen sichtbar gar nichts und die App wirkt kaputt.
+  const inhalt = gewaehlt.length
+    ? gewaehlt.map(a => a.bau(rows) || `<div class="card"><h2>${a.kurz}</h2>
+        <div class="hint" style="margin:0">Dazu hat in dieser Auswahl noch kein Fang
+        einen Wert — oder es sind zu wenige für einen Verlauf.</div></div>`).join('')
+    : `<div class="card"><div class="hint" style="margin:0">
+         Oben auswählen, was du sehen willst — mehreres geht gleichzeitig.</div></div>`;
 
-  body.innerHTML = kacheln + duenn
-    + balkenBlock('Fischart', ausMap(zaehle(rows, c => c.art)))
-    + balkenBlock('Köder', ausMap(zaehle(rows, c => c.koeder)), verteilung)
-    + balkenBlock('Köderfarbe', ausMap(zaehle(rows, c => farbenVon(c))).map(e => ({
+  body.innerHTML = kacheln + waehler() + duenn + inhalt;
+}
+
+/* Die Auswertungen, aus denen er oben auswählt. Messbares wird zur Kurve
+   (die Reihenfolge der Werte bedeutet etwas), Kategorien bleiben Balken. */
+const HINWEIS_VERTEILUNG =
+  'Zeigt, wie sich deine Fänge verteilen — nicht, was besser fängt. '
+  + 'Dafür müssten auch Ansitze ohne Fang erfasst sein.';
+
+const AUSWERTUNGEN = [
+  { key:'wasser', kurz:'Wassertemp.', bau: r =>
+      kurvenBlock('Fänge nach Wassertemperatur (°C)', stufenReihe(r, c => c.wasser, 2),
+        'Leere Stufen stehen mit null drin — sonst würde die Linie eine Lücke zu einem Verlauf machen.') },
+  { key:'luft', kurz:'Lufttemp.', bau: r =>
+      kurvenBlock('Fänge nach Lufttemperatur (°C)', stufenReihe(r, c => c.luft, 2)) },
+  { key:'druck', kurz:'Luftdruck', bau: r =>
+      kurvenBlock('Fänge nach Luftdruck (hPa)', stufenReihe(r, c => c.druck, 5)) },
+  { key:'tiefe', kurz:'Wassertiefe', bau: r =>
+      kurvenBlock('Fänge nach Wassertiefe (m)', stufenReihe(r, c => c.tiefe, 1)) },
+  { key:'regen', kurz:'Regen davor', bau: r =>
+      kurvenBlock('Fänge nach Regen davor (mm/24 h)', stufenReihe(r, c => c.regen24, 2)) },
+  { key:'laenge', kurz:'Fischlänge', bau: r =>
+      kurvenBlock('Fänge nach Länge (cm)', stufenReihe(r, c => c.laenge, 5)) },
+  { key:'koedergroesse', kurz:'Ködergröße', bau: r =>
+      kurvenBlock('Fänge nach Ködergröße (cm)', stufenReihe(r, c => c.koederGroesse, 2)) },
+  { key:'monat', kurz:'Monat', bau: r =>
+      kurvenBlock('Fänge nach Monat', (() => {
+        const z = new Array(12).fill(0);
+        r.forEach(c => { const d = new Date(c.when); if (!isNaN(d)) z[d.getMonth()]++; });
+        return z.map((wert, i) => ({ x: MONATE_KURZ[i], wert }));
+      })()) },
+  { key:'stunde', kurz:'Uhrzeit', bau: r =>
+      kurvenBlock('Fänge nach Uhrzeit', (() => {
+        const z = new Array(24).fill(0);
+        r.forEach(c => { const d = new Date(c.when); if (!isNaN(d)) z[d.getHours()]++; });
+        return z.map((wert, i) => ({ x: String(i), wert }));
+      })()) },
+  { key:'art', kurz:'Fischart', bau: r => balkenBlock('Fischart', ausMap(zaehle(r, c => c.art))) },
+  { key:'koeder', kurz:'Köder', bau: r =>
+      balkenBlock('Köder', ausMap(zaehle(r, c => c.koeder)), HINWEIS_VERTEILUNG) },
+  { key:'farbe', kurz:'Köderfarbe', bau: r =>
+      balkenBlock('Köderfarbe', ausMap(zaehle(r, c => farbenVon(c))).map(e => ({
         ...e, sw: (FARBEN.find(f => f[0] === e.label) || [,'var(--muted)'])[1]
       })), 'Ein Fang mit mehreren Farben zählt in jeder mit — die Summe kann deshalb '
-         + 'größer sein als die Zahl der Fänge.')
-    + balkenBlock('Tageszeit', ausMap(zaehle(rows, c => phaseLabel(c.phase))))
-    + balkenBlock('Wetter', ausMap(zaehle(rows, c => c.wetter && (wetterIcon(c.wetter) + ' ' + wetterLabel(c.wetter)))))
-    + balkenBlock('Mondphase', ausMap(zaehle(rows, c => {
+         + 'größer sein als die Zahl der Fänge.') },
+  { key:'tageszeit', kurz:'Tageszeit', bau: r =>
+      balkenBlock('Tageszeit', ausMap(zaehle(r, c => phaseLabel(c.phase)))) },
+  { key:'wetter', kurz:'Wetter', bau: r =>
+      balkenBlock('Wetter', ausMap(zaehle(r, c => c.wetter && (wetterIcon(c.wetter) + ' ' + wetterLabel(c.wetter))))) },
+  { key:'mond', kurz:'Mondphase', bau: r =>
+      balkenBlock('Mondphase', ausMap(zaehle(r, c => {
         const m = mondFor(c.when); return m && (m.icon + ' ' + m.name);
-      })))
-    + balkenBlock('Wassertrübung', TRUEBUNG
-        .map(([k, l]) => ({ label: l, wert: rows.filter(c => c.truebung === k).length }))
-        .filter(e => e.wert > 0))
-    // Ab hier Messwerte: Kurven statt Balken, weil die Reihenfolge eine Bedeutung hat.
-    + kurvenBlock('Fänge nach Wassertemperatur (°C)', stufenReihe(rows, c => c.wasser, 2),
-        'Leere Stufen stehen mit null drin — sonst würde die Linie eine Lücke zu einem Verlauf machen.')
-    + kurvenBlock('Fänge nach Lufttemperatur (°C)', stufenReihe(rows, c => c.luft, 2))
-    + kurvenBlock('Fänge nach Luftdruck (hPa)', stufenReihe(rows, c => c.druck, 5))
-    + kurvenBlock('Fänge nach Wassertiefe (m)', stufenReihe(rows, c => c.tiefe, 1))
-    + kurvenBlock('Fänge nach Regen davor (mm/24 h)', stufenReihe(rows, c => c.regen24, 2))
-    + kurvenBlock('Fänge nach Monat', (() => {
-        const z = new Array(12).fill(0);
-        rows.forEach(c => { const d = new Date(c.when); if (!isNaN(d)) z[d.getMonth()]++; });
-        return z.map((wert, i) => ({ x: MONATE_KURZ[i], wert }));
-      })());
+      }))) },
+  { key:'trueb', kurz:'Trübung', bau: r =>
+      balkenBlock('Wassertrübung', TRUEBUNG
+        .map(([k, l]) => ({ label: l, wert: r.filter(c => c.truebung === k).length }))
+        .filter(e => e.wert > 0)) },
+  { key:'gewaesser', kurz:'Gewässer', bau: r =>
+      balkenBlock('Gewässer', ausMap(zaehle(r, c => c.gewaesser))) }
+];
+
+function waehler(){
+  return `<div class="card">
+    <label class="f">Was willst du sehen?</label>
+    <div class="chips" id="st-wahl">${AUSWERTUNGEN.map(a =>
+      `<button class="chip${state.stats.zeige.includes(a.key) ? ' on' : ''}"
+               data-wahl="${a.key}">${a.kurz}</button>`).join('')}</div>
+  </div>`;
 }
 
 const MONATE = ['Januar','Februar','März','April','Mai','Juni','Juli','August',
@@ -1753,6 +1805,16 @@ $('#st-art').addEventListener('change',       e => { state.stats.art = e.target.
 $('#st-zeit').addEventListener('click', e => {
   const b = e.target.closest('[data-zeit]');
   if (b){ state.stats.zeit = b.dataset.zeit; renderStats(); }
+});
+// Der Wähler wird bei jedem Rendern neu gebaut, deshalb hängt der Zuhörer am Rahmen.
+$('#stats-body').addEventListener('click', e => {
+  const b = e.target.closest('[data-wahl]');
+  if (!b) return;
+  const k = b.dataset.wahl;
+  const z = state.stats.zeige;
+  const i = z.indexOf(k);
+  if (i < 0) z.push(k); else z.splice(i, 1);
+  renderStats();
 });
 
 /* ---------------------------- Kartenansicht ---------------------------- */
