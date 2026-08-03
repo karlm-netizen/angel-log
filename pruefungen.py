@@ -1123,9 +1123,17 @@ TESTS = r"""
     return (/OpenStreetMap/.test(s) && /Open-Meteo/.test(s) && /PEGELONLINE/.test(s)) || 'ein Dienst fehlt';
   });
   t('Text nennt die Betroffenenrechte', () => /Art. 15/.test(datenschutzText()) || 'fehlt');
-  t('Kontaktadresse ist noch ein Platzhalter', () =>
-    /BITTE EINTRAGEN/.test(datenschutzText()) ? true
-      : (KONTAKT.length > 5 || 'Kontakt ist leer'));
+  t('Kontakt ist gesetzt, kein Platzhalter mehr', () =>
+    (!/BITTE EINTRAGEN/.test(KONTAKT) && KONTAKT.length > 5) || KONTAKT);
+  t('Kontakt nennt einen Namen und eine E-Mail', () =>
+    (/\w+\s+\w+/.test(KONTAKT) && /@/.test(KONTAKT)) || KONTAKT);
+  // ⚠️ Karls Entscheidung: keine Wohnanschrift auf einer oeffentlichen Seite.
+  t('Keine Wohnanschrift im Datenschutztext', () => {
+    const s = datenschutzText();
+    return (!/\b\d{5}\b/.test(s) && !/Lindenhof/i.test(s)) || 'Adresse steht drin';
+  });
+  t('Verantwortlicher steht im Text', () =>
+    datenschutzText().includes(KONTAKT) || 'fehlt');
 
   (async function(){
     for (const [name, fn] of asyncTests){

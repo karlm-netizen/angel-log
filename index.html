@@ -221,9 +221,11 @@
   <div class="head">
     <h1>Angel-Log</h1>
     <button class="iconbtn" id="btn-menu" aria-label="Einstellungen">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3.2"/>
-        <path d="M12 2.6v2.6M12 18.8v2.6M21.4 12h-2.6M5.2 12H2.6M18.6 5.4l-1.8 1.8M7.2 16.8l-1.8 1.8M18.6 18.6l-1.8-1.8M7.2 7.2L5.4 5.4"/>
+      <!-- Zahnrad. Vorher stand hier eine Sonne — die liest sich als Helligkeit
+           oder Design, nicht als Einstellungen (Karl, 03.08.). -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3.1"/>
+        <path d="M19.2 13.2a7.4 7.4 0 0 0 0-2.4l2-1.5-2-3.4-2.3 1a7.4 7.4 0 0 0-2.1-1.2L14.4 3H9.6l-.4 2.7a7.4 7.4 0 0 0-2.1 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7.4 7.4 0 0 0 2.1 1.2l.4 2.7h4.8l.4-2.7a7.4 7.4 0 0 0 2.1-1.2l2.3 1 2-3.4z"/>
       </svg>
     </button>
   </div>
@@ -2328,11 +2330,14 @@ function renderKonto(){
    Server. Eine Datenschutzerklärung, die den zweiten Fall beschreibt, obwohl
    nur der erste zutrifft (oder umgekehrt), ist schlimmer als keine.
 
-   ⚠️ KONTAKT ist ein Platzhalter. Ohne ladungsfähige Kontaktadresse ist die
-   Erklärung unvollständig — das muss Karl setzen, bevor die App an jemanden
-   außer den Kollegen geht. Steht als offener Punkt in open-loops.
+   ⚠️ KONTAKT: bewusst **ohne Wohnanschrift**. Art. 13 DSGVO verlangt „Name und
+   Kontaktdaten" — eine erreichbare E-Mail erfüllt das, und diese Seite liegt in
+   einem öffentlichen Repo, wo eine Privatadresse dauerhaft und samt Git-Historie
+   stünde. Karls Entscheidung am 03.08.2026, nachdem beide Fassungen vorlagen.
+   ⚠️ Würde die App öffentlich beworben (Instagram-Frage des Kollegen), gehört
+   das neu bewertet — dann eher eine Zustelladresse, die nicht das Zuhause ist.
    ============================================================ */
-const KONTAKT = 'BITTE EINTRAGEN (E-Mail-Adresse des Betreibers)';
+const KONTAKT = 'Karl Fangmeyer · karlm.fangmeyer@gmail.com';
 
 function datenschutzText(){
   const cloudTeil = !cloudAn() ? `
