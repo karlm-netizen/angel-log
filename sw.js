@@ -2,7 +2,7 @@
 // Eigene Dateien: Netz zuerst, damit Updates sofort ankommen — Cache nur als Offline-Rückfall.
 // Kartenkacheln und Leaflet: Cache zuerst, denn am Wasser ist oft kein Netz und einmal
 // angeschaute Gewässer sollen offline noch da sein. Wetter-API: nie cachen.
-const CACHE  = 'angellog-v7';
+const CACHE  = 'angellog-v8';
 const TILES  = 'angellog-tiles';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png',
   './leaflet/leaflet.js', './leaflet/leaflet.css',
@@ -57,6 +57,9 @@ self.addEventListener('fetch', e => {
     return;
   }
 
+  // Alles Fremde (Supabase, PEGELONLINE, Marine-API) läuft ungefiltert durch.
+  // ⚠️ Konto- und Fangdaten dürfen nie in einen Cache — sie gehören ins Gerät
+  // und in die Datenbank, nicht in einen Zwischenspeicher, den niemand leert.
   if (url.origin !== location.origin) return;
 
   e.respondWith(

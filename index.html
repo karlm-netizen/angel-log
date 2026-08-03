@@ -465,14 +465,17 @@
     <h2 style="font-size:17px; margin-bottom:12px">Einstellungen</h2>
     <label class="f">Farbpalette</label>
     <div class="pal" id="pal"></div>
+    <div id="konto" hidden></div>
     <label class="f">Sicherung</label>
-    <p class="tiny muted" style="margin:0 0 12px">
+    <p class="tiny muted" style="margin:0 0 12px" id="sicherung-text">
       Alle Daten liegen nur auf diesem Gerät. Mach ab und zu ein Backup —
       wenn du Safari-Daten löschst oder die App vom Homescreen wirfst, sind die Fänge weg.
     </p>
     <button class="btn" id="btn-export" style="margin-bottom:8px">⬇︎ Backup exportieren</button>
     <button class="btn" id="btn-import" style="margin-bottom:8px">⬆︎ Backup einlesen</button>
     <input type="file" id="in-import" accept="application/json,.json" class="hidden">
+    <button class="btn" id="btn-datenschutz" style="margin-bottom:8px">Datenschutz</button>
+    <div id="ds-text" hidden style="margin-bottom:12px"></div>
     <button class="btn" id="btn-close-sheet">Schließen</button>
   </div>
 </div>
@@ -510,10 +513,13 @@
 <script>
 /* =======================================================================
    Angel-Log — Fangbuch als PWA.
-   Alles läuft lokal: IndexedDB für Fänge + Fotos, kein Server, kein Account.
-   Aus dem Netz kommt nur zweierlei: Kartenkacheln (OSM) und die Wetterwerte
-   zum Fangzeitpunkt (Open-Meteo, ohne Key). Beides ist optional — ohne Netz
-   lässt sich jeder Fang trotzdem vollständig erfassen.
+   Grundbetrieb ist lokal: IndexedDB für Fänge + Fotos, kein Zwang zum Konto.
+   Aus dem Netz kommt sonst nur zweierlei: Kartenkacheln (OSM) und die
+   Wetterwerte zum Fangzeitpunkt (Open-Meteo, ohne Key). Beides ist optional —
+   ohne Netz lässt sich jeder Fang trotzdem vollständig erfassen.
+   Wer will, kann sich zusätzlich ein Konto anlegen und die Fänge auf mehreren
+   Geräten haben (siehe „Konto & Cloud-Sync" weiter unten). Ohne Anmeldung
+   verlässt kein Fang das Gerät.
    ======================================================================= */
 
 const ARTEN = ['Hecht','Zander','Barsch','Wels','Aal','Karpfen','Schleie','Brasse','Rotauge',
@@ -602,8 +608,19 @@ const dirLabel = deg => DIRS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16
 const $  = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 
-/* ---------------------------- Datenbank ---------------------------- */
-const DBN = 'angellog', STORE = 'catches';
+/* ---------------------------- Datenbank ----------------------------
+   Zwei Speicher: `catches` sind die Fänge, `graeber` merkt sich gelöschte IDs.
+
+   ⚠️ Die Grabsteine gibt es nur wegen des Sync. Ohne sie kann ein Gerät nicht
+   zwischen „diesen Fang kenne ich noch nicht" und „diesen Fang habe ich gerade
+   gelöscht" unterscheiden — jeder gelöschte Fang käme beim nächsten Abgleich
+   vom Server zurück. Ein Grabstein ist nur ID + Zeitpunkt, kostet also nichts.
+
+   `updated` an jedem Fang ist der zweite Sync-Baustein: daran entscheidet sich
+   bei einem Konflikt, welche Fassung gewinnt (die jüngere). Es wird in
+   putCatch() gesetzt, damit es keinen Weg gibt, einen Fang zu speichern und
+   das Feld zu vergessen. */
+const DBN = 'angellog', STORE = 'catches', GRAB = 'graeber';
 let _db = null;
 
 function db(){
@@ -613,10 +630,11 @@ function db(){
     // onerror zu feuern. Deshalb ein Wecker — sonst wartet die App stumm.
     const guard = setTimeout(() => rej(new Error('Speicher antwortet nicht')), 6000);
     const done = fn => (...a) => { clearTimeout(guard); fn(...a); };
-    const r = indexedDB.open(DBN, 1);
+    const r = indexedDB.open(DBN, 2);
     r.onupgradeneeded = () => {
       const d = r.result;
       if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE, { keyPath: 'id' });
+      if (!d.objectStoreNames.contains(GRAB))  d.createObjectStore(GRAB,  { keyPath: 'id' });
     };
     r.onsuccess = done(() => { _db = r.result; res(_db); });
     r.onerror   = done(() => rej(r.error || new Error('Speicher nicht verfügbar')));
@@ -631,20 +649,45 @@ async function allCatches(){
     r.onerror   = () => rej(r.error);
   });
 }
-async function putCatch(rec){
+/* vomServer=true heißt: der Fang kommt gerade aus der Cloud. Dann bleibt sein
+   `updated` stehen — würde es hier auf „jetzt" gesetzt, hielte das Gerät den
+   frisch geholten Fang für eine eigene Änderung und schöbe ihn sofort zurück. */
+async function putCatch(rec, vomServer){
+  if (!vomServer || rec.updated == null) rec.updated = Date.now();
   const d = await db();
   return new Promise((res, rej) => {
-    const t = d.transaction(STORE, 'readwrite');
+    const t = d.transaction([STORE, GRAB], 'readwrite');
     t.objectStore(STORE).put(rec);
+    t.objectStore(GRAB).delete(rec.id);   // wiederauferstanden: Grabstein weg
     t.oncomplete = () => res(rec);
     t.onerror    = () => rej(t.error);
   });
 }
-async function removeCatch(id){
+async function removeCatch(id, vomServer){
   const d = await db();
   return new Promise((res, rej) => {
-    const t = d.transaction(STORE, 'readwrite');
+    const t = d.transaction([STORE, GRAB], 'readwrite');
     t.objectStore(STORE).delete(id);
+    t.objectStore(GRAB).put({ id, updated: Date.now(), gemeldet: !!vomServer });
+    t.oncomplete = () => res();
+    t.onerror    = () => rej(t.error);
+  });
+}
+async function allGraeber(){
+  const d = await db();
+  return new Promise((res, rej) => {
+    const r = d.transaction(GRAB).objectStore(GRAB).getAll();
+    r.onsuccess = () => res(r.result || []);
+    r.onerror   = () => rej(r.error);
+  });
+}
+async function grabMarkieren(ids){
+  if (!ids.length) return;
+  const d = await db();
+  return new Promise((res, rej) => {
+    const t = d.transaction(GRAB, 'readwrite');
+    const s = t.objectStore(GRAB);
+    ids.forEach(id => s.put({ id, updated: Date.now(), gemeldet: true }));
     t.oncomplete = () => res();
     t.onerror    = () => rej(t.error);
   });
@@ -1506,6 +1549,7 @@ async function saveNow(){
     state.editId = null;
     state.editWasSaved = false;
     go('log');
+    syncJetzt(true);      // still im Hintergrund — der Fang ist schon sicher im Gerät
   } catch {
     // Lieber laut scheitern, als einen Fang stillschweigend verlieren.
     toast('Speichern fehlgeschlagen — Eintrag bleibt offen, bitte erneut versuchen.');
@@ -1526,6 +1570,7 @@ $('#btn-del').onclick = async () => {
     await reload();
     toast('Gelöscht');
     go('log');
+    syncJetzt(true);
   } catch {
     toast('Löschen fehlgeschlagen');
   }
@@ -1785,6 +1830,380 @@ $('#in-import').onchange = async e => {
   }
 };
 
+/* ====================== Konto & Cloud-Sync ==========================
+   Freiwillig. Ohne Konto läuft alles wie vorher: Fänge und Fotos liegen nur
+   im Gerät, es geht nichts hinaus. Erst wer sich anmeldet, legt seine Fänge
+   zusätzlich auf den Server — damit sie ein Gerätewechsel überlebt.
+
+   ⚠️ Solange SUPA_URL leer ist, gibt es die Konto-Schaltflächen gar nicht.
+   Die App ist dann Zeile für Zeile die lokale von vorher. Das ist Absicht:
+   die Zusage „nichts verlässt das Gerät" fällt erst, wenn hier etwas steht.
+
+   Drei Entscheidungen, die den Rest erklären:
+   1. Fotos gehen verkleinert in die Datenbank (nicht in einen Dateispeicher).
+      Der Gratistarif hat 500 MB — bei ~220 KB je Bild sind das grob 1.700
+      Fotos. Das Original bleibt in voller Größe im Gerät, hochgeladen wird
+      immer nur die kleine Fassung.
+   2. Bei einem Konflikt gewinnt die jüngere Fassung (`updated` des Geräts).
+      Für einen Angler mit zwei Geräten ist das die richtige Regel; zwei
+      Leute, die denselben Fang gleichzeitig ändern, gibt es hier nicht.
+   3. Nachgeladen wird nach der **Server**-Uhr (`serverzeit`), nicht nach der
+      des Geräts. Ein Handy mit falsch gestellter Uhr würde sonst entweder
+      alles doppelt ziehen oder nie wieder etwas sehen.
+   =================================================================== */
+
+// ⚠️ Hier trägt Karl die Werte seines Supabase-Projekts ein. Leer = kein Konto.
+const SUPA_URL = '';
+const SUPA_KEY = '';
+
+const KONTO_KEY = 'angellog-konto';
+const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
+let konto = null;          // { access_token, refresh_token, email, seit }
+let syncLaeuft = false;
+
+function kontoLesen(){
+  try { return JSON.parse(localStorage.getItem(KONTO_KEY) || 'null'); } catch { return null; }
+}
+function kontoSchreiben(k){
+  konto = k;
+  try { k ? localStorage.setItem(KONTO_KEY, JSON.stringify(k)) : localStorage.removeItem(KONTO_KEY); } catch {}
+  renderKonto();
+}
+const kopf = mitToken => ({
+  'apikey': SUPA_KEY,
+  'Content-Type': 'application/json',
+  'Authorization': 'Bearer ' + ((mitToken && konto && konto.access_token) ? konto.access_token : SUPA_KEY)
+});
+
+/* Der Zugangs-Token läuft nach einer Stunde ab. Am Wasser ist oft kein Netz,
+   deshalb wird nicht beim Start erneuert, sondern erst wenn der Server 401
+   sagt — und wenn das Erneuern scheitert, bleibt die Anmeldung trotzdem
+   stehen. Rauswerfen wegen schlechtem Empfang wäre das Letzte, was hier
+   passieren darf: die App muss offline vollständig benutzbar bleiben. */
+async function tokenErneuern(){
+  if (!konto || !konto.refresh_token) return false;
+  const r = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=refresh_token`,
+    { method: 'POST', headers: kopf(false),
+      body: JSON.stringify({ refresh_token: konto.refresh_token }) });
+  if (!r.ok) return false;
+  const d = await r.json();
+  if (!d.access_token) return false;
+  kontoSchreiben({ ...konto, access_token: d.access_token, refresh_token: d.refresh_token || konto.refresh_token });
+  return true;
+}
+async function api(pfad, opt = {}, zweiterVersuch){
+  const r = await fetch(SUPA_URL + pfad, { ...opt, headers: { ...kopf(true), ...(opt.headers || {}) } });
+  if (r.status === 401 && !zweiterVersuch && await tokenErneuern()) return api(pfad, opt, true);
+  return r;
+}
+
+/* ---------- Anmelden ---------- */
+function authFehler(d, standard){
+  const m = (d && (d.msg || d.error_description || d.message || d.error)) || '';
+  if (/already registered|already been registered/i.test(m)) return 'Für diese E-Mail gibt es schon ein Konto — melde dich an.';
+  if (/invalid login|invalid credentials/i.test(m))          return 'E-Mail oder Passwort stimmt nicht.';
+  if (/password.*6|at least 6/i.test(m))                     return 'Das Passwort braucht mindestens 6 Zeichen.';
+  if (/email.*invalid|unable to validate/i.test(m))          return 'Diese E-Mail-Adresse sieht nicht richtig aus.';
+  return m || standard;
+}
+async function registrieren(email, passwort){
+  const r = await fetch(`${SUPA_URL}/auth/v1/signup`,
+    { method: 'POST', headers: kopf(false), body: JSON.stringify({ email, password: passwort }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(authFehler(d, 'Registrieren hat nicht geklappt.'));
+  if (!d.access_token) throw new Error('Konto angelegt. Bitte E-Mail bestätigen und dann anmelden.');
+  kontoSchreiben({ access_token: d.access_token, refresh_token: d.refresh_token,
+                   email: (d.user && d.user.email) || email, seit: Date.now() });
+}
+async function anmelden(email, passwort){
+  const r = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`,
+    { method: 'POST', headers: kopf(false), body: JSON.stringify({ email, password: passwort }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.access_token) throw new Error(authFehler(d, 'Anmelden hat nicht geklappt.'));
+  kontoSchreiben({ access_token: d.access_token, refresh_token: d.refresh_token,
+                   email: (d.user && d.user.email) || email, seit: Date.now() });
+}
+/* Abmelden räumt nur die Anmeldung weg, nie die Fänge. Wer sich abmeldet,
+   will nicht mehr synchronisieren — er will nicht sein Fangbuch löschen. */
+function abmelden(){
+  kontoSchreiben(null);
+  try { localStorage.removeItem(SYNC_KEY); } catch {}
+  toast('Abgemeldet — deine Fänge bleiben auf dem Gerät');
+}
+
+/* ---------- Fotos für die Cloud ---------- */
+// Budget je Bild. Über base64 wird daraus rund ein Drittel mehr in der Datenbank.
+const FOTO_BUDGET = 220 * 1024;
+const STUFEN = [[1100, 0.62], [900, 0.55], [700, 0.5], [520, 0.45]];
+
+async function fotoFuerCloud(blob){
+  if (!blob) return null;
+  if (blob.size <= FOTO_BUDGET) return blob;
+  for (const [max, q] of STUFEN){
+    const k = await shrink(blob, max, q);
+    if (k && k.size <= FOTO_BUDGET) return k;
+    if (k && max === STUFEN[STUFEN.length - 1][0]) return k;   // kleinste Stufe: nehmen, wie sie ist
+  }
+  return null;   // Canvas konnte das Format nicht (HEIC) — lieber auslassen als die Zeile sprengen
+}
+
+/* ---------- Hochladen ---------- */
+const SYNC_KEY = 'angellog-sync';
+const syncStand = () => { try { return localStorage.getItem(SYNC_KEY) || '1970-01-01T00:00:00Z'; } catch { return '1970-01-01T00:00:00Z'; } };
+const syncStandSetzen = s => { try { localStorage.setItem(SYNC_KEY, s); } catch {} };
+
+const TABELLE = '/rest/v1/angel_faenge';
+
+async function zeilenSchreiben(zeilen){
+  if (!zeilen.length) return;
+  // In Häppchen, sonst wird die Anfrage mit Fotos zu groß für einen Aufruf.
+  for (let i = 0; i < zeilen.length; i += 10){
+    const teil = zeilen.slice(i, i + 10);
+    const r = await api(TABELLE, { method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(teil) });
+    if (!r.ok) throw new Error('Hochladen fehlgeschlagen (' + r.status + ')');
+  }
+}
+
+async function hochladen(){
+  const seit = Number(localStorage.getItem(SYNC_KEY + '-push') || 0);
+  const raus = [];
+  for (const c of state.catches){
+    if ((c.updated || 0) <= seit) continue;
+    if (c.entwurf) continue;                 // Entwürfe sind halbe Sachen, die bleiben lokal
+    const fotos = [];
+    for (const p of (c.photos || [])){
+      const klein = await fotoFuerCloud(p.full);
+      const mini  = await fotoFuerCloud(p.thumb) || klein;
+      if (!klein) continue;
+      fotos.push({ full: await blobToDataURL(klein), thumb: await blobToDataURL(mini) });
+    }
+    const daten = { ...c };
+    delete daten.photos;
+    raus.push({ id: c.id, updated: c.updated || Date.now(), geloescht: false, daten, fotos });
+  }
+  // Gelöschtes als Grabstein melden, sonst lebt der Fang auf dem anderen Gerät weiter.
+  const graeber = (await allGraeber()).filter(g => !g.gemeldet);
+  graeber.forEach(g => raus.push({ id: g.id, updated: g.updated, geloescht: true, daten: null, fotos: null }));
+
+  await zeilenSchreiben(raus);
+  await grabMarkieren(graeber.map(g => g.id));
+  try { localStorage.setItem(SYNC_KEY + '-push', String(Date.now())); } catch {}
+  return raus.length;
+}
+
+/* ---------- Herunterladen ----------
+   In zwei Schritten. Erst nur die Kennzahlen jeder Zeile (id, updated,
+   geloescht) — das sind ein paar hundert Byte für den ganzen Bestand. Erst
+   danach werden die vollen Zeilen geholt, und zwar nur für die Fänge, die
+   hier wirklich fehlen oder älter sind. Ohne diesen Zwischenschritt lädt
+   jeder Abgleich alle Fotos erneut herunter, auch die eigenen frisch
+   hochgeladenen. */
+async function herunterladen(){
+  const seit = syncStand();
+  const r = await api(`${TABELLE}?select=id,updated,geloescht,serverzeit`
+                    + `&serverzeit=gt.${encodeURIComponent(seit)}&order=serverzeit.asc`);
+  if (!r.ok) throw new Error('Abrufen fehlgeschlagen (' + r.status + ')');
+  const kopfzeilen = await r.json();
+  if (!kopfzeilen.length) return 0;
+
+  const hier = new Map(state.catches.map(c => [c.id, c]));
+  const holen = [];
+  let geaendert = 0;
+
+  for (const k of kopfzeilen){
+    const lokal = hier.get(k.id);
+    if (k.geloescht){
+      if (lokal){ await removeCatch(k.id, true); geaendert++; }
+      continue;
+    }
+    if (!lokal || (k.updated || 0) > (lokal.updated || 0)) holen.push(k.id);
+  }
+
+  for (let i = 0; i < holen.length; i += 20){
+    const teil = holen.slice(i, i + 20);
+    const rr = await api(`${TABELLE}?select=*&id=in.(${teil.map(encodeURIComponent).join(',')})`);
+    if (!rr.ok) throw new Error('Abrufen fehlgeschlagen (' + rr.status + ')');
+    for (const zeile of await rr.json()){
+      const rec = { ...(zeile.daten || {}), id: zeile.id, updated: zeile.updated, photos: [] };
+      for (const p of (zeile.fotos || [])){
+        try { rec.photos.push({ full: await dataURLToBlob(p.full), thumb: await dataURLToBlob(p.thumb || p.full) }); }
+        catch {}
+      }
+      await putCatch(rec, true);
+      geaendert++;
+    }
+  }
+  syncStandSetzen(kopfzeilen[kopfzeilen.length - 1].serverzeit);
+  return geaendert;
+}
+
+async function syncJetzt(still){
+  if (!cloudAn() || !konto || syncLaeuft) return;
+  if (!navigator.onLine){ if (!still) toast('Kein Netz — wird nachgeholt'); return; }
+  syncLaeuft = true;
+  renderKonto();
+  try {
+    const rauf  = await hochladen();
+    const runter = await herunterladen();
+    if (runter) { await reload(); renderList(); }
+    try { localStorage.setItem(SYNC_KEY + '-zeit', String(Date.now())); } catch {}
+    if (!still) toast(rauf || runter ? `Abgeglichen · ${rauf} hoch, ${runter} runter` : 'Alles schon aktuell');
+  } catch (e){
+    if (!still) toast(e.message || 'Abgleich fehlgeschlagen');
+  } finally {
+    syncLaeuft = false;
+    renderKonto();
+  }
+}
+
+/* ---------- Konto löschen ---------- */
+async function kontoLoeschen(){
+  const r = await api('/rest/v1/rpc/konto_loeschen', { method: 'POST', body: '{}' });
+  if (!r.ok) throw new Error('Löschen fehlgeschlagen (' + r.status + ')');
+}
+
+/* ---------- Oberfläche ---------- */
+function renderKonto(){
+  const box = $('#konto');
+  if (!box) return;
+  if (!cloudAn()){ box.innerHTML = ''; box.hidden = true; return; }
+  box.hidden = false;
+
+  // Der Sicherungs-Hinweis darf nicht weiter „nur auf diesem Gerät" behaupten,
+  // sobald ein Konto aktiv ist — sonst steht eine Unwahrheit in den Einstellungen.
+  const st = $('#sicherung-text');
+  if (st) st.innerHTML = konto
+    ? `Deine Fänge liegen auf diesem Gerät <b style="color:var(--txt)">und</b> in deinem Konto.
+       Ein Backup als Datei schadet trotzdem nicht — es ist das einzige, was auch
+       ohne Server und ohne Anmeldung noch lesbar ist.`
+    : `Alle Daten liegen nur auf diesem Gerät. Mach ab und zu ein Backup —
+       wenn du Safari-Daten löschst oder die App vom Homescreen wirfst, sind die Fänge weg.`;
+
+  if (!konto){
+    box.innerHTML = `
+      <label class="f">Konto & Sync</label>
+      <p class="tiny muted" style="margin:0 0 10px">
+        Ohne Konto bleibt alles auf diesem Gerät. Mit Konto liegen deine Fänge
+        zusätzlich auf einem Server — dann hast du sie auf mehreren Geräten und
+        ein verlorenes Handy kostet sie nicht mehr.
+      </p>
+      <input id="k-mail" type="email" inputmode="email" autocomplete="email"
+             placeholder="E-Mail" style="margin-bottom:8px">
+      <input id="k-pw" type="password" autocomplete="current-password"
+             placeholder="Passwort (mind. 6 Zeichen)" style="margin-bottom:8px">
+      <div style="display:flex; gap:8px; margin-bottom:8px">
+        <button class="btn" id="k-login" style="flex:1">Anmelden</button>
+        <button class="btn" id="k-reg" style="flex:1">Neu anlegen</button>
+      </div>`;
+    const los = fn => async () => {
+      const mail = $('#k-mail').value.trim(), pw = $('#k-pw').value;
+      if (!mail || !pw) return toast('E-Mail und Passwort eingeben');
+      toast('Einen Moment …');
+      try { await fn(mail, pw); toast('Angemeldet'); await syncJetzt(false); }
+      catch (e){ toast(e.message || 'Hat nicht geklappt'); }
+    };
+    $('#k-login').onclick = los(anmelden);
+    $('#k-reg').onclick   = los(registrieren);
+    return;
+  }
+
+  let letzter = '';
+  try {
+    const t = Number(localStorage.getItem(SYNC_KEY + '-zeit') || 0);
+    if (t) letzter = 'Zuletzt abgeglichen: ' + new Date(t).toLocaleString('de-DE',
+      { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  } catch {}
+
+  box.innerHTML = `
+    <label class="f">Konto & Sync</label>
+    <p class="tiny muted" style="margin:0 0 10px">
+      Angemeldet als <b style="color:var(--txt)">${konto.email || ''}</b><br>${letzter}
+    </p>
+    <button class="btn" id="k-sync" style="margin-bottom:8px" ${syncLaeuft ? 'disabled' : ''}>
+      ${syncLaeuft ? '… wird abgeglichen' : '⟳ Jetzt abgleichen'}</button>
+    <button class="btn" id="k-out" style="margin-bottom:8px">Abmelden</button>
+    <button class="btn danger" id="k-del" style="margin-bottom:12px">Konto löschen</button>`;
+
+  $('#k-sync').onclick = () => syncJetzt(false);
+  $('#k-out').onclick  = abmelden;
+  $('#k-del').onclick  = async () => {
+    if (!confirm('Konto und alle Fänge auf dem Server löschen?\n\nDie Fänge auf diesem Gerät bleiben.')) return;
+    try { await kontoLoeschen(); kontoSchreiben(null);
+          try { localStorage.removeItem(SYNC_KEY); } catch {}
+          toast('Konto gelöscht — die Fänge auf dem Gerät bleiben'); }
+    catch (e){ toast(e.message || 'Löschen fehlgeschlagen'); }
+  };
+}
+
+/* ====================== Datenschutz ==========================
+   ⚠️ Der Text beschreibt zwei verschiedene Apps und muss deshalb wissen,
+   welche gerade läuft: ohne konfigurierte Cloud verlässt wirklich nichts das
+   Gerät außer Karte und Wetter, mit Konto liegen Fänge und Fotos auf einem
+   Server. Eine Datenschutzerklärung, die den zweiten Fall beschreibt, obwohl
+   nur der erste zutrifft (oder umgekehrt), ist schlimmer als keine.
+
+   ⚠️ KONTAKT ist ein Platzhalter. Ohne ladungsfähige Kontaktadresse ist die
+   Erklärung unvollständig — das muss Karl setzen, bevor die App an jemanden
+   außer den Kollegen geht. Steht als offener Punkt in open-loops.
+   ============================================================ */
+const KONTAKT = 'BITTE EINTRAGEN (E-Mail-Adresse des Betreibers)';
+
+function datenschutzText(){
+  const cloudTeil = !cloudAn() ? `
+    <p><b>Ein Konto gibt es in dieser Fassung nicht.</b> Deine Fänge, Fotos und
+    Standorte liegen ausschließlich im Speicher deines Geräts. Sie werden
+    nirgendwohin übertragen, und der Betreiber dieser App kann sie nicht sehen.</p>`
+  : `
+    <p><b>Ohne Konto</b> liegen deine Fänge, Fotos und Standorte ausschließlich im
+    Speicher deines Geräts. Sie werden nirgendwohin übertragen.</p>
+    <p><b>Mit Konto</b> (freiwillig, jederzeit kündbar) werden zusätzlich gespeichert:
+    deine E-Mail-Adresse, ein verschlüsselter Abdruck deines Passworts sowie alle
+    Angaben zu deinen Fängen — einschließlich <b>Fangorten</b> und <b>Fotos</b> in
+    verkleinerter Form. Das liegt bei Supabase (Supabase Inc.) auf Servern in der EU.
+    Der Betreiber dieser App hat als Inhaber des Projekts technisch Zugriff darauf.
+    Rechtsgrundlage ist deine Einwilligung durch das Anlegen des Kontos
+    (Art. 6 Abs. 1 lit. a DSGVO); für die Bereitstellung der App selbst
+    Art. 6 Abs. 1 lit. b DSGVO.</p>
+    <p><b>Löschen:</b> In den Einstellungen löscht „Konto löschen" dein Konto und
+    alle zugehörigen Daten auf dem Server sofort und vollständig. Die Fänge auf
+    deinem Gerät bleiben dabei erhalten. „Abmelden" beendet nur die Synchronisierung.</p>
+    <p><b>Aufbewahrung:</b> Solange das Konto besteht. Es gibt keine automatische
+    Löschfrist und keine Auswertung deiner Daten zu anderen Zwecken.</p>`;
+
+  return `
+    <h3 style="font-size:15px; margin:0 0 8px">Datenschutz</h3>
+    <p><b>Verantwortlich:</b> ${KONTAKT}</p>
+    ${cloudTeil}
+    <p><b>Was auch ohne Konto nach außen geht</b> — das lässt sich nicht vermeiden,
+    wenn Karte und Wetter funktionieren sollen:</p>
+    <ul style="margin:0 0 8px 16px; padding:0">
+      <li><b>Kartenkacheln</b> von OpenStreetMap: beim Öffnen der Karte gehen der
+          gezeigte Ausschnitt und deine IP-Adresse an openstreetmap.org.</li>
+      <li><b>Wetterwerte</b> von Open-Meteo: beim automatischen Ausfüllen gehen die
+          Koordinaten des Fangorts und der Zeitpunkt an open-meteo.com.</li>
+      <li><b>Wassertemperatur</b> von PEGELONLINE (Wasserstraßen- und
+          Schifffahrtsverwaltung des Bundes): dieselben Koordinaten.</li>
+      <li><b>Auslieferung</b> der App über GitHub Pages (GitHub Inc.); dabei fällt
+          wie bei jedem Webserver deine IP-Adresse an.</li>
+    </ul>
+    <p>Beides ist freiwillig: Ohne Karte und ohne automatisches Ausfüllen lässt sich
+    jeder Fang vollständig von Hand erfassen. Es gibt keine Werbung, kein Tracking,
+    keine Analyse-Werkzeuge und keine Weitergabe an Dritte zu Werbezwecken.</p>
+    <p><b>Deine Rechte:</b> Auskunft, Berichtigung, Löschung, Einschränkung,
+    Datenübertragbarkeit und Widerspruch (Art. 15–21 DSGVO) sowie Beschwerde bei
+    einer Aufsichtsbehörde. Für die Datenübertragbarkeit gibt es in den
+    Einstellungen „Backup exportieren" — das liefert alle deine Daten als Datei.</p>
+    <p class="tiny muted">Stand: August 2026</p>`;
+}
+
+$('#btn-datenschutz').onclick = () => {
+  const box = $('#ds-text');
+  if (!box.innerHTML) box.innerHTML = `<div class="tiny muted" style="line-height:1.5">${datenschutzText()}</div>`;
+  box.hidden = !box.hidden;
+};
+
 /* ---------------------------- Navigation ---------------------------- */
 function go(view){
   freeURLs();
@@ -1831,6 +2250,15 @@ window.addEventListener('unhandledrejection', e =>
   }
   if (location.protocol.startsWith('http') && 'serviceWorker' in navigator){
     navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  // Konto zuletzt: es ist Beiwerk. Klemmt hier etwas, steht das Fangbuch trotzdem.
+  if (cloudAn()){
+    konto = kontoLesen();
+    renderKonto();
+    if (konto) syncJetzt(true);
+    // Wer am Wasser ohne Netz einträgt, soll nicht daran denken müssen.
+    window.addEventListener('online', () => syncJetzt(true));
   }
 })();
 </script>

@@ -733,10 +733,237 @@ TESTS = r"""
     out.push('--   Statistik-Pruefungen uebersprungen (Reiter ist nicht in dieser Fassung)');
   }
 
-  const pre = document.createElement('pre');
-  pre.id = 'testout';
-  pre.textContent = out.join('\n') + '\n=== ' + ok + ' ok, ' + bad + ' fehlgeschlagen ===';
-  document.body.appendChild(pre);
+  // ==================== Konto & Cloud-Sync ====================
+  // Netz und Datenbank werden ersetzt. Geprueft wird der Ablauf selbst:
+  // was hochgeht, was heruntergeholt wird, wer bei einem Konflikt gewinnt
+  // und ob ein geloeschter Fang geloescht bleibt. IndexedDB laeuft unter
+  // file:// nicht zuverlaessig, deshalb ein Speicher im Arbeitsspeicher.
+  const asyncTests = [];
+  const ta = (name, fn) => asyncTests.push([name, fn]);
+
+  let fakeDB, fakeGrab;
+  function sandbox(faenge, graeber){
+    fakeDB   = new Map((faenge  || []).map(c => [c.id, c]));
+    fakeGrab = new Map((graeber || []).map(g => [g.id, g]));
+    state.catches = [...fakeDB.values()];
+    putCatch = async (rec, vomServer) => {
+      if (!vomServer || rec.updated == null) rec.updated = Date.now();
+      fakeDB.set(rec.id, rec); fakeGrab.delete(rec.id); return rec;
+    };
+    removeCatch  = async (id) => { fakeDB.delete(id); fakeGrab.set(id, { id, updated: Date.now(), gemeldet: false }); };
+    allGraeber   = async () => [...fakeGrab.values()];
+    grabMarkieren = async (ids) => ids.forEach(id => fakeGrab.set(id, { ...fakeGrab.get(id), id, gemeldet: true }));
+    reload = async () => { state.catches = [...fakeDB.values()]; };
+    renderList = () => {};
+  }
+  const mkC = (id, updated, extra) => Object.assign({ id, updated, entwurf: false, art: 'Hecht', photos: [] }, extra || {});
+
+  // ---- Fehlermeldungen beim Anmelden ----
+  t('Schon registriert wird erklaert', () =>
+    /schon ein Konto/.test(authFehler({ msg: 'User already registered' }, 'x')) || authFehler({ msg: 'User already registered' }, 'x'));
+  t('Falsches Passwort wird erklaert', () =>
+    /stimmt nicht/.test(authFehler({ error_description: 'Invalid login credentials' }, 'x')) || 'kein Text');
+  t('Zu kurzes Passwort wird erklaert', () =>
+    /6 Zeichen/.test(authFehler({ msg: 'Password should be at least 6 characters' }, 'x')) || 'kein Text');
+  t('Unbekannter Fehler faellt auf den Standard zurueck', () =>
+    authFehler({}, 'Standard') === 'Standard' || authFehler({}, 'Standard'));
+
+  // ---- Ohne Konfiguration bleibt die App die lokale ----
+  t('Ohne SUPA_URL ist die Cloud aus', () => cloudAn() === false || 'cloudAn() ist an, obwohl nichts konfiguriert ist');
+  t('Konto-Kasten bleibt unsichtbar',  () => { renderKonto(); return document.querySelector('#konto').hidden === true || 'sichtbar'; });
+  t('Sicherungstext bleibt der lokale', () =>
+    /nur auf diesem Ger/.test(document.querySelector('#sicherung-text').textContent) || 'Text wurde veraendert');
+  t('Ohne Konto laeuft syncJetzt ins Leere', () => { konto = null; syncJetzt(true); return true; });
+
+  // ---- Fotobudget ----
+  t('Budget ist gesetzt und plausibel', () => (FOTO_BUDGET > 50e3 && FOTO_BUDGET < 400e3) || FOTO_BUDGET);
+  t('Stufen werden kleiner', () => {
+    for (let i = 1; i < STUFEN.length; i++)
+      if (STUFEN[i][0] >= STUFEN[i-1][0] || STUFEN[i][1] >= STUFEN[i-1][1]) return 'Stufe ' + i + ' ist nicht kleiner';
+    return true;
+  });
+
+  // ---- Hochladen ----
+  ta('Nur Geaendertes geht hoch', async () => {
+    sandbox([mkC('a', 5000), mkC('b', 50)]);
+    localStorage.setItem('angellog-sync-push', '1000');
+    let raus = null; zeilenSchreiben = async z => { raus = z; };
+    await hochladen();
+    return (raus.length === 1 && raus[0].id === 'a') || JSON.stringify(raus.map(r => r.id));
+  });
+  ta('Entwuerfe bleiben lokal', async () => {
+    sandbox([mkC('a', 5000, { entwurf: true }), mkC('b', 5000)]);
+    localStorage.setItem('angellog-sync-push', '0');
+    let raus = null; zeilenSchreiben = async z => { raus = z; };
+    await hochladen();
+    return (raus.length === 1 && raus[0].id === 'b') || JSON.stringify(raus.map(r => r.id));
+  });
+  ta('Geloeschtes geht als Grabstein hoch', async () => {
+    sandbox([], [{ id: 'weg', updated: 9000, gemeldet: false }]);
+    localStorage.setItem('angellog-sync-push', '0');
+    let raus = null; zeilenSchreiben = async z => { raus = z; };
+    await hochladen();
+    const g = raus.find(r => r.id === 'weg');
+    return (g && g.geloescht === true && g.daten === null) || JSON.stringify(raus);
+  });
+  ta('Ein gemeldeter Grabstein geht nicht nochmal hoch', async () => {
+    sandbox([], [{ id: 'weg', updated: 9000, gemeldet: false }]);
+    localStorage.setItem('angellog-sync-push', '0');
+    let raus = null; zeilenSchreiben = async z => { raus = z; };
+    await hochladen();
+    await hochladen();
+    return (raus.length === 0) || 'zweiter Lauf schickte ' + raus.length;
+  });
+
+  // ---- Herunterladen ----
+  const antwort = daten => ({ ok: true, json: async () => daten });
+  ta('Neuer Fang vom Server kommt an', async () => {
+    sandbox([]);
+    localStorage.removeItem('angellog-sync');
+    api = async pfad => pfad.includes('select=id,')
+      ? antwort([{ id: 'neu', updated: 100, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }])
+      : antwort([{ id: 'neu', updated: 100, geloescht: false, daten: { art: 'Zander' }, fotos: [] }]);
+    await herunterladen();
+    return (fakeDB.has('neu') && fakeDB.get('neu').art === 'Zander') || 'fehlt';
+  });
+  ta('Aeltere Fassung vom Server ueberschreibt nicht', async () => {
+    sandbox([mkC('a', 9000, { art: 'Wels' })]);
+    localStorage.removeItem('angellog-sync');
+    let vollGeholt = false;
+    api = async pfad => { if (!pfad.includes('select=id,')) vollGeholt = true;
+      return antwort([{ id: 'a', updated: 100, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }]); };
+    await herunterladen();
+    return (fakeDB.get('a').art === 'Wels' && !vollGeholt) || 'lokale Fassung wurde ueberschrieben';
+  });
+  ta('Juengere Fassung vom Server gewinnt', async () => {
+    sandbox([mkC('a', 100, { art: 'Wels' })]);
+    localStorage.removeItem('angellog-sync');
+    api = async pfad => pfad.includes('select=id,')
+      ? antwort([{ id: 'a', updated: 9000, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }])
+      : antwort([{ id: 'a', updated: 9000, geloescht: false, daten: { art: 'Hecht' }, fotos: [] }]);
+    await herunterladen();
+    return (fakeDB.get('a').art === 'Hecht') || fakeDB.get('a').art;
+  });
+  ta('Geholter Fang behaelt sein updated', async () => {
+    sandbox([]);
+    localStorage.removeItem('angellog-sync');
+    api = async pfad => pfad.includes('select=id,')
+      ? antwort([{ id: 'n', updated: 4242, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }])
+      : antwort([{ id: 'n', updated: 4242, geloescht: false, daten: { art: 'Aal' }, fotos: [] }]);
+    await herunterladen();
+    return (fakeDB.get('n').updated === 4242) || 'updated wurde auf ' + fakeDB.get('n').updated + ' gesetzt';
+  });
+  ta('Grabstein vom Server loescht lokal', async () => {
+    sandbox([mkC('weg', 100)]);
+    localStorage.removeItem('angellog-sync');
+    api = async () => antwort([{ id: 'weg', updated: 9000, geloescht: true, serverzeit: '2026-08-03T10:00:00Z' }]);
+    await herunterladen();
+    return (!fakeDB.has('weg')) || 'Fang ist noch da';
+  });
+  ta('Grabstein fuer Unbekanntes tut nichts', async () => {
+    sandbox([mkC('a', 100)]);
+    localStorage.removeItem('angellog-sync');
+    api = async () => antwort([{ id: 'nie-gehabt', updated: 9000, geloescht: true, serverzeit: '2026-08-03T10:00:00Z' }]);
+    await herunterladen();
+    return (fakeDB.size === 1 && fakeDB.has('a')) || 'Bestand veraendert';
+  });
+  ta('Sync-Stand wandert mit', async () => {
+    sandbox([]);
+    localStorage.removeItem('angellog-sync');
+    api = async pfad => pfad.includes('select=id,')
+      ? antwort([{ id: 'x', updated: 1, geloescht: true, serverzeit: '2026-08-03T11:22:33Z' }])
+      : antwort([]);
+    await herunterladen();
+    return (localStorage.getItem('angellog-sync') === '2026-08-03T11:22:33Z') || localStorage.getItem('angellog-sync');
+  });
+  ta('Nichts Neues laesst den Stand stehen', async () => {
+    sandbox([]);
+    localStorage.setItem('angellog-sync', '2026-08-01T00:00:00Z');
+    api = async () => antwort([]);
+    const n = await herunterladen();
+    return (n === 0 && localStorage.getItem('angellog-sync') === '2026-08-01T00:00:00Z') || 'Stand veraendert';
+  });
+  ta('Fehler vom Server wird gemeldet, nicht verschluckt', async () => {
+    sandbox([]);
+    api = async () => ({ ok: false, status: 500, json: async () => ({}) });
+    try { await herunterladen(); return 'kein Fehler geworfen'; }
+    catch (e) { return /500/.test(e.message) || e.message; }
+  });
+  ta('Grosse Mengen werden gestueckelt geholt', async () => {
+    const viele = Array.from({ length: 45 }, (_, i) =>
+      ({ id: 'id' + i, updated: 100, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }));
+    sandbox([]);
+    localStorage.removeItem('angellog-sync');
+    let vollAufrufe = 0;
+    api = async pfad => {
+      if (pfad.includes('select=id,')) return antwort(viele);
+      vollAufrufe++;
+      const ids = decodeURIComponent(pfad.split('id=in.(')[1].slice(0, -1)).split(',');
+      return antwort(ids.map(id => ({ id, updated: 100, geloescht: false, daten: { art: 'X' }, fotos: [] })));
+    };
+    await herunterladen();
+    return (vollAufrufe === 3 && fakeDB.size === 45) || vollAufrufe + ' Aufrufe, ' + fakeDB.size + ' Faenge';
+  });
+
+  // ---- Fotos verkleinern ----
+  ta('Ein grosses Foto landet unter dem Budget', async () => {
+    const c = document.createElement('canvas');
+    c.width = 2400; c.height = 1600;
+    const g = c.getContext('2d');
+    const img = g.createImageData(2400, 1600);
+    for (let i = 0; i < img.data.length; i += 4){
+      img.data[i] = (i * 7) % 255; img.data[i+1] = (i * 13) % 255;
+      img.data[i+2] = (i * 29) % 255; img.data[i+3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    const gross = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.95));
+    if (gross.size <= FOTO_BUDGET) return 'Testbild war schon klein genug (' + gross.size + ')';
+    const klein = await fotoFuerCloud(gross);
+    return (klein && klein.size <= FOTO_BUDGET) || 'blieb bei ' + (klein && klein.size);
+  });
+  ta('Ein kleines Foto wird nicht angefasst', async () => {
+    const c = document.createElement('canvas');
+    c.width = 40; c.height = 40;
+    c.getContext('2d').fillRect(0, 0, 40, 40);
+    const klein = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.6));
+    return ((await fotoFuerCloud(klein)) === klein) || 'wurde neu gerechnet';
+  });
+  ta('Unlesbares Format wird ausgelassen, nicht hochgeladen', async () => {
+    const kaputt = new Blob([new Uint8Array(400000)], { type: 'image/heic' });
+    return ((await fotoFuerCloud(kaputt)) === null) || 'kam etwas zurueck';
+  });
+
+  // ---- Datenschutz ----
+  t('Datenschutz-Knopf da', () => !!document.querySelector('#btn-datenschutz') || 'fehlt');
+  t('Datenschutztext ist zuerst zu', () => document.querySelector('#ds-text').hidden === true || 'offen');
+  t('Knopf oeffnet und schliesst', () => {
+    const b = document.querySelector('#btn-datenschutz'), d = document.querySelector('#ds-text');
+    b.click(); if (d.hidden) return 'ging nicht auf';
+    b.click(); return d.hidden === true || 'ging nicht zu';
+  });
+  t('Ohne Cloud sagt der Text: kein Konto', () =>
+    (/Konto gibt es in dieser Fassung nicht/.test(datenschutzText())
+     && !/Supabase/.test(datenschutzText())) || 'Text beschreibt einen Server, den es nicht gibt');
+  t('Text nennt die drei Fremd-Dienste', () => {
+    const s = datenschutzText();
+    return (/OpenStreetMap/.test(s) && /Open-Meteo/.test(s) && /PEGELONLINE/.test(s)) || 'ein Dienst fehlt';
+  });
+  t('Text nennt die Betroffenenrechte', () => /Art. 15/.test(datenschutzText()) || 'fehlt');
+  t('Kontaktadresse ist noch ein Platzhalter', () =>
+    /BITTE EINTRAGEN/.test(datenschutzText()) ? true
+      : (KONTAKT.length > 5 || 'Kontakt ist leer'));
+
+  (async function(){
+    for (const [name, fn] of asyncTests){
+      try { const r = await fn(); if (r === true) { ok++; out.push('OK   ' + name); }
+            else { bad++; out.push('FAIL ' + name + '  -> ' + r); } }
+      catch (e) { bad++; out.push('ERR  ' + name + '  -> ' + e.message); }
+    }
+    const pre = document.createElement('pre');
+    pre.id = 'testout';
+    pre.textContent = out.join('\n') + '\n=== ' + ok + ' ok, ' + bad + ' fehlgeschlagen ===';
+    document.body.appendChild(pre);
+  })();
 })();
 </script>
 """
@@ -745,7 +972,7 @@ html = (WORK / 'index.html').read_text(encoding='utf-8')
 (WORK / 'test.html').write_text(html + TESTS, encoding='utf-8')
 
 r = subprocess.run([CHROME, '--headless=new', '--disable-gpu', '--no-sandbox',
-                    '--virtual-time-budget=6000', '--allow-file-access-from-files',
+                    '--virtual-time-budget=20000', '--allow-file-access-from-files',
                     '--dump-dom', (WORK / 'test.html').as_uri()],
                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=180)
 m = re.search(r'<pre id="testout">(.*?)</pre>', r.stdout, re.S)
