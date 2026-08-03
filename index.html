@@ -1852,9 +1852,11 @@ $('#in-import').onchange = async e => {
       alles doppelt ziehen oder nie wieder etwas sehen.
    =================================================================== */
 
-// ⚠️ Hier trägt Karl die Werte seines Supabase-Projekts ein. Leer = kein Konto.
-const SUPA_URL = '';
-const SUPA_KEY = '';
+// Supabase-Projekt. Leer = kein Konto, dann läuft die App rein lokal.
+// Der Schlüssel ist per Konstruktion öffentlich — er steht in jedem Browser.
+// Was die Daten schützt, sind ausschließlich die Zugriffsregeln aus supabase.sql.
+const SUPA_URL = 'https://vxyvkyhbomdpdyqtbeza.supabase.co';
+const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -1869,11 +1871,19 @@ function kontoSchreiben(k){
   try { k ? localStorage.setItem(KONTO_KEY, JSON.stringify(k)) : localStorage.removeItem(KONTO_KEY); } catch {}
   renderKonto();
 }
-const kopf = mitToken => ({
-  'apikey': SUPA_KEY,
-  'Content-Type': 'application/json',
-  'Authorization': 'Bearer ' + ((mitToken && konto && konto.access_token) ? konto.access_token : SUPA_KEY)
-});
+/* ⚠️ In den Authorization-Kopf gehört ausschließlich ein echter Sitzungs-Token.
+   Früher war es üblich, dort ersatzweise den anon-Schlüssel abzulegen — das ging
+   nur, weil der alte anon-Schlüssel selbst ein JWT war. Die neuen Schlüssel
+   (`sb_publishable_…`) sind keine, und der Server weist eine Anfrage ab, die so
+   etwas als Bearer-Token mitschickt. Für alles Anonyme genügt der apikey-Kopf;
+   ohne Authorization läuft die Anfrage als `anon` und die Zugriffsregeln greifen
+   wie vorgesehen. Funktioniert mit alten wie neuen Schlüsseln. */
+const kopf = mitToken => {
+  const h = { 'apikey': SUPA_KEY, 'Content-Type': 'application/json' };
+  const token = (mitToken && konto && konto.access_token) ? konto.access_token : null;
+  if (token) h['Authorization'] = 'Bearer ' + token;
+  return h;
+};
 
 /* Der Zugangs-Token läuft nach einer Stunde ab. Am Wasser ist oft kein Netz,
    deshalb wird nicht beim Start erneuert, sondern erst wenn der Server 401

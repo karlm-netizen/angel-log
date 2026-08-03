@@ -768,12 +768,40 @@ TESTS = r"""
   t('Unbekannter Fehler faellt auf den Standard zurueck', () =>
     authFehler({}, 'Standard') === 'Standard' || authFehler({}, 'Standard'));
 
-  // ---- Ohne Konfiguration bleibt die App die lokale ----
-  t('Ohne SUPA_URL ist die Cloud aus', () => cloudAn() === false || 'cloudAn() ist an, obwohl nichts konfiguriert ist');
-  t('Konto-Kasten bleibt unsichtbar',  () => { renderKonto(); return document.querySelector('#konto').hidden === true || 'sichtbar'; });
-  t('Sicherungstext bleibt der lokale', () =>
-    /nur auf diesem Ger/.test(document.querySelector('#sicherung-text').textContent) || 'Text wurde veraendert');
+  // ---- Konfiguration ----
+  t('Cloud ist konfiguriert', () => cloudAn() === true || 'SUPA_URL/SUPA_KEY fehlen');
+  t('Nur der oeffentliche Schluessel steht im Quelltext', () =>
+    (!/sb_secret_/.test(SUPA_KEY) && !/service_role/.test(SUPA_KEY)) || 'GEHEIMER SCHLUESSEL IM QUELLTEXT');
+  t('Konto-Kasten ist sichtbar', () => { konto = null; renderKonto(); return document.querySelector('#konto').hidden === false || 'unsichtbar'; });
+  t('Ohne Anmeldung steht das Anmeldeformular da', () =>
+    (!!document.querySelector('#k-mail') && !!document.querySelector('#k-login')) || 'Formular fehlt');
+  t('Ohne Anmeldung bleibt der Sicherungstext der lokale', () =>
+    /nur auf diesem Ger/.test(document.querySelector('#sicherung-text').textContent) || 'Text behauptet Cloud, obwohl niemand angemeldet ist');
+  t('Angemeldet sagt der Sicherungstext etwas anderes', () => {
+    konto = { email: 'x@y.z', access_token: 'tok' }; renderKonto();
+    const s = document.querySelector('#sicherung-text').textContent;
+    konto = null; renderKonto();
+    return /und.*in deinem Konto/s.test(s) || s.slice(0, 60);
+  });
   t('Ohne Konto laeuft syncJetzt ins Leere', () => { konto = null; syncJetzt(true); return true; });
+
+  // ⚠️ Der neue sb_publishable_-Schluessel ist kein JWT. Steht er im
+  // Authorization-Kopf, weist der Server die Anfrage ab.
+  t('Ohne Sitzung kein Authorization-Kopf', () => {
+    konto = null;
+    return (kopf(true).Authorization === undefined && kopf(true).apikey === SUPA_KEY) || JSON.stringify(kopf(true));
+  });
+  t('Mit Sitzung steht der Sitzungs-Token drin', () => {
+    konto = { access_token: 'TOKEN123' };
+    const h = kopf(true); konto = null;
+    return h.Authorization === 'Bearer TOKEN123' || h.Authorization;
+  });
+  t('Der Schluessel landet nie im Authorization-Kopf', () => {
+    konto = { access_token: 'TOKEN123' };
+    const a = kopf(false).Authorization, b = kopf(true).Authorization;
+    konto = null;
+    return (a === undefined && !String(b).includes(SUPA_KEY)) || `${a} / ${b}`;
+  });
 
   // ---- Fotobudget ----
   t('Budget ist gesetzt und plausibel', () => (FOTO_BUDGET > 50e3 && FOTO_BUDGET < 400e3) || FOTO_BUDGET);
@@ -941,9 +969,15 @@ TESTS = r"""
     b.click(); if (d.hidden) return 'ging nicht auf';
     b.click(); return d.hidden === true || 'ging nicht zu';
   });
-  t('Ohne Cloud sagt der Text: kein Konto', () =>
-    (/Konto gibt es in dieser Fassung nicht/.test(datenschutzText())
-     && !/Supabase/.test(datenschutzText())) || 'Text beschreibt einen Server, den es nicht gibt');
+  t('Mit Cloud beschreibt der Text den Server', () => {
+    const s = datenschutzText();
+    return (/Supabase/.test(s) && /Fangorten/.test(s) && !/Konto gibt es in dieser Fassung nicht/.test(s))
+      || 'Text passt nicht zur konfigurierten Cloud';
+  });
+  t('Text nennt Rechtsgrundlage und Loeschweg', () => {
+    const s = datenschutzText();
+    return (/Art. 6/.test(s) && /Konto löschen/.test(s)) || 'fehlt';
+  });
   t('Text nennt die drei Fremd-Dienste', () => {
     const s = datenschutzText();
     return (/OpenStreetMap/.test(s) && /Open-Meteo/.test(s) && /PEGELONLINE/.test(s)) || 'ein Dienst fehlt';
