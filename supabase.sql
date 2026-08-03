@@ -118,7 +118,88 @@ revoke all on function public.konto_loeschen() from public, anon;
 grant execute on function public.konto_loeschen() to authenticated;
 
 -- ---------------------------------------------------------------------
---  5. Noch von Hand im Dashboard (nicht per SQL):
+--  5. Benutzernamen
+--
+--  Supabase kennt beim Anmelden nur E-Mail + Passwort. Ein Benutzername
+--  braucht deshalb eine eigene Tabelle und einen Umweg: beim Anmelden wird
+--  aus dem Namen erst die zugehoerige E-Mail geholt, damit angemeldet wird.
+--
+--  Gespeichert wird klein geschrieben und ohne Leerzeichen aussenrum, damit
+--  "Karl" und "karl" nicht zwei verschiedene Leute sind.
+-- ---------------------------------------------------------------------
+create table if not exists public.profil (
+  id       uuid primary key references auth.users(id) on delete cascade,
+  username text unique not null
+);
+
+alter table public.profil enable row level security;
+drop policy if exists "eigenes profil lesen" on public.profil;
+create policy "eigenes profil lesen" on public.profil
+  for select using (auth.uid() = id);
+
+-- Beim Registrieren legt die App den Namen als Zusatzangabe mit; dieser
+-- Ausloeser holt ihn dort heraus und schreibt die Zeile.
+-- Ohne Namen wird nichts geschrieben — dann geht die Anmeldung eben nur
+-- ueber die E-Mail, statt dass die ganze Registrierung scheitert.
+create or replace function public.angel_profil_anlegen()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare name text := lower(trim(new.raw_user_meta_data->>'username'));
+begin
+  if name is not null and name <> '' then
+    insert into public.profil (id, username) values (new.id, name);
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists angel_profil_anlegen on auth.users;
+create trigger angel_profil_anlegen
+  after insert on auth.users
+  for each row execute function public.angel_profil_anlegen();
+
+-- Ist der Name noch frei? Wird vor dem Registrieren gefragt.
+create or replace function public.username_frei(uname text)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select not exists (
+    select 1 from public.profil where username = lower(trim(uname))
+  );
+$$;
+
+-- Welche E-Mail gehoert zu diesem Namen? Wird beim Anmelden gebraucht.
+--
+-- ⚠️ Das ist bewusst oeffentlich aufrufbar und muss es auch sein — gefragt
+--    wird, BEVOR jemand angemeldet ist. Die Folge: wer einen Benutzernamen
+--    kennt oder errraet, erfaehrt die zugehoerige E-Mail-Adresse. Das ist der
+--    Preis fuer "Anmelden mit Benutzername" und bei Supabase der uebliche Weg
+--    (Gym-Log macht es genauso). Fuer eine App mit einer Handvoll bekannter
+--    Leute vertretbar; wuerde sie oeffentlich beworben, gehoerte das neu
+--    bewertet — dann lieber nur E-Mail-Anmeldung.
+create or replace function public.email_fuer_username(uname text)
+returns text
+language sql
+security definer
+set search_path = public, auth
+as $$
+  select u.email
+    from auth.users u
+    join public.profil p on p.id = u.id
+   where p.username = lower(trim(uname));
+$$;
+
+revoke all on function public.username_frei(text)        from public;
+revoke all on function public.email_fuer_username(text)  from public;
+grant execute on function public.username_frei(text)       to anon, authenticated;
+grant execute on function public.email_fuer_username(text) to anon, authenticated;
+
+-- ---------------------------------------------------------------------
+--  6. Noch von Hand im Dashboard (nicht per SQL):
 --
 --  Authentication → Sign In / Providers → Email:
 --    "Confirm email" ausschalten.

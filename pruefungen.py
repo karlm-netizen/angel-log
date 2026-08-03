@@ -986,6 +986,51 @@ TESTS = r"""
     const txt = document.querySelector('#gate').textContent.toLowerCase();
     return (!/ohne konto|überspringen|ueberspringen|später|spaeter/.test(txt)) || 'es gibt einen Ausweg';
   });
+  // ---- Benutzername ----
+  t('Beim Anmelden kein Namensfeld', () => {
+    konto = null; gateModus = 'login'; gateZeigen();
+    return (!document.querySelector('#g-name')) || 'Namensfeld beim Anmelden';
+  });
+  t('Beim Anmelden geht E-Mail ODER Name', () =>
+    /E-Mail oder Benutzername/.test(document.querySelector('#g-mail').placeholder)
+      || document.querySelector('#g-mail').placeholder);
+  t('Beim Registrieren gibt es ein Namensfeld', () => {
+    gateModus = 'reg'; renderGate();
+    return !!document.querySelector('#g-name') || 'fehlt';
+  });
+  t('Name wird beim Tippen klein geschrieben', () => {
+    const f = document.querySelector('#g-name');
+    f.value = 'Karl Meyer'; f.oninput();
+    return f.value === 'karlmeyer' || f.value;
+  });
+  t('Zu kurzer Name wird abgelehnt',  () => /mindestens 3/.test(namePruefen('ab') || '') || namePruefen('ab'));
+  t('Zu langer Name wird abgelehnt',  () => /höchstens 20/.test(namePruefen('a'.repeat(21)) || '') || 'durchgelassen');
+  t('Leerer Name wird abgelehnt',     () => !!namePruefen('') || 'durchgelassen');
+  t('Umlaute werden abgelehnt',       () => !!namePruefen('köder') || 'durchgelassen');
+  t('Leerzeichen werden abgelehnt',   () => !!namePruefen('karl meyer') || 'durchgelassen');
+  // ⚠️ Am @ wird beim Anmelden unterschieden, ob es eine E-Mail oder ein Name ist.
+  t('@ im Namen wird abgelehnt', () => /@/.test(namePruefen('karl@mail.de') || '') || 'durchgelassen');
+  t('Normale Namen gehen durch', () =>
+    (['karl','angler_42','max.mustermann','a-b-c'].every(n => namePruefen(n) === null)) || 'einer abgelehnt');
+  t('Gross geschrieben ist derselbe Name', () => namePruefen('KARL') === null || namePruefen('KARL'));
+  t('Registrieren ohne Namen wird abgefangen', () => {
+    gateModus = 'reg'; renderGate();
+    document.querySelector('#g-name').value = '';
+    document.querySelector('#g-mail').value = 'a@b.c';
+    document.querySelector('#g-pw').value = 'geheim123';
+    document.querySelector('#g-los').click();
+    return /Benutzernamen/.test(document.querySelector('#gate').textContent) || 'keine Meldung';
+  });
+  t('Angemeldet zeigen die Einstellungen den Namen', () => {
+    konto = { access_token: 't', email: 'a@b.c', username: 'angler42' };
+    renderKonto();
+    const s = document.querySelector('#konto').textContent;
+    konto = null; renderKonto();
+    return (s.includes('angler42') && s.includes('a@b.c')) || s.slice(0, 80);
+  });
+  t('Datenschutztext nennt den Benutzernamen', () => /Benutzername/.test(datenschutzText()) || 'fehlt');
+
+  gateModus = 'login'; gateZeigen();
   t('Umschalten auf Registrieren', () => {
     document.querySelector('#g-wechsel').click();
     return /Konto erstellen/.test(document.querySelector('#g-los').textContent) || document.querySelector('#g-los').textContent;
@@ -997,7 +1042,7 @@ TESTS = r"""
   t('Leere Felder werden abgefangen', () => {
     document.querySelector('#g-mail').value = ''; document.querySelector('#g-pw').value = '';
     document.querySelector('#g-los').click();
-    return /E-Mail und Passwort/.test(document.querySelector('#gate').textContent) || 'keine Meldung';
+    return /Passwort eingeben/.test(document.querySelector('#gate').textContent) || 'keine Meldung';
   });
   t('Datenschutz ist schon vor dem Anmelden lesbar', () => {
     document.querySelector('#g-ds').click();
