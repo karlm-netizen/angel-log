@@ -773,10 +773,13 @@ TESTS = r"""
   t('Nur der oeffentliche Schluessel steht im Quelltext', () =>
     (!/sb_secret_/.test(SUPA_KEY) && !/service_role/.test(SUPA_KEY)) || 'GEHEIMER SCHLUESSEL IM QUELLTEXT');
   t('Konto-Kasten ist sichtbar', () => { konto = null; renderKonto(); return document.querySelector('#konto').hidden === false || 'unsichtbar'; });
-  t('Ohne Anmeldung steht das Anmeldeformular da', () =>
-    (!!document.querySelector('#k-mail') && !!document.querySelector('#k-login')) || 'Formular fehlt');
-  t('Ohne Anmeldung bleibt der Sicherungstext der lokale', () =>
-    /nur auf diesem Ger/.test(document.querySelector('#sicherung-text').textContent) || 'Text behauptet Cloud, obwohl niemand angemeldet ist');
+  // Das Anmeldeformular sitzt seit dem 03.08. im Anmelde-Schirm, nicht mehr in
+  // den Einstellungen. Dort steht nur noch ein Weg zurueck zum Schirm.
+  t('In den Einstellungen steht kein Anmeldeformular mehr', () =>
+    (!document.querySelector('#k-mail') && !!document.querySelector('#k-gate')) || 'altes Formular noch da');
+  t('Ohne Anmeldung sagt der Sicherungstext, dass nichts abgeglichen wird', () =>
+    /Nicht angemeldet/.test(document.querySelector('#sicherung-text').textContent)
+      || document.querySelector('#sicherung-text').textContent.slice(0, 60));
   t('Angemeldet sagt der Sicherungstext etwas anderes', () => {
     konto = { email: 'x@y.z', access_token: 'tok' }; renderKonto();
     const s = document.querySelector('#sicherung-text').textContent;
@@ -961,6 +964,88 @@ TESTS = r"""
     return ((await fotoFuerCloud(kaputt)) === null) || 'kam etwas zurueck';
   });
 
+  // ---- Anmelde-Schirm (Pflicht) ----
+  t('Gate existiert', () => !!document.querySelector('#gate') || 'fehlt');
+  t('Ohne Konto ist der Schirm noetig', () => { konto = null; return gateNoetig() === true || 'nicht noetig'; });
+  t('Mit Konto ist er nicht noetig', () => {
+    konto = { access_token: 'tok', email: 'a@b.c' };
+    const r = gateNoetig(); konto = null;
+    return r === false || 'trotzdem noetig';
+  });
+  t('Schirm legt sich ueber die App', () => {
+    konto = null; gateZeigen();
+    const an = document.querySelector('#gate').classList.contains('on');
+    const z = parseInt(getComputedStyle(document.querySelector('#gate')).zIndex, 10);
+    return (an && z >= 1000) || `on=${an} z=${z}`;
+  });
+  t('Anmeldeformular ist da', () =>
+    (!!document.querySelector('#g-mail') && !!document.querySelector('#g-pw')
+     && !!document.querySelector('#g-los')) || 'Felder fehlen');
+  t('Kein Weg an der Anmeldung vorbei', () => {
+    // Ein Ueberspringen-Knopf waere genau das, was Karl NICHT wollte.
+    const txt = document.querySelector('#gate').textContent.toLowerCase();
+    return (!/ohne konto|überspringen|ueberspringen|später|spaeter/.test(txt)) || 'es gibt einen Ausweg';
+  });
+  t('Umschalten auf Registrieren', () => {
+    document.querySelector('#g-wechsel').click();
+    return /Konto erstellen/.test(document.querySelector('#g-los').textContent) || document.querySelector('#g-los').textContent;
+  });
+  t('Und wieder zurueck', () => {
+    document.querySelector('#g-wechsel').click();
+    return /Anmelden/.test(document.querySelector('#g-los').textContent) || document.querySelector('#g-los').textContent;
+  });
+  t('Leere Felder werden abgefangen', () => {
+    document.querySelector('#g-mail').value = ''; document.querySelector('#g-pw').value = '';
+    document.querySelector('#g-los').click();
+    return /E-Mail und Passwort/.test(document.querySelector('#gate').textContent) || 'keine Meldung';
+  });
+  t('Datenschutz ist schon vor dem Anmelden lesbar', () => {
+    document.querySelector('#g-ds').click();
+    const auf = !document.querySelector('#g-ds-text').hidden;
+    return auf || 'laesst sich nicht oeffnen';
+  });
+  t('Verbergen nimmt den Schirm weg', () => {
+    gateVerbergen();
+    return document.querySelector('#gate').classList.contains('on') === false || 'noch da';
+  });
+
+  // ⚠️ Der teuerste Fall: am Wasser ohne Empfang. Eine gespeicherte Sitzung muss
+  // reichen, sonst steht der Schirm genau dort im Weg, wo die App gebraucht wird.
+  t('Gespeicherte Sitzung reicht ohne Netz', () => {
+    const echt = Object.getOwnPropertyDescriptor(Navigator.prototype, 'onLine');
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+    konto = { access_token: 'tok', email: 'a@b.c' };
+    const r = gateNoetig();
+    konto = null;
+    if (echt) Object.defineProperty(Navigator.prototype, 'onLine', echt);
+    else delete navigator.onLine;
+    return r === false || 'Schirm verlangt Netz, obwohl eine Sitzung da ist';
+  });
+  t('Anmelden ohne Netz sagt es statt zu haengen', () => {
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+    konto = null; gateZeigen();
+    document.querySelector('#g-mail').value = 'a@b.c';
+    document.querySelector('#g-pw').value = 'geheim123';
+    document.querySelector('#g-los').click();
+    const txt = document.querySelector('#gate').textContent;
+    delete navigator.onLine;
+    gateVerbergen();
+    return /Kein Netz/.test(txt) || 'keine Meldung';
+  });
+
+  ta('Erster Abgleich schiebt vorhandene Faenge hoch', async () => {
+    sandbox([mkC('alt1', 5000), mkC('alt2', 6000), mkC('entw', 7000, { entwurf: true })]);
+    localStorage.setItem('angellog-sync-push', String(Date.now() + 60000));  // alles schon gemeldet
+    let raus = null; zeilenSchreiben = async z => { raus = z; };
+    api = async () => ({ ok: true, json: async () => [] });
+    konto = { access_token: 'tok' };
+    await ersterAbgleich();
+    konto = null;
+    // Trotz gesetzter Marke muessen beide fertigen Faenge hoch — der Entwurf nicht.
+    const ids = (raus || []).map(r => r.id).sort();
+    return (ids.length === 2 && ids[0] === 'alt1' && ids[1] === 'alt2') || JSON.stringify(ids);
+  });
+
   // ---- Datenschutz ----
   t('Datenschutz-Knopf da', () => !!document.querySelector('#btn-datenschutz') || 'fehlt');
   t('Datenschutztext ist zuerst zu', () => document.querySelector('#ds-text').hidden === true || 'offen');
@@ -974,6 +1059,16 @@ TESTS = r"""
     return (/Supabase/.test(s) && /Fangorten/.test(s) && !/Konto gibt es in dieser Fassung nicht/.test(s))
       || 'Text passt nicht zur konfigurierten Cloud';
   });
+  // ⚠️ Mit Anmelde-Pflicht waere "ohne Konto bleibt alles lokal" schlicht falsch.
+  t('Text behauptet keine Freiwilligkeit des Kontos mehr', () => {
+    const s = datenschutzText();
+    // "freiwillig" darf noch vorkommen -- Karte und Wetter SIND freiwillig.
+    // Nur beim Konto waere es jetzt falsch.
+    return (/Konto benötigt/.test(s) && !/Konto[^.]*freiwillig|freiwillig[^.]*Konto/.test(s))
+      || 'Text spricht beim Konto noch von freiwillig';
+  });
+  t('Text erklaert den Offline-Betrieb', () =>
+    /ohne Netz funktioniert/.test(datenschutzText()) || 'fehlt');
   t('Text nennt Rechtsgrundlage und Loeschweg', () => {
     const s = datenschutzText();
     return (/Art. 6/.test(s) && /Konto löschen/.test(s)) || 'fehlt';

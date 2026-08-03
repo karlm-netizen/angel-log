@@ -176,6 +176,22 @@
     .fab{right:24px}
   }
 
+  /* Anmelde-Schirm. Liegt über allem (auch über Sheet und Tabs) und ist deckend —
+     ohne Konto ist die App nicht benutzbar. */
+  .gate{position:fixed; inset:0; z-index:3000; background:var(--bg); display:none;
+    overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding:calc(env(safe-area-inset-top) + 34px) var(--sp) 40px}
+  .gate.on{display:block}
+  .gate .inner{max-width:400px; margin:0 auto}
+  .gate .hero{text-align:center; margin:0 0 24px}
+  .gate .hero svg{width:60px; height:60px; color:var(--accent); margin-bottom:12px}
+  .gate .hero .big{font-size:22px; font-weight:800; margin-bottom:8px; letter-spacing:-.4px}
+  .gate .in{margin-bottom:10px}
+  .gate .fehler{color:var(--danger); font-size:13px; line-height:1.5; margin:0 2px 10px}
+  .gate .link{background:none; border:0; color:var(--muted); font-size:13px;
+    width:100%; text-align:center; margin-top:14px; padding:8px}
+  .gate .fuss{margin-top:22px; text-align:center; line-height:1.6}
+
   .sheet{position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:1000; display:none;
     align-items:flex-end}
   .sheet.on{display:flex}
@@ -485,6 +501,9 @@
     <path d="M4 12.5l5.5 5.5L20 7"/>
   </svg>
 </button>
+
+<!-- ======================= ANMELDEN ======================= -->
+<div class="gate" id="gate"><div class="inner" id="gate-inner"></div></div>
 
 <div class="viewer" id="viewer"><img id="viewer-img" alt=""></div>
 <div class="toast" id="toast"></div>
@@ -1831,13 +1850,17 @@ $('#in-import').onchange = async e => {
 };
 
 /* ====================== Konto & Cloud-Sync ==========================
-   Freiwillig. Ohne Konto läuft alles wie vorher: Fänge und Fotos liegen nur
-   im Gerät, es geht nichts hinaus. Erst wer sich anmeldet, legt seine Fänge
-   zusätzlich auf den Server — damit sie ein Gerätewechsel überlebt.
+   **Pflicht** (Karls Entscheidung am 03.08.2026, ausdrücklich „wie bei der Gym-App").
+   Ohne Anmeldung ist die App nicht benutzbar — der Anmelde-Schirm liegt davor.
+   Die Fänge liegen weiter auch im Gerät, damit ohne Netz gearbeitet werden kann;
+   der Server ist die Sicherung und der Weg auf ein zweites Gerät.
 
-   ⚠️ Solange SUPA_URL leer ist, gibt es die Konto-Schaltflächen gar nicht.
-   Die App ist dann Zeile für Zeile die lokale von vorher. Das ist Absicht:
-   die Zusage „nichts verlässt das Gerät" fällt erst, wenn hier etwas steht.
+   ⚠️ Ist SUPA_URL leer, gibt es weder Konto noch Schirm und die App läuft rein
+   lokal. Das ist der Notausgang: eine Anmeldepflicht ohne erreichbares Projekt
+   würde jeden aussperren.
+
+   ⚠️ Der Schirm prüft nur, ob eine Sitzung **lokal gespeichert** ist, nie ob der
+   Server antwortet. Am Wasser ist kein Empfang der Normalfall.
 
    Drei Entscheidungen, die den Rest erklären:
    1. Fotos gehen verkleinert in die Datenbank (nicht in einen Dateispeicher).
@@ -1933,11 +1956,16 @@ async function anmelden(email, passwort){
   kontoSchreiben({ access_token: d.access_token, refresh_token: d.refresh_token,
                    email: (d.user && d.user.email) || email, seit: Date.now() });
 }
-/* Abmelden räumt nur die Anmeldung weg, nie die Fänge. Wer sich abmeldet,
-   will nicht mehr synchronisieren — er will nicht sein Fangbuch löschen. */
+/* Abmelden räumt nur die Anmeldung weg, nie die Fänge. Wer sich abmeldet, will
+   nicht mehr synchronisieren — er will nicht sein Fangbuch löschen. Danach steht
+   wieder der Anmelde-Schirm davor; die Fänge im Gerät sind unangetastet und
+   nach dem nächsten Anmelden sofort wieder da. */
 function abmelden(){
   kontoSchreiben(null);
-  try { localStorage.removeItem(SYNC_KEY); } catch {}
+  try { localStorage.removeItem(SYNC_KEY); localStorage.removeItem(SYNC_KEY + '-push'); } catch {}
+  $('#sheet').classList.remove('on');
+  gateModus = 'login';
+  gateZeigen();
   toast('Abgemeldet — deine Fänge bleiben auf dem Gerät');
 }
 
@@ -2074,6 +2102,102 @@ async function kontoLoeschen(){
   if (!r.ok) throw new Error('Löschen fehlgeschlagen (' + r.status + ')');
 }
 
+/* ---------- Anmelde-Schirm ----------
+   Ohne Konto ist die App nicht benutzbar — wie bei Gym-Log. Der Schirm liegt
+   deckend über allem und verschwindet erst mit einer Anmeldung.
+
+   ⚠️ Zwei Dinge, die daran hängen und nicht wegfallen dürfen:
+
+   1. **Offline muss durchkommen.** Geprüft wird nur, ob eine Sitzung *lokal
+      gespeichert* ist — nicht, ob der Server gerade erreichbar ist. Wer am
+      Wasser ohne Empfang die App öffnet, kommt hinein und kann erfassen.
+      Ein Schirm, der eine Netzabfrage braucht, wäre genau dort zu, wo die App
+      gebraucht wird.
+
+   2. **Vorhandene Fänge müssen mit ins Konto.** Wer die App vorher ohne Konto
+      benutzt hat, hat seine Fänge im Gerät. Beim ersten Anmelden werden sie
+      hochgeladen, statt neben dem Konto liegen zu bleiben. Dafür wird die
+      Push-Marke zurückgesetzt, damit `hochladen()` alles für neu hält. */
+let gateModus = 'login';
+
+function gateNoetig(){ return cloudAn() && !konto; }
+
+function gateZeigen(fehler){
+  $('#gate').classList.add('on');
+  renderGate(fehler);
+}
+function gateVerbergen(){ $('#gate').classList.remove('on'); }
+
+function renderGate(fehler){
+  const anmelden = gateModus === 'login';
+  $('#gate-inner').innerHTML = `
+    <div class="hero">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6.5 12c2.5-3.6 6-5.6 9.5-5.6 2.8 0 4.9 1.7 6 5.6-1.1 3.9-3.2 5.6-6 5.6-3.5 0-7-2-9.5-5.6z"/>
+        <path d="M6.5 12L2 8.2v7.6z"/>
+        <circle cx="17.4" cy="10.4" r="1" fill="currentColor" stroke="none"/>
+      </svg>
+      <div class="big">${anmelden ? 'Willkommen zurück' : 'Fangbuch einrichten'}</div>
+      <div class="tiny muted" style="line-height:1.6">
+        ${anmelden
+          ? 'Melde dich an, um deine Fänge zu sehen.'
+          : 'Mit einem Konto sind deine Fänge gesichert und auf jedem Gerät da.'}
+      </div>
+    </div>
+    <input class="in" id="g-mail" type="email" inputmode="email" autocomplete="email"
+           placeholder="E-Mail">
+    <input class="in" id="g-pw" type="password"
+           autocomplete="${anmelden ? 'current-password' : 'new-password'}"
+           placeholder="Passwort${anmelden ? '' : ' (mind. 6 Zeichen)'}">
+    ${fehler ? `<div class="fehler">${fehler}</div>` : ''}
+    <button class="btn primary" id="g-los">${anmelden ? 'Anmelden' : 'Konto erstellen'}</button>
+    <button class="link" id="g-wechsel">
+      ${anmelden ? 'Noch kein Konto? Registrieren' : 'Schon ein Konto? Anmelden'}</button>
+    <div class="tiny muted fuss">
+      Deine Fänge liegen dann auf einem Server in der EU.
+      <button class="link" id="g-ds" style="margin-top:6px; text-decoration:underline">Datenschutz</button>
+    </div>
+    <div id="g-ds-text" hidden style="margin-top:12px"></div>`;
+
+  $('#g-wechsel').onclick = () => { gateModus = anmelden ? 'reg' : 'login'; renderGate(); };
+  $('#g-ds').onclick = () => {
+    const box = $('#g-ds-text');
+    if (!box.innerHTML) box.innerHTML = `<div class="tiny muted" style="line-height:1.5">${datenschutzText()}</div>`;
+    box.hidden = !box.hidden;
+  };
+  $('#g-los').onclick = gateLos;
+  $('#g-pw').onkeydown = e => { if (e.key === 'Enter') gateLos(); };
+}
+
+async function gateLos(){
+  const mail = $('#g-mail').value.trim(), pw = $('#g-pw').value;
+  if (!mail || !pw) return renderGate('E-Mail und Passwort eingeben.');
+  if (!navigator.onLine) return renderGate('Kein Netz — zum Anmelden wird einmal Verbindung gebraucht. Danach läuft die App auch offline.');
+  const btn = $('#g-los');
+  btn.disabled = true; btn.textContent = 'Einen Moment …';
+  try {
+    await (gateModus === 'login' ? anmelden : registrieren)(mail, pw);
+    gateVerbergen();
+    await ersterAbgleich();
+  } catch (e){
+    renderGate(e.message || 'Hat nicht geklappt.');
+  }
+}
+
+/* Nach dem Anmelden: erst holen, was im Konto liegt, dann alles Lokale hinauf.
+   Die Reihenfolge ist egal, weil pro Fang die jüngere Fassung gewinnt — anders
+   als bei Gym-Log, wo ein ganzer Datenblock ersetzt wird und deshalb entschieden
+   werden muss, welche Seite gilt. */
+async function ersterAbgleich(){
+  try { localStorage.setItem(SYNC_KEY + '-push', '0'); } catch {}
+  const eigene = state.catches.filter(c => !c.entwurf).length;
+  await syncJetzt(true);
+  await reload();
+  renderList(); renderZeit();
+  toast(eigene ? `Angemeldet — ${eigene} Fänge gesichert` : 'Angemeldet');
+}
+
 /* ---------- Oberfläche ---------- */
 function renderKonto(){
   const box = $('#konto');
@@ -2088,34 +2212,18 @@ function renderKonto(){
     ? `Deine Fänge liegen auf diesem Gerät <b style="color:var(--txt)">und</b> in deinem Konto.
        Ein Backup als Datei schadet trotzdem nicht — es ist das einzige, was auch
        ohne Server und ohne Anmeldung noch lesbar ist.`
-    : `Alle Daten liegen nur auf diesem Gerät. Mach ab und zu ein Backup —
-       wenn du Safari-Daten löschst oder die App vom Homescreen wirfst, sind die Fänge weg.`;
+    : `Nicht angemeldet — es wird gerade nichts abgeglichen. Die Fänge auf diesem
+       Gerät sind unverändert da.`;
 
+  // Ohne Konto kommt man gar nicht bis hierher — der Anmelde-Schirm liegt davor.
+  // Der Zweig bleibt trotzdem stehen, damit die Einstellungen nicht leer wirken,
+  // falls die Sitzung mitten im Betrieb wegfällt.
   if (!konto){
     box.innerHTML = `
       <label class="f">Konto & Sync</label>
-      <p class="tiny muted" style="margin:0 0 10px">
-        Ohne Konto bleibt alles auf diesem Gerät. Mit Konto liegen deine Fänge
-        zusätzlich auf einem Server — dann hast du sie auf mehreren Geräten und
-        ein verlorenes Handy kostet sie nicht mehr.
-      </p>
-      <input id="k-mail" type="email" inputmode="email" autocomplete="email"
-             placeholder="E-Mail" style="margin-bottom:8px">
-      <input id="k-pw" type="password" autocomplete="current-password"
-             placeholder="Passwort (mind. 6 Zeichen)" style="margin-bottom:8px">
-      <div style="display:flex; gap:8px; margin-bottom:8px">
-        <button class="btn" id="k-login" style="flex:1">Anmelden</button>
-        <button class="btn" id="k-reg" style="flex:1">Neu anlegen</button>
-      </div>`;
-    const los = fn => async () => {
-      const mail = $('#k-mail').value.trim(), pw = $('#k-pw').value;
-      if (!mail || !pw) return toast('E-Mail und Passwort eingeben');
-      toast('Einen Moment …');
-      try { await fn(mail, pw); toast('Angemeldet'); await syncJetzt(false); }
-      catch (e){ toast(e.message || 'Hat nicht geklappt'); }
-    };
-    $('#k-login').onclick = los(anmelden);
-    $('#k-reg').onclick   = los(registrieren);
+      <p class="tiny muted" style="margin:0 0 10px">Nicht angemeldet.</p>
+      <button class="btn" id="k-gate" style="margin-bottom:12px">Anmelden</button>`;
+    $('#k-gate').onclick = () => { $('#sheet').classList.remove('on'); gateZeigen(); };
     return;
   }
 
@@ -2141,7 +2249,10 @@ function renderKonto(){
   $('#k-del').onclick  = async () => {
     if (!confirm('Konto und alle Fänge auf dem Server löschen?\n\nDie Fänge auf diesem Gerät bleiben.')) return;
     try { await kontoLoeschen(); kontoSchreiben(null);
-          try { localStorage.removeItem(SYNC_KEY); } catch {}
+          try { localStorage.removeItem(SYNC_KEY); localStorage.removeItem(SYNC_KEY + '-push'); } catch {}
+          $('#sheet').classList.remove('on');
+          gateModus = 'reg';
+          gateZeigen();
           toast('Konto gelöscht — die Fänge auf dem Gerät bleiben'); }
     catch (e){ toast(e.message || 'Löschen fehlgeschlagen'); }
   };
@@ -2166,16 +2277,18 @@ function datenschutzText(){
     Standorte liegen ausschließlich im Speicher deines Geräts. Sie werden
     nirgendwohin übertragen, und der Betreiber dieser App kann sie nicht sehen.</p>`
   : `
-    <p><b>Ohne Konto</b> liegen deine Fänge, Fotos und Standorte ausschließlich im
-    Speicher deines Geräts. Sie werden nirgendwohin übertragen.</p>
-    <p><b>Mit Konto</b> (freiwillig, jederzeit kündbar) werden zusätzlich gespeichert:
-    deine E-Mail-Adresse, ein verschlüsselter Abdruck deines Passworts sowie alle
-    Angaben zu deinen Fängen — einschließlich <b>Fangorten</b> und <b>Fotos</b> in
-    verkleinerter Form. Das liegt bei Supabase (Supabase Inc.) auf Servern in der EU.
+    <p><b>Für diese App wird ein Konto benötigt.</b> Ohne Anmeldung lässt sie sich
+    nicht nutzen. Gespeichert werden dabei: deine E-Mail-Adresse, ein
+    verschlüsselter Abdruck deines Passworts sowie alle Angaben zu deinen Fängen —
+    einschließlich <b>Fangorten</b> und <b>Fotos</b> in verkleinerter Form.
+    Das liegt bei Supabase (Supabase Inc.) auf Servern in der EU.
     Der Betreiber dieser App hat als Inhaber des Projekts technisch Zugriff darauf.
-    Rechtsgrundlage ist deine Einwilligung durch das Anlegen des Kontos
-    (Art. 6 Abs. 1 lit. a DSGVO); für die Bereitstellung der App selbst
-    Art. 6 Abs. 1 lit. b DSGVO.</p>
+    Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Bereitstellung der App); für
+    das Anlegen des Kontos zusätzlich deine Einwilligung nach lit. a.</p>
+    <p>Deine Fänge werden zusätzlich im Speicher deines Geräts gehalten, damit die
+    App ohne Netz funktioniert — am Wasser ist das der Normalfall. Angemeldet
+    bleibst du dabei; die Sitzung wird lokal gemerkt und du wirst bei schlechtem
+    Empfang nicht abgemeldet.</p>
     <p><b>Löschen:</b> In den Einstellungen löscht „Konto löschen" dein Konto und
     alle zugehörigen Daten auf dem Server sofort und vollständig. Die Fänge auf
     deinem Gerät bleiben dabei erhalten. „Abmelden" beendet nur die Synchronisierung.</p>
@@ -2262,12 +2375,15 @@ window.addEventListener('unhandledrejection', e =>
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 
-  // Konto zuletzt: es ist Beiwerk. Klemmt hier etwas, steht das Fangbuch trotzdem.
+  // Konto. ⚠️ Geprüft wird nur, ob eine Sitzung lokal gespeichert ist — nie, ob
+  // der Server gerade antwortet. Sonst stünde der Anmelde-Schirm ausgerechnet
+  // dort im Weg, wo die App gebraucht wird: am Wasser ohne Empfang.
   if (cloudAn()){
     konto = kontoLesen();
     renderKonto();
-    if (konto) syncJetzt(true);
-    // Wer am Wasser ohne Netz einträgt, soll nicht daran denken müssen.
+    if (gateNoetig()) gateZeigen();
+    else syncJetzt(true);
+    // Wer ohne Netz einträgt, soll nicht daran denken müssen.
     window.addEventListener('online', () => syncJetzt(true));
   }
 })();
