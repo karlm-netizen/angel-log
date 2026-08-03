@@ -484,16 +484,15 @@
     <label class="f">Farbpalette</label>
     <div class="pal" id="pal"></div>
     <div id="konto" hidden></div>
-    <label class="f">Sicherung</label>
-    <p class="tiny muted" style="margin:0 0 12px" id="sicherung-text">
-      Alle Daten liegen nur auf diesem Gerät. Mach ab und zu ein Backup —
-      wenn du Safari-Daten löschst oder die App vom Homescreen wirfst, sind die Fänge weg.
-    </p>
-    <button class="btn" id="btn-export" style="margin-bottom:8px">⬇︎ Backup exportieren</button>
-    <button class="btn" id="btn-import" style="margin-bottom:8px">⬆︎ Backup einlesen</button>
-    <input type="file" id="in-import" accept="application/json,.json" class="hidden">
-    <button class="btn" id="btn-datenschutz" style="margin-bottom:8px">Datenschutz</button>
+    <label class="f">Datenschutz</label>
+    <p class="tiny muted" style="margin:0 0 12px" id="sicherung-text"></p>
+    <button class="btn" id="btn-datenschutz" style="margin-bottom:8px">Datenschutzerklärung</button>
     <div id="ds-text" hidden style="margin-bottom:12px"></div>
+    <!-- Der Download steht bewusst hier unten und nicht mehr als „Backup" weiter
+         oben: er ist die Umsetzung der Datenübertragbarkeit (Art. 20 DSGVO) und
+         gehört damit zur Datenschutzerklärung, nicht zur Datensicherung —
+         gesichert wird seit dem 03.08. über das Konto. -->
+    <button class="btn" id="btn-export" style="margin-bottom:16px">⬇︎ Meine Daten herunterladen</button>
     <button class="btn" id="btn-close-sheet">Schließen</button>
   </div>
 </div>
@@ -1788,7 +1787,15 @@ $('#btn-map-retry').onclick = () => {
   renderMap();
 };
 
-/* ---------------------------- Backup ---------------------------- */
+/* ---------------------------- Daten herunterladen ----------------------------
+   Kein Backup mehr, sondern **Datenübertragbarkeit** (Art. 20 DSGVO): jeder muss
+   seine Daten in einer lesbaren Form mitnehmen können. Deshalb steht der Knopf
+   seit dem 03.08. unten bei der Datenschutzerklärung statt oben bei „Sicherung".
+
+   ⚠️ Das Gegenstück — eine Datei wieder **einlesen** — ist bewusst weg (Karl,
+   03.08.). Gesichert wird über das Konto; ein zweiter Weg, der Fänge in die
+   Datenbank schiebt, hätte sich mit dem Abgleich in die Quere kommen können.
+   Wer eine alte Datei zurückspielen will, braucht dafür jetzt Hilfe von Karl. */
 const blobToDataURL = b => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
 const dataURLToBlob = async d => (await fetch(d)).blob();
 
@@ -1797,7 +1804,7 @@ $('#btn-close-sheet').onclick = () => $('#sheet').classList.remove('on');
 $('#sheet').onclick = e => { if (e.target.id === 'sheet') $('#sheet').classList.remove('on'); };
 
 $('#btn-export').onclick = async () => {
-  toast('Backup wird gebaut …');
+  toast('Datei wird gebaut …');
   const out = [];
   for (const c of state.catches){
     const copy = { ...c };
@@ -1807,48 +1814,17 @@ $('#btn-export').onclick = async () => {
     }
     out.push(copy);
   }
-  // Die Angelzeit gehört mit ins Backup — sie liegt sonst nur im localStorage
-  // und wäre nach einem Wiederherstellen weg, obwohl alle Fänge wieder da sind.
+  // Die Angelzeit gehört mit hinein — sie liegt nur im localStorage und wäre
+  // sonst das einzige, was in der Datei fehlt.
   const blob = new Blob([JSON.stringify({ app: 'angel-log', version: 1,
                           exported: new Date().toISOString(),
                           zeit: zeitLesen(), catches: out })],
                         { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `angel-log-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `angel-log-daten-${new Date().toISOString().slice(0, 10)}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-};
-
-$('#btn-import').onclick = () => $('#in-import').click();
-$('#in-import').onchange = async e => {
-  const f = e.target.files[0]; e.target.value = '';
-  if (!f) return;
-  try {
-    const j = JSON.parse(await f.text());
-    if (!j.catches) throw new Error('Format');
-    if (!confirm(`${j.catches.length} Fänge einlesen? Vorhandene Einträge mit gleicher ID werden überschrieben.`)) return;
-    for (const c of j.catches){
-      const rec = { ...c, photos: [] };
-      for (const p of (c.photos || [])){
-        rec.photos.push({ full: await dataURLToBlob(p.full), thumb: await dataURLToBlob(p.thumb) });
-      }
-      if (!rec.id) rec.id = uid();
-      await putCatch(rec);
-    }
-    // Angelzeit: die größere der beiden Gesamtzeiten gewinnt. Ein Backup soll
-    // nichts wegnehmen, was seit dem Export dazugekommen ist.
-    if (j.zeit && Number(j.zeit.gesamt) > 0){
-      const jetzt = zeitLesen();
-      zeitSchreiben({ gesamt: Math.max(jetzt.gesamt, Number(j.zeit.gesamt)), start: jetzt.start });
-    }
-    await reload();
-    renderZeit();
-    $('#sheet').classList.remove('on');
-    toast('Backup eingelesen');
-  } catch {
-    toast('Datei konnte nicht gelesen werden');
-  }
 };
 
 /* ====================== Konto & Cloud-Sync ==========================
@@ -2273,8 +2249,8 @@ function renderKonto(){
   const st = $('#sicherung-text');
   if (st) st.innerHTML = konto
     ? `Deine Fänge liegen auf diesem Gerät <b style="color:var(--txt)">und</b> in deinem Konto.
-       Ein Backup als Datei schadet trotzdem nicht — es ist das einzige, was auch
-       ohne Server und ohne Anmeldung noch lesbar ist.`
+       Unten kannst du jederzeit alles als Datei herunterladen — das ist deine Kopie,
+       lesbar auch ohne die App.`
     : `Nicht angemeldet — es wird gerade nichts abgeglichen. Die Fänge auf diesem
        Gerät sind unverändert da.`;
 
@@ -2385,8 +2361,9 @@ function datenschutzText(){
     keine Analyse-Werkzeuge und keine Weitergabe an Dritte zu Werbezwecken.</p>
     <p><b>Deine Rechte:</b> Auskunft, Berichtigung, Löschung, Einschränkung,
     Datenübertragbarkeit und Widerspruch (Art. 15–21 DSGVO) sowie Beschwerde bei
-    einer Aufsichtsbehörde. Für die Datenübertragbarkeit gibt es in den
-    Einstellungen „Backup exportieren" — das liefert alle deine Daten als Datei.</p>
+    einer Aufsichtsbehörde. Für die Datenübertragbarkeit gibt es hier unten
+    <b>„Meine Daten herunterladen"</b> — das liefert alle deine Fänge samt Fotos
+    als Datei, ohne Umweg über eine Anfrage.</p>
     <p class="tiny muted">Stand: August 2026</p>`;
 }
 

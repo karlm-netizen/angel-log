@@ -1135,6 +1135,30 @@ TESTS = r"""
   t('Verantwortlicher steht im Text', () =>
     datenschutzText().includes(KONTAKT) || 'fehlt');
 
+  // ---- Daten herunterladen ----
+  t('Download-Knopf da', () => !!document.querySelector('#btn-export') || 'fehlt');
+  t('Einlesen ist raus', () =>
+    (!document.querySelector('#btn-import') && !document.querySelector('#in-import'))
+      || 'Import noch da');
+  // ⚠️ Der Download setzt Art. 20 DSGVO um und gehoert deshalb zum Datenschutz,
+  // nicht zur Datensicherung -- gesichert wird ueber das Konto.
+  t('Download steht unter der Datenschutzerklaerung', () => {
+    const inner = document.querySelector('#sheet .inner');
+    const kinder = [...inner.children];
+    return (kinder.indexOf(document.querySelector('#btn-export'))
+            > kinder.indexOf(document.querySelector('#btn-datenschutz'))) || 'steht davor';
+  });
+  t('Download steht vor dem Schliessen-Knopf', () => {
+    const inner = document.querySelector('#sheet .inner');
+    const kinder = [...inner.children];
+    return (kinder.indexOf(document.querySelector('#btn-export'))
+            < kinder.indexOf(document.querySelector('#btn-close-sheet'))) || 'steht dahinter';
+  });
+  t('Datenschutztext verweist auf den Download', () =>
+    /Meine Daten herunterladen/.test(datenschutzText()) || 'Text nennt ihn nicht');
+  t('Datenschutztext spricht nicht mehr von Backup', () =>
+    (!/Backup/.test(datenschutzText())) || 'Backup steht noch drin');
+
   (async function(){
     for (const [name, fn] of asyncTests){
       try { const r = await fn(); if (r === true) { ok++; out.push('OK   ' + name); }
