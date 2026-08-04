@@ -74,6 +74,26 @@
   .chip .sw{width:12px; height:12px; border-radius:99px; display:inline-block;
     vertical-align:-1px; margin-right:6px; border:1px solid rgba(255,255,255,.25)}
 
+  /* Statistik. Alle Balken tragen dieselbe Farbe — die Länge ist die Aussage,
+     eine zweite Farbskala würde nur dasselbe nochmal sagen. Die Zahl steht immer
+     daneben, damit nichts allein an der Balkenlänge oder an einer Farbe hängt. */
+  .tiles{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  .tile{background:var(--card2); border:1px solid var(--line); border-radius:12px; padding:11px 12px}
+  .tile .n{font-size:21px; font-weight:700; line-height:1.2}
+  .tile .l{font-size:11px; color:var(--muted); font-weight:600; margin-top:1px}
+  .bar{margin-bottom:11px}
+  .bar:last-child{margin-bottom:0}
+  .bl{display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+    font-size:13.5px; margin-bottom:5px}
+  .bl span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .bl b{color:var(--muted); font-weight:700; font-variant-numeric:tabular-nums; flex:none}
+  .bt{height:8px; background:var(--card2); border-radius:99px}
+  .bt i{display:block; height:100%; min-width:8px; background:var(--accent); border-radius:99px}
+  .bl .sw{width:11px; height:11px; border-radius:99px; display:inline-block;
+    vertical-align:-1px; margin-right:6px; border:1px solid rgba(128,128,128,.45)}
+  .hint{font-size:12px; color:var(--muted); line-height:1.5; margin-top:10px}
+  .kurve{width:100%; height:auto; display:block; margin-top:2px; overflow:visible}
+
   /* Fotos */
   .photos{display:flex; flex-wrap:wrap; gap:8px}
   .ph{position:relative; width:74px; height:74px; border-radius:12px; overflow:hidden;
@@ -459,6 +479,31 @@
   </div>
 </section>
 
+<!-- ======================= STATISTIK ======================= -->
+<section id="v-stats" class="hidden">
+  <div class="head"><h1>Statistik</h1><span class="pill" id="stats-pill">—</span></div>
+  <div class="wrap">
+    <!-- Eine Filterzeile für alles darunter, nicht je Auswertung eine eigene. -->
+    <div class="card">
+      <div class="g2 fld">
+        <div>
+          <label class="f" for="st-gewaesser">Gewässer</label>
+          <select class="in" id="st-gewaesser"></select>
+        </div>
+        <div>
+          <label class="f" for="st-art">Fischart</label>
+          <select class="in" id="st-art"></select>
+        </div>
+      </div>
+      <div class="fld">
+        <label class="f">Zeitraum</label>
+        <div class="chips" id="st-zeit"></div>
+      </div>
+    </div>
+    <div id="stats-body"></div>
+  </div>
+</section>
+
 <!-- ======================= DETAIL ======================= -->
 <section id="v-detail" class="hidden">
   <div class="head">
@@ -526,6 +571,11 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/>
       </svg>Karte
+    </button>
+    <button class="tab" data-go="stats">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>
+      </svg>Statistik
     </button>
   </div>
 </nav>
@@ -880,6 +930,7 @@ const state = {
   form: { photos: [], lat: null, lon: null, farben: [], phase: '', wetter: '', truebung: '',
           regen24: null, regen48: null, pegel: null, wasserAuto: null },
   detailId: null,
+  stats: { gewaesser: '', art: '', zeit: 'alles', zeige: 'art' },
   urls: []          // ObjectURLs, die beim Ansichtswechsel wieder freigegeben werden
 };
 
@@ -1343,6 +1394,23 @@ function buildStatics(){
     `<button class="chip" data-trueb="${k}">${l}</button>`).join('');
   $('#ch-farbe').innerHTML = FARBEN.map(([n, hex]) =>
     `<button class="chip" data-farbe="${n}"><i class="sw" style="background:${hex}"></i>${n}</button>`).join('');
+
+  // Statistik: Zeitraum-Knöpfe stehen fest, die Auswertungs-Knöpfe entstehen beim
+  // Zeichnen (sie hängen an der Auswahl). Deshalb hier nur die Zeiträume.
+  $('#st-zeit').innerHTML = ZEITRAEUME.map(([k, l]) =>
+    `<button class="chip${k === state.stats.zeit ? ' on' : ''}" data-zeit="${k}">${l}</button>`).join('');
+  $('#st-zeit').onclick = e => {
+    const b = e.target.closest('[data-zeit]'); if (!b) return;
+    state.stats.zeit = b.dataset.zeit; renderStats();
+  };
+  $('#st-gewaesser').onchange = e => { state.stats.gewaesser = e.target.value; renderStats(); };
+  $('#st-art').onchange       = e => { state.stats.art       = e.target.value; renderStats(); };
+  // Die Auswahl-Knöpfe werden bei jedem Zeichnen neu erzeugt — der Griff muss
+  // deshalb am Rahmen hängen, der stehen bleibt, nicht an den Knöpfen selbst.
+  $('#stats-body').onclick = e => {
+    const b = e.target.closest('[data-wahl]'); if (!b) return;
+    state.stats.zeige = b.dataset.wahl; renderStats();
+  };
 }
 function selectPhase(k){
   state.form.phase = (state.form.phase === k) ? '' : k;
@@ -2374,16 +2442,259 @@ $('#btn-datenschutz').onclick = () => {
 };
 
 /* ---------------------------- Navigation ---------------------------- */
+/* ---------------------------- Statistik ----------------------------
+   Wichtig und leicht zu übersehen: hier stehen **Verteilungen der Fänge**, keine
+   Erfolgsquoten. Wenn 60 % der Fische auf Firetiger gingen, heißt das erstmal nur,
+   dass Firetiger am häufigsten am Band war. Für ein "welcher Köder fängt besser"
+   müssten auch die Ansitze **ohne** Fang erfasst werden — die App kennt nur Erfolge.
+   Deshalb sind alle Überschriften als Verteilung formuliert und nirgends steht
+   "bester". Das ist keine Kleinigkeit: die umgekehrte Lesart wäre schlicht falsch.
+
+   ⚠️ Diese Fassung ist bewusst schmaler als der Entwurf vom 02.08. (Branch
+   `statistik-entwurf`, Tag `statistik-v1`). Dort standen 17 Auswertungen zur Wahl —
+   Luftdruck, Ködergröße, Mondphase, Trübung und so weiter. Bei einer Handvoll Fängen
+   ist das eine Wand aus Knöpfen, hinter der jedes Mal ein fast leeres Diagramm steht.
+   Hier sind es sechs, und zwar die, auf die es beim Angeln hinausläuft: was, womit,
+   wann am Tag, wann im Jahr, wo, bei welcher Wassertemperatur. Die übrigen elf sind
+   nicht gelöscht — sie stehen im Branch und sind je eine Zeile in AUSWERTUNGEN. */
+
+const ZEITRAEUME = [['alles','Alles'],['jahr','Dieses Jahr'],['12m','12 Monate'],['30t','30 Tage']];
+const MONATE_KURZ = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+
+function statsRows(){
+  const f = state.stats;
+  const jetzt = Date.now();
+  const grenze = f.zeit === '30t' ? jetzt - 30 * 864e5
+               : f.zeit === '12m' ? jetzt - 365 * 864e5
+               : null;
+  const jahr = new Date().getFullYear();
+  return state.catches.filter(c => {
+    if (c.entwurf) return false;                       // Entwürfe zählen nirgends mit
+    if (f.gewaesser && c.gewaesser !== f.gewaesser) return false;
+    if (f.art && c.art !== f.art) return false;
+    if (grenze != null && !(c.ts >= grenze)) return false;
+    if (f.zeit === 'jahr' && new Date(c.when).getFullYear() !== jahr) return false;
+    return true;
+  });
+}
+
+function zaehle(rows, fn){
+  const m = new Map();
+  rows.forEach(r => {
+    const w = fn(r);
+    (Array.isArray(w) ? w : [w]).forEach(k => {
+      if (k == null || k === '') return;
+      m.set(k, (m.get(k) || 0) + 1);
+    });
+  });
+  return m;
+}
+
+// Kategorien ohne natürliche Reihenfolge (Fischart, Köder, Gewässer) nach Häufigkeit.
+function ausMap(m){
+  return [...m.entries()].map(([label, wert]) => ({ label, wert }))
+                         .sort((a, b) => b.wert - a.wert);
+}
+
+/* Ein Balkenblock. Alle Balken derselben Farbe: die Länge trägt die Aussage,
+   und die Zahl steht immer daneben — niemand muss Längen schätzen. */
+function balkenBlock(titel, eintraege, hinweis){
+  if (!eintraege.length) return '';
+  const max = Math.max(...eintraege.map(e => e.wert));
+  const zeilen = eintraege.map(e => `
+    <div class="bar">
+      <div class="bl"><span>${e.label}</span><b>${e.wert}</b></div>
+      <div class="bt"><i style="width:${Math.max(4, Math.round(e.wert / max * 100))}%"></i></div>
+    </div>`).join('');
+  return `<div class="card"><h2>${titel}</h2>${zeilen}
+    ${hinweis ? `<div class="hint">${hinweis}</div>` : ''}</div>`;
+}
+
+/* Kurven für Messwerte (Wassertemperatur, Monat, Uhrzeit). Bei etwas Messbarem hat
+   die Reihenfolge eine Bedeutung — 12 °C liegt zwischen 10 und 14 —, und genau das
+   zeigt ein Balken nicht.
+
+   Zwei Dinge sind hier wichtiger als das Aussehen:
+   1. **Leere Stufen müssen mit 0 drin sein.** Ließe man sie weg, verbände die Linie
+      8 °C direkt mit 14 °C und behauptete einen Verlauf, den es nicht gibt.
+   2. **Keine geglättete Kurve.** Gerade Abschnitte zwischen den Punkten; ein Spline
+      würde Zwischenwerte erfinden, die nie gemessen wurden.
+   Die Zahl steht an jedem Punkt, damit nichts allein an der Höhe hängt. */
+function kurvenBlock(titel, punkte, hinweis){
+  if (punkte.length < 3) return balkenBlock(titel, punkte.map(p => ({ label: p.x, wert: p.wert })), hinweis);
+
+  const W = 320, H = 148, pL = 12, pR = 12, pT = 26, pB = 24;
+  const max = Math.max(...punkte.map(p => p.wert), 1);
+  const n = punkte.length;
+  const x = i => pL + (n === 1 ? (W - pL - pR) / 2 : i * (W - pL - pR) / (n - 1));
+  const y = v => H - pB - (v / max) * (H - pT - pB);
+
+  const pts  = punkte.map((p, i) => [x(i), y(p.wert)]);
+  const linie = pts.map(([a, b], i) => (i ? 'L' : 'M') + a.toFixed(1) + ' ' + b.toFixed(1)).join(' ');
+  const flaeche = `M${pts[0][0].toFixed(1)} ${(H - pB).toFixed(1)} `
+    + pts.map(([a, b]) => `L${a.toFixed(1)} ${b.toFixed(1)}`).join(' ')
+    + ` L${pts[n-1][0].toFixed(1)} ${(H - pB).toFixed(1)} Z`;
+
+  // Bei vielen Stufen nicht jede beschriften — sonst überlappen die Achsentexte.
+  const jeder = Math.ceil(n / 7);
+  const xTexte = punkte.map((p, i) => (i % jeder === 0 || i === n - 1)
+    ? `<text x="${x(i).toFixed(1)}" y="${H - 7}" text-anchor="middle" font-size="9.5"
+             fill="var(--muted)">${p.x}</text>` : '').join('');
+  const werte = punkte.map((p, i) => p.wert === 0 ? '' :
+    `<text x="${x(i).toFixed(1)}" y="${(y(p.wert) - 9).toFixed(1)}" text-anchor="middle"
+           font-size="10" font-weight="700" fill="var(--muted)">${p.wert}</text>`).join('');
+  const punkteSvg = punkte.map((p, i) => p.wert === 0 ? '' :
+    `<circle cx="${x(i).toFixed(1)}" cy="${y(p.wert).toFixed(1)}" r="3.2"
+             fill="var(--accent)" stroke="var(--card)" stroke-width="2"/>`).join('');
+
+  return `<div class="card"><h2>${titel}</h2>
+    <svg class="kurve" viewBox="0 0 ${W} ${H}" role="img" aria-label="${titel}">
+      <line x1="${pL}" y1="${H - pB}" x2="${W - pR}" y2="${H - pB}" stroke="var(--line)" stroke-width="1"/>
+      <path d="${flaeche}" fill="var(--accent)" opacity=".13"/>
+      <path d="${linie}" fill="none" stroke="var(--accent)" stroke-width="2"
+            stroke-linejoin="round" stroke-linecap="round"/>
+      ${punkteSvg}${werte}${xTexte}
+    </svg>
+    ${hinweis ? `<div class="hint">${hinweis}</div>` : ''}</div>`;
+}
+
+/* Stufen über den ganzen beobachteten Bereich, Lücken ausdrücklich mit 0.
+   Genau daran scheitern solche Auswertungen sonst: fehlende Stufen wegzulassen
+   verwandelt eine Lücke in eine Verbindung. */
+function stufenReihe(rows, feld, breite){
+  const werte = rows.map(feld).filter(v => v != null && isFinite(v));
+  if (!werte.length) return [];
+  const u0 = Math.floor(Math.min(...werte) / breite);
+  const u1 = Math.floor(Math.max(...werte) / breite);
+  if (u1 - u0 > 40) return [];                 // Ausreißer würden 100 leere Stufen erzeugen
+  const z = v => String(Math.round(v * 100) / 100).replace('.', ',');
+  const reihe = [];
+  for (let k = u0; k <= u1; k++) reihe.push({ x: z(k * breite), wert: 0, k });
+  werte.forEach(v => {
+    const k = Math.floor(v / breite);
+    const e = reihe.find(r => r.k === k);
+    if (e) e.wert++;
+  });
+  return reihe;
+}
+
+const HINWEIS_VERTEILUNG =
+  'Zeigt, wie sich deine Fänge verteilen — nicht, was besser fängt. '
+  + 'Dafür müssten auch Ansitze ohne Fang erfasst sein.';
+
+/* Sechs Auswertungen, entlang der sechs Fragen, die ein Angler tatsächlich stellt.
+   Messbares wird zur Kurve (die Reihenfolge der Werte bedeutet etwas), Kategorien
+   bleiben Balken. Reihenfolge hier = Reihenfolge der Knöpfe. */
+const AUSWERTUNGEN = [
+  { key:'art', kurz:'Fischart', bau: r => balkenBlock('Fänge nach Fischart', ausMap(zaehle(r, c => c.art))) },
+  { key:'koeder', kurz:'Köder', bau: r =>
+      balkenBlock('Fänge nach Köder', ausMap(zaehle(r, c => c.koeder)), HINWEIS_VERTEILUNG) },
+  { key:'stunde', kurz:'Uhrzeit', bau: r =>
+      kurvenBlock('Fänge nach Uhrzeit', (() => {
+        const z = new Array(24).fill(0);
+        r.forEach(c => { const d = new Date(c.when); if (!isNaN(d)) z[d.getHours()]++; });
+        return z.map((wert, i) => ({ x: String(i), wert }));
+      })()) },
+  { key:'monat', kurz:'Monat', bau: r =>
+      kurvenBlock('Fänge nach Monat', (() => {
+        const z = new Array(12).fill(0);
+        r.forEach(c => { const d = new Date(c.when); if (!isNaN(d)) z[d.getMonth()]++; });
+        return z.map((wert, i) => ({ x: MONATE_KURZ[i], wert }));
+      })()) },
+  { key:'gewaesser', kurz:'Gewässer', bau: r =>
+      balkenBlock('Fänge nach Gewässer', ausMap(zaehle(r, c => c.gewaesser)), HINWEIS_VERTEILUNG) },
+  { key:'wasser', kurz:'Wassertemp.', bau: r =>
+      kurvenBlock('Fänge nach Wassertemperatur (°C)', stufenReihe(r, c => c.wasser, 2),
+        'Leere Stufen stehen mit null drin — sonst würde die Linie eine Lücke zu einem Verlauf machen.') }
+];
+
+function waehler(){
+  return `<div class="card">
+    <label class="f">Fänge nach …</label>
+    <div class="chips" id="st-wahl">${AUSWERTUNGEN.map(a =>
+      `<button class="chip${a.key === state.stats.zeige ? ' on' : ''}"
+               data-wahl="${a.key}">${a.kurz}</button>`).join('')}</div>
+  </div>`;
+}
+
+function renderStats(){
+  // Filterlisten aus dem gesamten Bestand, nicht aus der gefilterten Auswahl —
+  // sonst verschwindet die Option, mit der man gerade filtert.
+  const fertig = state.catches.filter(c => !c.entwurf);
+  const opts = (sel, werte, aktuell, alle) => {
+    $(sel).innerHTML = `<option value="">${alle}</option>`
+      + werte.map(w => `<option value="${w}"${w === aktuell ? ' selected' : ''}>${w}</option>`).join('');
+  };
+  opts('#st-gewaesser', [...new Set(fertig.map(c => c.gewaesser).filter(Boolean))].sort(),
+       state.stats.gewaesser, 'Alle Gewässer');
+  opts('#st-art', [...new Set(fertig.map(c => c.art).filter(Boolean))].sort(),
+       state.stats.art, 'Alle Arten');
+  $$('#st-zeit .chip').forEach(c => c.classList.toggle('on', c.dataset.zeit === state.stats.zeit));
+
+  const rows = statsRows();
+  $('#stats-pill').textContent = rows.length + (rows.length === 1 ? ' Fang' : ' Fänge');
+  const body = $('#stats-body');
+
+  if (!fertig.length){
+    body.innerHTML = `<div class="empty">Noch keine fertigen Fänge.<br>
+      Sobald der Erste gespeichert ist, steht hier die Auswertung.</div>`;
+    return;
+  }
+  if (!rows.length){
+    body.innerHTML = '<div class="empty">Für diese Auswahl gibt es keinen Fang.</div>';
+    return;
+  }
+
+  const zahl = v => String(Math.round(v * 10) / 10).replace('.', ',');
+  const groesster  = rows.reduce((a, c) => (c.laenge  && (!a || c.laenge  > a.laenge))  ? c : a, null);
+  const schwerster = rows.reduce((a, c) => (c.gewicht && (!a || c.gewicht > a.gewicht)) ? c : a, null);
+  const arten = new Set(rows.map(c => c.art).filter(Boolean));
+
+  // Vier Kacheln, nicht sechs. "Gewässer" und "mit Foto" standen im Entwurf mit
+  // dabei und beantworten keine Angelfrage — die eine ist ein Filter, die andere
+  // eine Eigenschaft der App.
+  const kachel = (n, l) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+  const kacheln = `<div class="card"><div class="tiles">
+    ${kachel(rows.length, rows.length === 1 ? 'Fang' : 'Fänge')}
+    ${kachel(arten.size, arten.size === 1 ? 'Fischart' : 'Fischarten')}
+    ${kachel(groesster ? zahl(groesster.laenge) + ' cm' : '—', groesster && groesster.art ? 'Größter · ' + groesster.art : 'Größter')}
+    ${kachel(schwerster ? zahl(schwerster.gewicht) + ' kg' : '—', schwerster && schwerster.art ? 'Schwerster · ' + schwerster.art : 'Schwerster')}
+  </div></div>`;
+
+  // Ehrlichkeit an der richtigen Stelle: bei einer Handvoll Fängen sagt keine
+  // Verteilung etwas aus. Lieber einmal deutlich dranschreiben als Balken zeigen,
+  // aus denen jemand ein Muster liest, das nur Zufall ist.
+  const duenn = rows.length < 15
+    ? `<div class="card"><div class="hint" style="margin:0">
+         <b>${rows.length} ${rows.length === 1 ? 'Fang' : 'Fänge'} in dieser Auswahl.</b>
+         Für ein belastbares Muster sind das noch zu wenige — ab etwa 20 bis 30 wird es
+         aussagekräftig. Bis dahin zeigt die Auswertung schlicht, was bisher drinsteht.</div></div>`
+    : '';
+
+  // Genau eine Auswertung. Eine Liste aus siebzehn Blöcken beantwortet keine Frage,
+  // sie verschiebt sie nur nach unten — man wählt eine Sache und sieht sie.
+  const a = AUSWERTUNGEN.find(x => x.key === state.stats.zeige) || AUSWERTUNGEN[0];
+  // Wichtig: eine Auswertung ohne Daten muss das *sagen*. Gäbe sie nur nichts
+  // zurück, passierte beim Antippen sichtbar gar nichts und die App wirkt kaputt.
+  const inhalt = a.bau(rows) || `<div class="card"><h2>${a.kurz}</h2>
+    <div class="hint" style="margin:0">Dazu hat in dieser Auswahl noch kein Fang einen Wert
+    — oder es sind zu wenige für einen Verlauf.</div></div>`;
+
+  body.innerHTML = kacheln + waehler() + duenn + inhalt;
+}
+
+/* ---------------------------- Ansichtswechsel ---------------------------- */
 function go(view){
   freeURLs();
   state.view = view;
-  ['log', 'new', 'map', 'detail'].forEach(v => $('#v-' + v).classList.toggle('hidden', v !== view));
+  ['log', 'new', 'map', 'stats', 'detail'].forEach(v => $('#v-' + v).classList.toggle('hidden', v !== view));
   $('#fab-save').classList.toggle('on', view === 'new');
   $$('.tab').forEach(t => t.classList.toggle('on',
     t.dataset.go === view || (view === 'detail' && t.dataset.go === 'log')));
 
   if (view === 'log'){ renderList(); renderZeit(); }
   if (view === 'map')    renderMap();
+  if (view === 'stats')  renderStats();
   if (view === 'detail') renderDetail();
   if (view === 'new' && !state.editId) resetForm(null);
   window.scrollTo(0, 0);

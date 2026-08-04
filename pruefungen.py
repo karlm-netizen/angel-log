@@ -582,7 +582,7 @@ TESTS = r"""
     t('nur Gewaehltes wird gezeigt', () => {
       const h = document.querySelector('#stats-body').innerHTML;
       const koerper = h.slice(h.indexOf('id="st-wahl"'));
-      return !koerper.includes('Fänge nach Luftdruck') || 'ungewaehlter Block ist da';
+      return !koerper.includes('Fänge nach Köder') || 'ungewaehlter Block ist da';
     });
     t('Messwerte kommen als Kurve (genug Spanne)', () => {
       // Weniger als drei Stufen faellt bewusst auf Balken zurueck — eine "Kurve"
@@ -601,12 +601,29 @@ TESTS = r"""
       setzeFaenge([mk({ art:'Hecht' }), mk({ art:'Barsch' })]);
       alleFilterAus('art'); renderStats();
       const h = document.querySelector('#stats-body').innerHTML;
-      const i = h.indexOf('<h2>Fischart</h2>');
+      const i = h.indexOf('<h2>Fänge nach Fischart</h2>');
       return (i > 0 && h.slice(i, i + 900).includes('class="bar"')) || 'Fischart ist keine Balkenliste';
     });
     t('Waehler zeigt jede Auswertung', () => {
       const n = document.querySelectorAll('#st-wahl .chip').length;
       return n === AUSWERTUNGEN.length || n;
+    });
+    // Der Entwurf vom 02.08. hatte 17 Auswertungen und wurde deshalb wieder
+    // herausgenommen: eine Wand aus Knoepfen, hinter der jedes Mal ein fast leeres
+    // Diagramm steht. Diese Pruefung haelt die Kuerzung fest — wer eine achte
+    // dazunimmt, soll darueber stolpern und es bewusst entscheiden.
+    t('die Auswahl bleibt schmal', () =>
+       AUSWERTUNGEN.length <= 7 || ('wieder ' + AUSWERTUNGEN.length + ' Auswertungen'));
+    t('Statistik-Reiter ist erreichbar', () => {
+      const tab = document.querySelector('.tab[data-go="stats"]');
+      if (!tab) return 'kein Reiter in der Leiste';
+      go('stats');
+      const panel = document.querySelector('#v-stats');
+      if (!panel) return 'kein Panel #v-stats';
+      if (panel.classList.contains('hidden')) return 'Panel bleibt versteckt';
+      if (!tab.classList.contains('on')) return 'Reiter wird nicht markiert';
+      go('log');
+      return true;
     });
     t('genau ein Chip ist markiert', () => {
       setzeFaenge([mk({ art:'Hecht' })]);
@@ -615,14 +632,14 @@ TESTS = r"""
       return (on.length === 1 && on[0] === 'art') || on.join();
     });
     t('Antippen wechselt die Auswertung', () => {
-      setzeFaenge([mk({ druck: 1000 }), mk({ druck: 1010 }), mk({ druck: 1020 })]);
+      setzeFaenge([mk({ art:'Hecht', koeder:'Wobbler' }), mk({ art:'Barsch', koeder:'Gummifisch' })]);
       alleFilterAus('art'); renderStats();
-      document.querySelector('[data-wahl="druck"]').click();
-      return document.querySelector('#stats-body').innerHTML.includes('Fänge nach Luftdruck') || 'nicht gewechselt';
+      document.querySelector('[data-wahl="koeder"]').click();
+      return document.querySelector('#stats-body').innerHTML.includes('Fänge nach Köder') || 'nicht gewechselt';
     });
     t('die vorherige Auswertung ist danach weg', () => {
       const h = document.querySelector('#stats-body').innerHTML;
-      return !h.slice(h.indexOf('id="st-wahl"')).includes('<h2>Fischart</h2>') || 'beide da';
+      return !h.slice(h.indexOf('id="st-wahl"')).includes('<h2>Fänge nach Fischart</h2>') || 'beide da';
     });
     t('immer nur eine Auswertung sichtbar', () => {
       const h = document.querySelector('#stats-body').innerHTML;
@@ -632,19 +649,19 @@ TESTS = r"""
     });
     t('nochmal denselben Chip tippen aendert nichts', () => {
       const vorher = document.querySelector('#stats-body').innerHTML;
-      document.querySelector('[data-wahl="druck"]').click();
+      document.querySelector('[data-wahl="koeder"]').click();
       return document.querySelector('#stats-body').innerHTML === vorher || 'hat sich geaendert';
     });
     t('Auswertung ohne Daten sagt es statt zu verschwinden', () => {
-      setzeFaenge([mk({ art:'Hecht' })]);          // kein Luftdruck erfasst
-      alleFilterAus('druck'); renderStats();
+      setzeFaenge([mk({ art:'Hecht' })]);          // keine Wassertemperatur erfasst
+      alleFilterAus('wasser'); renderStats();
       const h = document.querySelector('#stats-body').innerHTML;
-      return (h.includes('Luftdruck') && h.includes('noch kein Fang')) || 'still verschwunden';
+      return (h.includes('Wassertemp') && h.includes('noch kein Fang')) || 'still verschwunden';
     });
     t('unbekannte Auswahl faellt auf die erste zurueck', () => {
-      setzeFaenge([mk({ wasser: 9 }), mk({ wasser: 13 }), mk({ wasser: 17 })]);
+      setzeFaenge([mk({ art:'Hecht' }), mk({ art:'Barsch' })]);
       alleFilterAus('gibtsnicht'); renderStats();
-      return document.querySelector('#stats-body').innerHTML.includes('Wassertemperatur') || 'nichts gezeigt';
+      return document.querySelector('#stats-body').innerHTML.includes('Fänge nach Fischart') || 'nichts gezeigt';
     });
     t('Kacheln bleiben immer', () => {
       return document.querySelector('#stats-body').innerHTML.includes('class="tiles"') || 'Kacheln weg';
