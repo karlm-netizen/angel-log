@@ -522,7 +522,7 @@
 
 <!-- ======================= STATISTIK ======================= -->
 <section id="v-stats" class="hidden">
-  <div class="head"><h1>Statistik</h1><span class="pill" id="stats-pill">—</span></div>
+  <div class="head"><h1>Statistiken</h1><span class="pill" id="stats-pill">—</span></div>
   <div class="wrap">
     <!-- Gespeicherte Auswertungen. Eine Auswertung ist genau das, was unten
          eingestellt ist — antippen lädt sie zurück, ✎ benennt um, ✕ löscht. -->
@@ -547,15 +547,19 @@
         <div class="chips" id="st-teilen"></div>
         <div class="hint" id="st-teilen-hint" style="margin-top:7px" hidden></div>
       </div>
-      <div class="g2 fld">
-        <div>
-          <label class="f" for="st-gewaesser">Gewässer</label>
-          <select class="in" id="st-gewaesser"></select>
+      <div class="fld">
+        <label class="f" for="st-gewaesser">Gewässer</label>
+        <select class="in" id="st-gewaesser"></select>
+      </div>
+      <!-- Welche Punkte auf der X-Achse stehen. Die Liste entsteht beim
+           Zeichnen, weil sie an der gewählten Achse und am Bestand hängt. -->
+      <div class="fld">
+        <div class="row" style="margin-bottom:5px">
+          <label class="f" id="st-punkte-titel" style="margin:0; flex:1">Welche Punkte</label>
+          <button class="chip" id="st-alle">Alle</button>
+          <button class="chip" id="st-keine">Keine</button>
         </div>
-        <div>
-          <label class="f">Zeitraum</label>
-          <div class="chips" id="st-zeit"></div>
-        </div>
+        <div class="chips" id="st-punkte"></div>
       </div>
       <div class="row">
         <button class="btn" id="st-sichern" style="flex:1" hidden>✓ Änderungen sichern</button>
@@ -637,7 +641,7 @@
     <button class="tab" data-go="stats">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>
-      </svg>Statistik
+      </svg>Statistiken
     </button>
   </div>
 </nav>
@@ -1031,11 +1035,16 @@ const state = {
           regen24: null, regen48: null, pegel: null, wasserAuto: null },
   detailId: null,
   /* Eine Auswertung ist genau diese fünf Angaben: was gezählt wird (`art`),
-     worüber (`x`), ob nach Köder oder Farbe aufgeteilt wird (`teilen`), und die
-     beiden Einschränkungen Gewässer und Zeitraum. `aktiv` ist die ID der
-     gespeicherten Auswertung, die gerade geladen ist — null heißt „frei
-     eingestellt, noch nicht gespeichert". */
-  stats: { gewaesser: '', art: '', zeit: 'alles', x: 'wasser', teilen: '', aktiv: null },
+     worüber (`x`), ob nach Köder oder Farbe aufgeteilt wird (`teilen`), auf
+     welches Gewässer eingeschränkt, und welche Punkte der X-Achse dabei sind.
+     `aktiv` ist die ID der gespeicherten Auswertung, die gerade geladen ist —
+     null heißt „frei eingestellt, noch nicht gespeichert".
+
+     ⚠️ `punkte: null` heißt **alle**, nicht „keine". Der Unterschied ist wichtig:
+     eine gespeicherte Auswertung mit `null` nimmt später dazugekommene Werte
+     von selbst mit (eine neu gefangene Fischart taucht auf), eine mit einer
+     ausdrücklichen Liste bleibt bei genau dem, was Karl gewählt hat. */
+  stats: { gewaesser: '', art: '', x: 'wasser', teilen: '', punkte: null, aktiv: null },
   auswertungen: [],  // gespeicherte Auswertungen, hängen am Konto
   urls: []          // ObjectURLs, die beim Ansichtswechsel wieder freigegeben werden
 };
@@ -1501,22 +1510,42 @@ function buildStatics(){
   $('#ch-farbe').innerHTML = FARBEN.map(([n, hex]) =>
     `<button class="chip" data-farbe="${n}"><i class="sw" style="background:${hex}"></i>${n}</button>`).join('');
 
-  /* Statistik: alles, was feststeht. Die beiden Auswahllisten (Zählen,
-     Gewässer) hängen am Bestand und werden erst beim Zeichnen gefüllt. */
-  $('#st-zeit').innerHTML = ZEITRAEUME.map(([k, l]) =>
-    `<button class="chip${k === state.stats.zeit ? ' on' : ''}" data-zeit="${k}">${l}</button>`).join('');
-  $('#st-zeit').onclick = e => {
-    const b = e.target.closest('[data-zeit]'); if (!b) return;
-    state.stats.zeit = b.dataset.zeit; renderStats();
-  };
-  /* Alles wird als Kurve gezeichnet. Die Gruppen sagen nur noch, ob die
+  /* Statistiken: alles, was feststeht. Die Auswahllisten (Zählen, Gewässer,
+     Punkte) hängen am Bestand und werden erst beim Zeichnen gefüllt.
+
+     Alles wird als Kurve gezeichnet. Die Gruppen sagen nur noch, ob die
      Reihenfolge der X-Achse eine Bedeutung hat — bei Fischart oder Köder tut
      sie das nicht, dort zählt allein die Höhe der Punkte. */
   const achsGruppe = (titel, liste) => `<optgroup label="${titel}">` + liste.map(a =>
     `<option value="${a.key}">${a.kurz}${a.einheit ? ' (' + a.einheit + ')' : ''}</option>`).join('') + '</optgroup>';
   $('#st-x').innerHTML = achsGruppe('Mit fester Reihenfolge', ACHSEN.filter(hatOrdnung))
                        + achsGruppe('Nach Häufigkeit sortiert', ACHSEN.filter(a => !hatOrdnung(a)));
-  $('#st-x').onchange = e => { state.stats.x = e.target.value; renderStats(); };
+  $('#st-x').onchange = e => {
+    state.stats.x = e.target.value;
+    /* ⚠️ Die Punkte-Auswahl gilt für die alte Achse und ergibt für die neue
+       keinen Sinn — „Hecht, Barsch" auf einer Tiefenachse hieße: nichts ist
+       ausgewählt, und das Bild bliebe kommentarlos leer. */
+    state.stats.punkte = null;
+    renderStats();
+  };
+
+  /* Welche Punkte auf der X-Achse stehen — Karls Ansage vom 07.08.: statt eines
+     Zeitraums lieber die Werte selbst auswählen können. */
+  $('#st-punkte').onclick = e => {
+    const b = e.target.closest('[data-punkt]'); if (!b) return;
+    const wert = b.dataset.punkt;
+    const alle = stufenBauen(statsRows(), achseVon(state.stats.x)).map(s => s.x);
+    // Aus „alle" wird beim ersten Abwählen eine ausdrückliche Liste.
+    const jetzt = state.stats.punkte == null ? alle.slice() : state.stats.punkte.slice();
+    const i = jetzt.indexOf(wert);
+    if (i >= 0) jetzt.splice(i, 1); else jetzt.push(wert);
+    // Sind wieder alle drin, zurück auf null — dann wachsen neue Werte mit.
+    state.stats.punkte = jetzt.length === alle.length ? null
+      : alle.filter(x => jetzt.includes(x));      // in der Reihenfolge der Achse
+    renderStats();
+  };
+  $('#st-alle').onclick  = () => { state.stats.punkte = null; renderStats(); };
+  $('#st-keine').onclick = () => { state.stats.punkte = [];   renderStats(); };
 
   /* Aufteilen: zwei Kästchen, aber immer nur eines an. Nach Köder **und** Farbe
      gleichzeitig aufzuteilen ergäbe je Kombination eine Kurve — bei fünf Ködern
@@ -2688,7 +2717,6 @@ $('#btn-datenschutz').onclick = () => {
    Reihen eine Falschaussage zu bauen — je nachdem, wie man die Achsen streckt,
    „belegt" dasselbe Bild jeden beliebigen Zusammenhang. */
 
-const ZEITRAEUME = [['alles','Alles'],['jahr','Dieses Jahr'],['12m','12 Monate'],['30t','30 Tage']];
 const MONATE_KURZ = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
 
 /* ---- Farben für übereinanderliegende Kurven ----
@@ -2802,21 +2830,18 @@ const TEILER = [
 ];
 const teilerVon = k => TEILER.find(t => t.key === k) || null;
 
-// Nimmt eine Einstellung entgegen, damit auch gespeicherte Auswertungen ihre
-// eigene Auswahl bekommen — am großen Bildschirm stehen mehrere nebeneinander.
+/* Nimmt eine Einstellung entgegen, damit auch gespeicherte Auswertungen ihre
+   eigene Auswahl bekommen — am großen Bildschirm stehen mehrere nebeneinander.
+
+   ⚠️ Die Punkte-Auswahl wird hier **nicht** angewandt. Sie beschränkt die
+   X-Achse, nicht den Bestand: die Kacheln oben und der Zähler in der Kopfzeile
+   sollen weiter sagen, wie viele Fänge in der Auswahl liegen. */
 function statsRows(einst){
   const f = einst || state.stats;
-  const jetzt = Date.now();
-  const grenze = f.zeit === '30t' ? jetzt - 30 * 864e5
-               : f.zeit === '12m' ? jetzt - 365 * 864e5
-               : null;
-  const jahr = new Date().getFullYear();
   return state.catches.filter(c => {
     if (c.entwurf) return false;                       // Entwürfe zählen nirgends mit
     if (f.gewaesser && c.gewaesser !== f.gewaesser) return false;
     if (f.art && c.art !== f.art) return false;
-    if (grenze != null && !(c.ts >= grenze)) return false;
-    if (f.zeit === 'jahr' && new Date(c.when).getFullYear() !== jahr) return false;
     return true;
   });
 }
@@ -2841,19 +2866,22 @@ function auswertungenSchreiben(liste, updated){
   if (updated == null) werteAnstossen();
 }
 
-// Die Einstellungen, aus denen eine Auswertung besteht — und nur die. `aktiv`
-// gehört nicht dazu, das ist die Merkstelle, welche gerade geladen ist.
+/* Die Einstellungen, aus denen eine Auswertung besteht — und nur die. `aktiv`
+   gehört nicht dazu, das ist die Merkstelle, welche gerade geladen ist.
+   ⚠️ Die Punkte-Liste wird kopiert, nicht verwiesen: sonst änderte ein Klick im
+   Baukasten stillschweigend die gespeicherte Auswertung mit. */
 const auswNehmen = s => ({ art: s.art, x: s.x, teilen: s.teilen,
-                           gewaesser: s.gewaesser, zeit: s.zeit });
-const auswGleich = (a, b) => !!a && !!b && ['art','x','teilen','gewaesser','zeit']
-  .every(k => (a[k] || '') === (b[k] || ''));
+                           gewaesser: s.gewaesser,
+                           punkte: s.punkte == null ? null : [...s.punkte] });
+const auswGleich = (a, b) => !!a && !!b
+  && ['art','x','teilen','gewaesser'].every(k => (a[k] || '') === (b[k] || ''))
+  && JSON.stringify(a.punkte ?? null) === JSON.stringify(b.punkte ?? null);
 
 function auswBeschreibung(a){
   const teile = [(a.art || 'Alle Fische') + ' über ' + achseVon(a.x).kurz];
   if (teilerVon(a.teilen)) teile.push('nach ' + teilerVon(a.teilen).kurz);
   if (a.gewaesser) teile.push(a.gewaesser);
-  const z = ZEITRAEUME.find(([k]) => k === a.zeit);
-  if (z && a.zeit !== 'alles') teile.push(z[1]);
+  if (a.punkte) teile.push(a.punkte.length + ' Punkte');
   return teile.join(' · ');
 }
 
@@ -2925,17 +2953,16 @@ function stufeVon(c, achse){
   return alsListe(achse.reihe ? achse.schluessel(c) : achse.kat(c));
 }
 
-function reihenBauen(rows, achse, teilerKey){
-  const teiler = teilerVon(teilerKey);
-
-  // 1. Die Stufen der X-Achse.
-  let stufen;
+/* Alle Punkte, die eine Achse über diesem Bestand hergibt — ohne die Auswahl.
+   Getrennt von reihenBauen, weil die Auswahlliste im Baukasten dieselbe Quelle
+   braucht: dort muss auch das abgewählte noch zum Wiederanhaken dastehen. */
+function stufenBauen(rows, achse){
   if (achse.stufe){
     const werte = rows.map(achse.hol).filter(v => v != null && isFinite(v));
-    if (!werte.length) return null;
+    if (!werte.length) return [];
     let u0 = Math.floor(Math.min(...werte) / achse.stufe);
     let u1 = Math.floor(Math.max(...werte) / achse.stufe);
-    if (u1 - u0 > 40) return null;        // ein Ausreißer würde hundert leere Stufen erzeugen
+    if (u1 - u0 > 40) return [];          // ein Ausreißer würde hundert leere Stufen erzeugen
     /* ⚠️ Mindestens fünf Stufen, auch wenn alle Fänge in derselben liegen.
        Das erfindet keine Daten: die angehängten Stufen haben tatsächlich null
        Fänge, und leere Stufen gehören ohnehin ausdrücklich mit hinein. Es sorgt
@@ -2943,16 +2970,35 @@ function reihenBauen(rows, achse, teilerKey){
        statt als einzelner Punkt — genau das war Karls Beschwerde am 07.08. */
     while (u1 - u0 < 4){ u0--; u1++; }
     const z = v => String(Math.round(v * 100) / 100).replace('.', ',');
-    stufen = [];
-    for (let k = u0; k <= u1; k++) stufen.push({ k, x: z(k * achse.stufe) });
-  } else if (achse.reihe){
-    stufen = achse.reihe().map(x => ({ k: x, x }));
-  } else {
-    const haeufig = new Map();
-    rows.forEach(c => alsListe(achse.kat(c)).forEach(k => haeufig.set(k, (haeufig.get(k) || 0) + 1)));
-    stufen = [...haeufig.entries()].sort((a, b) => b[1] - a[1]).map(([x]) => ({ k: x, x }));
+    const r = [];
+    for (let k = u0; k <= u1; k++) r.push({ k, x: z(k * achse.stufe) });
+    return r;
   }
+  if (achse.reihe) return achse.reihe().map(x => ({ k: x, x }));
+  const haeufig = new Map();
+  rows.forEach(c => alsListe(achse.kat(c)).forEach(k => haeufig.set(k, (haeufig.get(k) || 0) + 1)));
+  return [...haeufig.entries()].sort((a, b) => b[1] - a[1]).map(([x]) => ({ k: x, x }));
+}
+
+// null heißt „alle" — auch später dazugekommene. Eine Liste heißt „genau diese".
+const punktGewaehlt = (punkte, x) => punkte == null || punkte.includes(x);
+
+function reihenBauen(rows, achse, teilerKey, punkte){
+  const teiler = teilerVon(teilerKey);
+
+  // 1. Die Stufen der X-Achse, danach Karls Auswahl darauf.
+  const alle = stufenBauen(rows, achse);
+  const stufen = alle.filter(s => punktGewaehlt(punkte, s.x));
   if (!stufen.length) return null;
+  /* ⚠️ Ist mitten aus einer geordneten Achse ein Punkt abgewählt, verbindet die
+     Linie über die Lücke hinweg und behauptet einen Verlauf, den es so nicht
+     gibt — genau der Fall, gegen den sonst die leeren Stufen stehen. Weglassen
+     darf Karl trotzdem; es muss nur unter dem Bild stehen. Am Rand abschneiden
+     ist dagegen harmlos, deshalb wird auf **Zusammenhang** geprüft, nicht auf
+     Vollständigkeit. */
+  const platzInAlle = stufen.map(s => alle.findIndex(a => a.x === s.x));
+  const lueckig = hatOrdnung(achse)
+    && platzInAlle.some((v, i) => i > 0 && v !== platzInAlle[i - 1] + 1);
 
   // 2. Die Reihen. Ohne Aufteilen genau eine; mit Aufteilen die häufigsten,
   //    der Rest zusammengefasst — nie mehr Farben als geprüfte da sind.
@@ -3002,7 +3048,8 @@ function reihenBauen(rows, achse, teilerKey){
     mehrfach: achse.key === 'farbe' || teilerKey === 'farbe',
     // Ohne feste Reihenfolge trägt nur die Höhe der Punkte eine Aussage,
     // nicht der Verlauf dazwischen. Steht als Hinweis unter dem Bild.
-    ungeordnet: !hatOrdnung(achse)
+    ungeordnet: !hatOrdnung(achse),
+    lueckig
   };
 }
 
@@ -3122,6 +3169,8 @@ function hinweise(d){
   if (d.ungeordnet) t.push('Diese Achse hat keine natürliche Reihenfolge — '
     + 'sie steht nach Häufigkeit. Aussagekräftig ist deshalb die Höhe der Punkte, '
     + 'nicht der Anstieg dazwischen.');
+  if (d.lueckig) t.push('Mittendrin sind Punkte abgewählt — die Linie verbindet '
+    + 'über die Lücke hinweg und zeigt dort einen Verlauf, den es so nicht gibt.');
   if (d.mehrfach) t.push('Ein Fang mit mehreren Köderfarben zählt in jeder mit — '
     + 'die Summe kann deshalb größer sein als die Zahl der Fänge.');
   if (d.reihen.some(r => r.name === UEBRIGE))
@@ -3190,12 +3239,25 @@ function renderStats(){
   opts('#st-art', [...new Set(fertig.map(c => c.art).filter(Boolean))].sort(),
        state.stats.art, 'Alle Fische');
   $('#st-x').value = state.stats.x;
-  $$('#st-zeit .chip').forEach(c => c.classList.toggle('on', c.dataset.zeit === state.stats.zeit));
   $$('#st-teilen .chip').forEach(c => {
     const an = c.dataset.teilen === state.stats.teilen;
     c.classList.toggle('on', an);
     c.firstChild.textContent = an ? '☑ ' : '☐ ';
   });
+
+  /* Die Punkte-Auswahl. Die Liste kommt aus dem **ungefilterten** Bestand
+     dieser Auswahl — sonst verschwände ein abgewählter Punkt aus der Liste und
+     ließe sich nie wieder anhaken. */
+  const achseJetzt = achseVon(state.stats.x);
+  const allePunkte = stufenBauen(statsRows(), achseJetzt);
+  $('#st-punkte-titel').textContent = 'Welche Punkte · ' + achseJetzt.kurz;
+  $('#st-punkte').innerHTML = allePunkte.length
+    ? allePunkte.map(s => {
+        const an = punktGewaehlt(state.stats.punkte, s.x);
+        return `<button class="chip${an ? ' on' : ''}" data-punkt="${esc(s.x)}">`
+             + `<span>${an ? '☑' : '☐'} </span>${esc(s.x)}</button>`;
+      }).join('')
+    : '<span class="muted tiny">Für diese Achse hat noch kein Fang einen Wert.</span>';
 
   const geladen = state.auswertungen.find(a => a.id === state.stats.aktiv);
   const geaendert = geladen && !auswGleich(geladen, state.stats);
@@ -3252,10 +3314,14 @@ function renderStats(){
     const achse = achseVon(einst.x);
     const titel = name || ((einst.art || 'Fänge') + ' nach ' + achse.kurz);
     const zeilen = einst === state.stats ? rows : statsRows(einst);
-    const d = zeilen.length && reihenBauen(zeilen, achse, einst.teilen);
+    const d = zeilen.length && reihenBauen(zeilen, achse, einst.teilen, einst.punkte);
     if (!d) return `<div class="card"><h2>${esc(titel)}</h2>
-      <div class="hint" style="margin:0">Dazu hat in dieser Auswahl noch kein Fang einen Wert.
-      ${achse.stufe ? 'Bei automatisch geholten Werten heißt das meist: der Fang wurde ohne Netz erfasst.' : ''}</div></div>`;
+      <div class="hint" style="margin:0">${
+        einst.punkte && !einst.punkte.length
+          ? 'Es ist kein Punkt ausgewählt — mit „Alle" kommen sie zurück.'
+          : 'Dazu hat in dieser Auswahl noch kein Fang einen Wert. '
+            + (achse.stufe ? 'Bei automatisch geholten Werten heißt das meist: der Fang wurde ohne Netz erfasst.' : '')
+      }</div></div>`;
     return diagramm(d, titel);
   };
 

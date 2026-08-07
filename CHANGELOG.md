@@ -6,6 +6,37 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 07.08.2026 — „Statistiken", und Punkte statt Zeitraum
+
+Der Reiter heißt jetzt **Statistiken** (Karls Ansage) — Leiste und Überschrift.
+
+**Der Zeitraum ist raus.** An seiner Stelle steht eine Liste **aller Punkte, die gerade auf
+der X-Achse liegen**, zum Ankreuzen, dazu „Alle" und „Keine". Bei *Über: Fischart* also alle
+Arten, bei *Über: Wassertiefe* alle Stufen. Nur Angekreuztes steht im Bild.
+
+- ⚠️ **Abgewähltes bleibt in der Liste stehen.** Verschwände es, käme man nie wieder heran.
+- ⚠️ **Alle angekreuzt wird als `null` gespeichert, nicht als volle Liste.** Der Unterschied
+  zählt bei den gespeicherten Auswertungen: `null` nimmt später dazugekommene Werte von
+  selbst mit (eine neu gefangene Fischart taucht auf), eine ausdrückliche Liste bleibt bei
+  genau dem, was ausgewählt wurde.
+- ⚠️ **Ein Achsenwechsel setzt die Auswahl zurück.** „Hecht, Barsch" auf einer Tiefenachse
+  hieße: nichts ausgewählt — und das Bild bliebe kommentarlos leer.
+- ⚠️ **Eine Lücke mittendrin wird benannt.** Wer aus einer geordneten Achse einen Punkt in
+  der Mitte abwählt, bekommt eine Linie, die über die Lücke hinweg verbindet und dort einen
+  Verlauf zeigt, den es nicht gibt — derselbe Fehler, gegen den sonst die leeren Stufen
+  stehen. Am Rand kürzen ist harmlos und bleibt unkommentiert.
+- Die Auswahl gehört zur Auswertung und wird **als Kopie** gespeichert, nicht als Verweis —
+  sonst änderte ein Klick im Baukasten stillschweigend die gespeicherte Auswertung mit.
+- Die Punkte-Auswahl beschränkt die **X-Achse, nicht den Bestand**: Kacheln und der Zähler
+  in der Kopfzeile sagen weiter, wie viele Fänge in der Auswahl liegen.
+
+⚠️ **Was dabei wegfällt:** die Einschränkung auf 30 Tage / 12 Monate / dieses Jahr. Das Alter
+eines Fangs schränkt jetzt nichts mehr ein. Über *Über: Monat* oder *Über: Uhrzeit* plus
+Punkte-Auswahl lässt sich Zeitliches weiter eingrenzen, nur nicht mehr als Fenster „ab heute
+rückwärts".
+
+**Prüfungen:** 353 grün, darunter 16 neue zur Punkte-Auswahl.
+
 ## 07.08.2026 — Neues App-Icon
 
 Karls Vorlage (Bild auf Discord, *„nimm das linke als app icon"*): springender Fisch mit

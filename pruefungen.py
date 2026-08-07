@@ -453,8 +453,9 @@ TESTS = r"""
     const mk = (o) => Object.assign({ id: Math.random().toString(36).slice(2), entwurf: false,
       when: '2026-07-15T06:30', ts: new Date('2026-07-15T06:30').getTime() }, o);
     const setzeFaenge = arr => { state.catches = arr; };
-    const alleFilterAus = (x) => { state.stats = { gewaesser: '', art: '', zeit: 'alles',
-                                                   x: x || 'wasser', teilen: '', aktiv: null }; };
+    const alleFilterAus = (x) => { state.stats = { gewaesser: '', art: '',
+                                                   x: x || 'wasser', teilen: '',
+                                                   punkte: null, aktiv: null }; };
     const R = arr => arr.map(v => ({ w: v }));
     // Eine Achse zum Durchreichen an reihenBauen, ohne den Umweg ueber die App.
     const wAchse = (stufe) => ({ key:'w', kurz:'W', stufe: stufe, hol: c => c.w });
@@ -851,14 +852,16 @@ TESTS = r"""
       alleFilterAus(); state.stats.art = 'Barsch';
       return statsRows().length === 1 || statsRows().length;
     });
-    t('Filter 30 Tage schliesst Altes aus', () => {
+    // Der Zeitraum ist am 07.08. rausgeflogen -- an seiner Stelle waehlt man die
+    // Punkte der X-Achse. Diese Pruefung haelt fest, dass das Alter eines Fangs
+    // die Auswahl NICHT mehr einschraenkt.
+    t('alte Faenge zaehlen weiter mit', () => {
       const alt = new Date(Date.now() - 200*864e5).toISOString().slice(0,16);
       setzeFaenge([mk({ when: new Date().toISOString().slice(0,16), ts: Date.now() }),
                    mk({ when: alt, ts: Date.now() - 200*864e5 })]);
-      alleFilterAus(); state.stats.zeit = '30t';
-      return statsRows().length === 1 || statsRows().length;
+      alleFilterAus();
+      return statsRows().length === 2 || statsRows().length;
     });
-    t('Filter Alles nimmt beide', () => { state.stats.zeit = 'alles'; return statsRows().length === 2 || statsRows().length; });
     t('der Titel nennt die gezaehlte Fischart', () => {
       setzeFaenge([mk({ art:'Hecht', tiefe:2 }), mk({ art:'Barsch', tiefe:3 })]);
       alleFilterAus('tiefe'); state.stats.art = 'Hecht';
@@ -932,8 +935,126 @@ TESTS = r"""
     });
 
     // ---- Der Baukasten ----
-    t('Zeitraum-Chips gebaut', () => document.querySelectorAll('#st-zeit .chip').length === ZEITRAEUME.length
-                                    || document.querySelectorAll('#st-zeit .chip').length);
+    // ---- Punkte der X-Achse auswaehlen ----
+    // Karls Ansage vom 07.08.: "statt zeitraum brauche ich eine moeglichkeit
+    // alle die punkte auszuwaehlen."
+    const dreiArten = () => {
+      setzeFaenge([mk({ art:'Hecht' }), mk({ art:'Hecht' }), mk({ art:'Barsch' }), mk({ art:'Zander' })]);
+      alleFilterAus('art'); renderStats();
+    };
+    t('fuer jeden Punkt der Achse ein Kaestchen', () => {
+      dreiArten();
+      return document.querySelectorAll('#st-punkte .chip').length === 3
+          || document.querySelectorAll('#st-punkte .chip').length;
+    });
+    t('am Anfang sind alle angekreuzt', () => {
+      dreiArten();
+      const an = [...document.querySelectorAll('#st-punkte .chip')].filter(c => c.classList.contains('on'));
+      return an.length === 3 || an.length;
+    });
+    t('die Ueberschrift nennt die Achse', () => {
+      dreiArten();
+      return document.querySelector('#st-punkte-titel').textContent.includes('Fischart')
+          || document.querySelector('#st-punkte-titel').textContent;
+    });
+    t('einen abwaehlen nimmt ihn aus dem Bild', () => {
+      dreiArten();
+      document.querySelector('[data-punkt="Zander"]').click();
+      const h = document.querySelector('#stats-body').innerHTML;
+      const svg = h.slice(h.indexOf('<svg'), h.indexOf('</svg>'));
+      return (!svg.includes('>Zander<') && svg.includes('>Hecht<')) || 'Zander steht noch da';
+    });
+    // ⚠️ Der abgewaehlte Punkt muss in der LISTE bleiben, sonst kaeme man nie
+    // wieder an ihn heran.
+    t('der abgewaehlte Punkt bleibt zum Wiederanhaken stehen', () => {
+      const c = document.querySelector('[data-punkt="Zander"]');
+      return (c && !c.classList.contains('on')) || 'aus der Liste verschwunden';
+    });
+    t('nochmal antippen holt ihn zurueck', () => {
+      document.querySelector('[data-punkt="Zander"]').click();
+      return (state.stats.punkte === null
+              && document.querySelector('[data-punkt="Zander"]').classList.contains('on'))
+          || JSON.stringify(state.stats.punkte);
+    });
+    // Sind wieder alle drin, steht null statt einer vollen Liste -- nur so nimmt
+    // eine gespeicherte Auswertung spaeter dazugekommene Werte von selbst mit.
+    t('alle angekreuzt heisst null, nicht eine volle Liste', () => {
+      dreiArten();
+      document.querySelector('[data-punkt="Barsch"]').click();
+      document.querySelector('[data-punkt="Barsch"]').click();
+      return state.stats.punkte === null || JSON.stringify(state.stats.punkte);
+    });
+    t('"Keine" waehlt alles ab', () => {
+      dreiArten();
+      document.querySelector('#st-keine').click();
+      return (Array.isArray(state.stats.punkte) && state.stats.punkte.length === 0)
+          || JSON.stringify(state.stats.punkte);
+    });
+    t('ohne Punkt sagt das Bild, wie es zurueckgeht', () => {
+      const h = document.querySelector('#stats-body').innerHTML;
+      return h.includes('kein Punkt ausgewählt') || 'kein Hinweis';
+    });
+    t('"Alle" holt alles zurueck', () => {
+      document.querySelector('#st-alle').click();
+      return state.stats.punkte === null || JSON.stringify(state.stats.punkte);
+    });
+    t('die Auswahl bleibt in der Reihenfolge der Achse', () => {
+      setzeFaenge([mk({ tiefe:1 }), mk({ tiefe:2 }), mk({ tiefe:3 }), mk({ tiefe:4 }), mk({ tiefe:5 })]);
+      alleFilterAus('tiefe'); renderStats();
+      document.querySelector('[data-punkt="5"]').click();
+      document.querySelector('[data-punkt="1"]').click();
+      return state.stats.punkte.join(',') === '2,3,4' || state.stats.punkte.join(',');
+    });
+    // Am Rand kuerzen ist harmlos, mittendrin eine Luecke lassen nicht.
+    t('am Rand kuerzen bringt keinen Luecken-Hinweis', () => {
+      const h = document.querySelector('#stats-body').innerHTML;
+      return !h.includes('über die Lücke') || 'Hinweis steht faelschlich da';
+    });
+    t('eine Luecke mittendrin wird benannt', () => {
+      setzeFaenge([mk({ tiefe:1 }), mk({ tiefe:2 }), mk({ tiefe:3 }), mk({ tiefe:4 }), mk({ tiefe:5 })]);
+      alleFilterAus('tiefe'); renderStats();
+      document.querySelector('[data-punkt="3"]').click();
+      return document.querySelector('#stats-body').innerHTML.includes('über die Lücke')
+          || 'kein Hinweis auf die Luecke';
+    });
+    // Bei einer Achse ohne Reihenfolge gibt es keine Luecke -- da steht ohnehin
+    // schon, dass der Verlauf nichts bedeutet.
+    t('bei ungeordneten Achsen kein Luecken-Hinweis', () => {
+      dreiArten();
+      document.querySelector('[data-punkt="Hecht"]').click();
+      return !document.querySelector('#stats-body').innerHTML.includes('über die Lücke')
+          || 'Hinweis bei einer Achse ohne Reihenfolge';
+    });
+    // Die alte Auswahl auf einer neuen Achse waere sinnlos und liesse das Bild
+    // kommentarlos leer.
+    t('ein Achsenwechsel setzt die Auswahl zurueck', () => {
+      dreiArten();
+      document.querySelector('[data-punkt="Zander"]').click();
+      const sel = document.querySelector('#st-x');
+      sel.value = 'tiefe'; sel.dispatchEvent(new Event('change'));
+      return state.stats.punkte === null || JSON.stringify(state.stats.punkte);
+    });
+    t('die Auswahl wandert in die gespeicherte Auswertung', () => {
+      state.auswertungen = []; localStorage.removeItem('angellog-auswertungen');
+      dreiArten();
+      document.querySelector('[data-punkt="Zander"]').click();
+      const merk = window.prompt; window.prompt = () => 'Ohne Zander';
+      auswertungSpeichern(); window.prompt = merk;
+      const a = state.auswertungen[0];
+      return (a.punkte && a.punkte.join(',') === 'Hecht,Barsch') || JSON.stringify(a.punkte);
+    });
+    t('die Beschreibung nennt die Zahl der Punkte', () =>
+      document.querySelector('#stats-gespeichert').textContent.includes('2 Punkte')
+        || document.querySelector('#stats-gespeichert').textContent);
+    // ⚠️ Kopie, nicht Verweis: sonst aendert ein Klick im Baukasten still die
+    // gespeicherte Auswertung mit.
+    t('die gespeicherte Auswahl ist eine Kopie', () => {
+      const vorher = state.auswertungen[0].punkte.join(',');
+      document.querySelector('[data-punkt="Barsch"]').click();
+      return state.auswertungen[0].punkte.join(',') === vorher
+          || `war ${vorher}, ist ${state.auswertungen[0].punkte.join(',')}`;
+    });
+    state.auswertungen = []; localStorage.removeItem('angellog-auswertungen');
     t('die X-Achse ist waehlbar und vollstaendig', () => {
       const n = document.querySelectorAll('#st-x option').length;
       return n === ACHSEN.length || n;
@@ -993,7 +1114,7 @@ TESTS = r"""
     t('die gespeicherte merkt sich alle fuenf Angaben', () => {
       const a = state.auswertungen[0];
       return (a.art === 'Hecht' && a.x === 'tiefe' && a.teilen === 'farbe'
-              && a.gewaesser === '' && a.zeit === 'alles') || JSON.stringify(a);
+              && a.gewaesser === '' && a.punkte === null) || JSON.stringify(a);
     });
     t('sie steht danach in der Liste', () =>
       document.querySelector('#stats-gespeichert').textContent.includes('Hecht tief') || 'nicht in der Liste');
@@ -1714,7 +1835,7 @@ TESTS = r"""
   ta('der Baukasten steht auf 320 px vollstaendig da', async () => {
     return await imRahmen(320, (w, d) => {
       w.go('stats');
-      const fehlt = ['#st-art', '#st-x', '#st-teilen', '#st-gewaesser', '#st-zeit', '#st-speichern']
+      const fehlt = ['#st-art', '#st-x', '#st-teilen', '#st-gewaesser', '#st-punkte', '#st-speichern']
         .filter(s => { const el = d.querySelector(s); return !el || el.getBoundingClientRect().width < 1; });
       return fehlt.length === 0 || ('nicht sichtbar: ' + fehlt.join(', '));
     });
