@@ -222,6 +222,19 @@
     #map{height:calc(100vh - 190px)}
     .gal{grid-template-columns:repeat(auto-fill, minmax(220px, 1fr))}
     .fab{right:24px}
+
+    /* Statistik am großen Bildschirm: mehrere Auswertungen nebeneinander statt
+       einer breiten. Das ist der Punkt, an dem Vergleichen überhaupt geht —
+       untereinander muss man sich das zweite Bild merken.
+       Die Bedienelemente darüber wachsen bewusst NICHT mit: ein Auswahlfeld
+       über zwei Meter liest sich schlechter, nicht besser. */
+    #stats-gespeichert, #v-stats > .wrap > .card{max-width:760px}
+    #stats-body{display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr));
+      gap:14px; align-items:start}
+    #stats-body > .card{margin:0}
+    /* Kacheln, Warnung, Schlusshinweis und leere Zustände laufen über die ganze
+       Breite — sie gehören zur Auswahl, nicht zu einer einzelnen Auswertung. */
+    #stats-body > .voll, #stats-body > .empty{grid-column:1 / -1; max-width:760px}
   }
 
   /* Anmelde-Schirm. Liegt über allem (auch über Sheet und Tabs) und ist deckend —
@@ -2708,6 +2721,19 @@ const MAX_REIHEN = 6;
 const alsListe = w => Array.isArray(w) ? w.filter(x => x != null && x !== '')
                     : (w == null || w === '') ? [] : [w];
 
+/* Ab hier passen mehrere Auswertungen nebeneinander — dieselbe Grenze wie bei
+   der Fangliste, damit nicht zwei verschiedene „ab hier ist es ein PC" im Spiel
+   sind. Die Grenze steht bewusst zweimal (hier und im CSS): das Raster macht
+   das CSS, aber ob überhaupt mehrere gezeichnet werden, muss JS wissen. */
+const BREIT = '(min-width: 900px)';
+const breitesBild = () => window.matchMedia(BREIT).matches;
+// Wird das Fenster über die Grenze gezogen, muss neu gezeichnet werden — sonst
+// bliebe das Raster leer bzw. die Bilder stünden am Handy übereinander.
+try {
+  window.matchMedia(BREIT).addEventListener('change',
+    () => { if (state.view === 'stats') renderStats(); });
+} catch {}
+
 /* ---- Was auf die X-Achse kann ----
    `stufe` gesetzt  → Messwert, wird in Stufen zusammengefasst.
    `reihe` gesetzt  → feste Skala mit eigener Reihenfolge (24 Stunden, 12 Monate,
@@ -2776,8 +2802,10 @@ const TEILER = [
 ];
 const teilerVon = k => TEILER.find(t => t.key === k) || null;
 
-function statsRows(){
-  const f = state.stats;
+// Nimmt eine Einstellung entgegen, damit auch gespeicherte Auswertungen ihre
+// eigene Auswahl bekommen — am großen Bildschirm stehen mehrere nebeneinander.
+function statsRows(einst){
+  const f = einst || state.stats;
   const jetzt = Date.now();
   const grenze = f.zeit === '30t' ? jetzt - 30 * 864e5
                : f.zeit === '12m' ? jetzt - 365 * 864e5
@@ -2988,8 +3016,10 @@ function tickSchritt(max){
   return Math.max(1, Math.ceil(s));
 }
 
-// Der zuletzt gezeichnete Stand — die Ablesehilfe braucht ihn nach dem Zeichnen.
-let letztesBild = null;
+/* Die gezeichneten Stände — die Ablesehilfe braucht sie nach dem Zeichnen.
+   Eine Liste, weil am großen Bildschirm mehrere Auswertungen nebeneinander
+   stehen und jede ihr eigenes Fadenkreuz bekommt. */
+let letzteBilder = [];
 
 /* ⚠️ Keine geglättete Linie. Ein Spline würde Zwischenwerte erfinden, die nie
    gemessen wurden. Gerade Abschnitte zwischen den Punkten, und leere Stufen
@@ -3063,10 +3093,10 @@ function diagramm(d, titel){
                stroke-linejoin="round" stroke-linecap="round"/>` + punkte + spitze;
   }).join('');
 
-  letztesBild = { ...d, W, pL, pR, n };
+  const nr = letzteBilder.push({ ...d, W, pL, pR, n }) - 1;
 
   return `<div class="card"><h2>${esc(titel)}</h2>
-    <svg class="kurve" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(titel)}">
+    <svg class="kurve" data-bild="${nr}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(titel)}">
       ${gitter}${yTexte}
       <line class="fk" x1="0" y1="${pT}" x2="0" y2="${H - pB}" stroke="var(--muted)"
             stroke-width="1" stroke-dasharray="3 3" opacity="0"/>
@@ -3096,8 +3126,11 @@ function hinweise(d){
     + 'die Summe kann deshalb größer sein als die Zahl der Fänge.');
   if (d.reihen.some(r => r.name === UEBRIGE))
     t.push(`Alles außer den fünf häufigsten steht zusammengefasst als „${UEBRIGE}".`);
-  t.push(HINWEIS_VERTEILUNG);
-  return `<div class="hint">${t.join(' ')}</div>`;
+  /* ⚠️ HINWEIS_VERTEILUNG steht bewusst **nicht** hier, sondern einmal unter
+     allem. Am großen Bildschirm liegen bis zu fünf Auswertungen nebeneinander —
+     derselbe Absatz fünfmal ist kein Hinweis mehr, sondern Rauschen, und wird
+     dann von niemandem mehr gelesen. Einmal, gut sichtbar, ist mehr wert. */
+  return t.length ? `<div class="hint">${t.join(' ')}</div>` : '';
 }
 
 const HINWEIS_VERTEILUNG =
@@ -3108,35 +3141,39 @@ const HINWEIS_VERTEILUNG =
    ließen sich die Zahlen zwischen zwei Y-Linien nur schätzen — und mit sechs
    Kurven kann nicht an jedem Punkt eine Zahl stehen. */
 function lupeVerdrahten(){
-  const svg = $('#stats-body svg.kurve');
-  const aus = $('#stats-body .lupe');
-  const d = letztesBild;
-  if (!svg || !aus || !d) return;
-  const fk = svg.querySelector('.fk');
-  const ruhe = 'Tippe ins Diagramm, um die Werte an einer Stelle abzulesen.';
-  aus.textContent = ruhe;
+  // Jedes Diagramm bekommt seine eigene — am großen Bildschirm stehen mehrere
+  // nebeneinander, und ein gemeinsames Fadenkreuz über verschiedenen Achsen
+  // würde Stellen verbinden, die nichts miteinander zu tun haben.
+  $$('#stats-body svg.kurve').forEach(svg => {
+    const d = letzteBilder[Number(svg.dataset.bild)];
+    const aus = svg.parentElement.querySelector('.lupe');
+    if (!d || !aus) return;
+    const fk = svg.querySelector('.fk');
+    const ruhe = 'Tippe ins Diagramm, um die Werte an einer Stelle abzulesen.';
+    aus.textContent = ruhe;
 
-  const xAt = i => d.pL + (d.n === 1 ? (d.W - d.pL - d.pR) / 2
-                                     : i * (d.W - d.pL - d.pR) / (d.n - 1));
-  const zeigen = e => {
-    const r = svg.getBoundingClientRect();
-    if (!r.width) return;
-    const vx = (e.clientX - r.left) / r.width * d.W;
-    let best = 0;
-    for (let i = 1; i < d.n; i++)
-      if (Math.abs(xAt(i) - vx) < Math.abs(xAt(best) - vx)) best = i;
-    fk.setAttribute('x1', xAt(best).toFixed(1));
-    fk.setAttribute('x2', xAt(best).toFixed(1));
-    fk.setAttribute('opacity', '1');
-    aus.innerHTML = `<b>${esc(d.stufen[best].x)}</b> — ` + d.reihen.map(r2 =>
-      `<i style="background:${r2.farbe}"></i>${esc(r2.name)} <b>${r2.werte[best]}</b>`).join('');
-  };
-  const weg = () => { fk.setAttribute('opacity', '0'); aus.textContent = ruhe; };
+    const xAt = i => d.pL + (d.n === 1 ? (d.W - d.pL - d.pR) / 2
+                                       : i * (d.W - d.pL - d.pR) / (d.n - 1));
+    const zeigen = e => {
+      const r = svg.getBoundingClientRect();
+      if (!r.width) return;
+      const vx = (e.clientX - r.left) / r.width * d.W;
+      let best = 0;
+      for (let i = 1; i < d.n; i++)
+        if (Math.abs(xAt(i) - vx) < Math.abs(xAt(best) - vx)) best = i;
+      fk.setAttribute('x1', xAt(best).toFixed(1));
+      fk.setAttribute('x2', xAt(best).toFixed(1));
+      fk.setAttribute('opacity', '1');
+      aus.innerHTML = `<b>${esc(d.stufen[best].x)}</b> — ` + d.reihen.map(r2 =>
+        `<i style="background:${r2.farbe}"></i>${esc(r2.name)} <b>${r2.werte[best]}</b>`).join('');
+    };
+    const weg = () => { fk.setAttribute('opacity', '0'); aus.textContent = ruhe; };
 
-  svg.addEventListener('pointerdown', zeigen);
-  svg.addEventListener('pointermove', e => { if (e.buttons || e.pointerType === 'mouse') zeigen(e); });
-  svg.addEventListener('pointerleave', weg);
-  svg.addEventListener('pointercancel', weg);
+    svg.addEventListener('pointerdown', zeigen);
+    svg.addEventListener('pointermove', e => { if (e.buttons || e.pointerType === 'mouse') zeigen(e); });
+    svg.addEventListener('pointerleave', weg);
+    svg.addEventListener('pointercancel', weg);
+  });
 }
 
 /* ---------------- Zeichnen der ganzen Ansicht ---------------- */
@@ -3189,7 +3226,7 @@ function renderStats(){
   // dabei und beantworten keine Angelfrage — die eine ist ein Filter, die andere
   // eine Eigenschaft der App.
   const kachel = (n, l) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div></div>`;
-  const kacheln = `<div class="card"><div class="tiles">
+  const kacheln = `<div class="card voll"><div class="tiles">
     ${kachel(arten.size, arten.size === 1 ? 'Fischart' : 'Fischarten')}
     ${kachel(rows.length, rows.length === 1 ? 'Fang' : 'Fänge')}
     ${kachel(groesster ? zahl(groesster.laenge) + ' cm' : '—', groesster && groesster.art ? 'Größter · ' + groesster.art : 'Größter')}
@@ -3201,26 +3238,49 @@ function renderStats(){
   // aus denen jemand ein Muster liest, das nur Zufall ist.
   // ⚠️ Das hält nichts mehr auf — gezeichnet wird ab dem ersten Fang.
   const duenn = rows.length < 15
-    ? `<div class="card"><div class="hint" style="margin:0">
+    ? `<div class="card voll"><div class="hint" style="margin:0">
          <b>${rows.length} ${rows.length === 1 ? 'Fang' : 'Fänge'} in dieser Auswahl.</b>
          Für ein belastbares Muster sind das noch zu wenige — ab etwa 20 bis 30 wird es
          aussagekräftig. Bis dahin zeigt die Auswertung schlicht, was bisher drinsteht.</div></div>`
     : '';
 
-  const achse = achseVon(state.stats.x);
-  const d = reihenBauen(rows, achse, state.stats.teilen);
-  const titel = (state.stats.art || 'Fänge') + ' nach ' + achse.kurz;
+  /* Ein Bild aus einer Einstellung. `eigen` heißt: die gerade eingestellte
+     Auswertung, nicht eine gespeicherte — nur die folgt der Filterzeile.
+     Wichtig: eine Auswertung ohne Daten muss das *sagen*. Gäbe sie nur nichts
+     zurück, passierte beim Umstellen sichtbar gar nichts und die App wirkt kaputt. */
+  const bild = (einst, name) => {
+    const achse = achseVon(einst.x);
+    const titel = name || ((einst.art || 'Fänge') + ' nach ' + achse.kurz);
+    const zeilen = einst === state.stats ? rows : statsRows(einst);
+    const d = zeilen.length && reihenBauen(zeilen, achse, einst.teilen);
+    if (!d) return `<div class="card"><h2>${esc(titel)}</h2>
+      <div class="hint" style="margin:0">Dazu hat in dieser Auswahl noch kein Fang einen Wert.
+      ${achse.stufe ? 'Bei automatisch geholten Werten heißt das meist: der Fang wurde ohne Netz erfasst.' : ''}</div></div>`;
+    return diagramm(d, titel);
+  };
 
-  // Wichtig: eine Auswertung ohne Daten muss das *sagen*. Gäbe sie nur nichts
-  // zurück, passierte beim Umstellen sichtbar gar nichts und die App wirkt kaputt.
-  const inhalt = !d
-    ? `<div class="card"><h2>${esc(titel)}</h2>
-       <div class="hint" style="margin:0">Dazu hat in dieser Auswahl noch kein Fang einen Wert.
-       ${achse.stufe ? 'Bei automatisch geholten Werten heißt das meist: der Fang wurde ohne Netz erfasst.' : ''}</div></div>`
-    : diagramm(d, titel);
+  letzteBilder = [];
+  let inhalt = bild(state.stats);
+  const gezeichnet = () => letzteBilder.length > 0;
 
-  body.innerHTML = kacheln + duenn + inhalt;
-  if (d) lupeVerdrahten();
+  /* Am großen Bildschirm stehen die gespeicherten Auswertungen daneben. Genau
+     dafür gibt es sie: nebeneinander lassen sie sich vergleichen, untereinander
+     muss man sich das zweite Bild merken. Am Handy bleibt es bei einer — dort
+     wäre alles andere Scrollen. Die gerade geladene kommt nicht doppelt. */
+  if (breitesBild()){
+    inhalt += state.auswertungen
+      .filter(a => a.id !== state.stats.aktiv)
+      .map(a => bild(a, a.name))
+      .join('');
+  }
+
+  /* Der wichtigste Satz im ganzen Reiter, deshalb einmal darunter statt in
+     jeder Karte: hier stehen Verteilungen, keine Erfolgsquoten. */
+  const fuss = gezeichnet()
+    ? `<div class="hint voll" style="margin:2px 2px 0">${HINWEIS_VERTEILUNG}</div>` : '';
+
+  body.innerHTML = kacheln + duenn + inhalt + fuss;
+  lupeVerdrahten();
 }
 
 /* ---------------------------- Ansichtswechsel ---------------------------- */

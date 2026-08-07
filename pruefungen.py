@@ -1681,6 +1681,123 @@ TESTS = r"""
     });
   });
 
+  // ---- Am grossen Bildschirm mehrere Auswertungen nebeneinander ----
+  // Karls Ansage vom 07.08.: "mach die statistik auf dem pc kleiner das mehrere
+  // nebeneinander passen." Die gespeicherten Auswertungen stehen dort neben der
+  // eingestellten -- genau dafuer gibt es sie.
+  // ⚠️ state ist im iframe ein `const` auf oberster Ebene und damit KEINE
+  // Eigenschaft von window -- w.state ist undefined. Ueber w.eval laeuft der
+  // Code dagegen im globalen Bereich des iframes und sieht die Bindung.
+  const SEED = `
+    state.catches = [
+      { id:'a', entwurf:false, art:'Hecht',  when:'2026-07-15T06:30', ts:Date.now(), tiefe:2, wasser:12, koeder:'Wobbler', photos:[] },
+      { id:'b', entwurf:false, art:'Barsch', when:'2026-07-16T18:30', ts:Date.now(), tiefe:4, wasser:18, koeder:'Spinner', photos:[] },
+      { id:'c', entwurf:false, art:'Hecht',  when:'2026-07-17T09:30', ts:Date.now(), tiefe:3, wasser:15, koeder:'Wobbler', photos:[] }
+    ];
+    state.auswertungen = [
+      { id:'s1', name:'Nach Tiefe',  art:'', x:'tiefe',  teilen:'',       gewaesser:'', zeit:'alles' },
+      { id:'s2', name:'Nach Waerme', art:'', x:'wasser', teilen:'',       gewaesser:'', zeit:'alles' },
+      { id:'s3', name:'Nach Koeder', art:'', x:'art',    teilen:'koeder', gewaesser:'', zeit:'alles' }
+    ];
+    state.stats = { gewaesser:'', art:'', zeit:'alles', x:'stunde', teilen:'', aktiv:null };
+    go('stats'); renderStats();
+  `;
+  const mitDreien = (w) => w.eval(SEED);
+
+  ta('am PC stehen mehrere Auswertungen da', async () => {
+    return await imRahmen(1200, (w, d) => {
+      mitDreien(w);
+      const n = d.querySelectorAll('#stats-body svg.kurve').length;
+      return n === 4 || ('Diagramme: ' + n);       // die eingestellte + drei gespeicherte
+    });
+  });
+  ta('am PC stehen sie nebeneinander, nicht untereinander', async () => {
+    return await imRahmen(1200, (w, d) => {
+      mitDreien(w);
+      const k = [...d.querySelectorAll('#stats-body > .card')].filter(c => c.querySelector('svg.kurve'));
+      if (k.length < 2) return 'zu wenige Karten';
+      const oben = k[0].getBoundingClientRect(), zwei = k[1].getBoundingClientRect();
+      return Math.abs(oben.top - zwei.top) < 2 || 'zweite Karte sitzt darunter';
+    });
+  });
+  ta('am Handy bleibt es bei einer', async () => {
+    return await imRahmen(390, (w, d) => {
+      mitDreien(w);
+      const n = d.querySelectorAll('#stats-body svg.kurve').length;
+      return n === 1 || ('Diagramme: ' + n);
+    });
+  });
+  ta('die geladene Auswertung steht nicht doppelt da', async () => {
+    return await imRahmen(1200, (w, d) => {
+      mitDreien(w);
+      w.eval("auswertungLaden('s1')");
+      const titel = [...d.querySelectorAll('#stats-body h2')].map(h => h.textContent);
+      return titel.filter(x => /Wassertiefe|Nach Tiefe/.test(x)).length === 1 || titel.join(' | ');
+    });
+  });
+  ta('jedes Diagramm hat seine eigene Ablesehilfe', async () => {
+    return await imRahmen(1200, (w, d) => {
+      mitDreien(w);
+      const svgs = d.querySelectorAll('#stats-body svg.kurve').length;
+      const lupen = d.querySelectorAll('#stats-body .lupe').length;
+      return svgs === lupen || `${svgs} Diagramme, ${lupen} Ablesehilfen`;
+    });
+  });
+  ta('eine gespeicherte Auswertung bringt ihre eigenen Filter mit', async () => {
+    return await imRahmen(1200, (w, d) => {
+      mitDreien(w);
+      // s3 teilt nach Koeder auf -- nur dieses eine Bild darf eine Legende haben,
+      // die eingestellte und die beiden anderen nicht.
+      const mitLeg = [...d.querySelectorAll('#stats-body > .card')]
+        .filter(c => c.querySelector('.leg')).length;
+      return mitLeg === 1 || ('Karten mit Legende: ' + mitLeg);
+    });
+  });
+  // Bei fuenf Auswertungen nebeneinander waere derselbe Absatz fuenfmal kein
+  // Hinweis mehr, sondern Rauschen.
+  ta('der Verteilungs-Hinweis steht genau einmal', async () => {
+    return await imRahmen(1200, (w, d) => {
+      mitDreien(w);
+      const h = d.querySelector('#stats-body').innerHTML;
+      const n = (h.match(/nicht, was besser fängt/g) || []).length;
+      return n === 1 || ('steht ' + n + ' mal da');
+    });
+  });
+  ta('kartenspezifische Hinweise stehen weiter je Karte', async () => {
+    return await imRahmen(1200, (w, d) => {
+      mitDreien(w);
+      // Von den vier Bildern hat nur das nach Fischart keine natuerliche Reihenfolge.
+      const h = d.querySelector('#stats-body').innerHTML;
+      const n = (h.match(/keine natürliche Reihenfolge/g) || []).length;
+      return n === 1 || ('steht ' + n + ' mal da');
+    });
+  });
+  ta('die Kacheln laufen ueber die ganze Breite', async () => {
+    return await imRahmen(1200, (w, d) => {
+      mitDreien(w);
+      const k = d.querySelector('#stats-body .tiles');
+      const karte = d.querySelector('#stats-body > .card:not(.voll)');
+      if (!k || !karte) return 'Kacheln oder Diagrammkarte fehlt';
+      return k.getBoundingClientRect().width > karte.getBoundingClientRect().width
+          || 'Kacheln sind nicht breiter als eine Diagrammkarte';
+    });
+  });
+  ta('die Bedienelemente wachsen nicht mit', async () => {
+    return await imRahmen(1400, (w, d) => {
+      w.go('stats');
+      const karte = d.querySelector('#v-stats > .wrap > .card');
+      return karte.getBoundingClientRect().width <= 780
+          || ('Baukasten ist ' + Math.round(karte.getBoundingClientRect().width) + ' px breit');
+    });
+  });
+  ta('am PC ragt nichts heraus', async () => {
+    return await imRahmen(1200, (w, d) => {
+      mitDreien(w);
+      return d.documentElement.scrollWidth - w.innerWidth <= 1
+          || ((d.documentElement.scrollWidth - w.innerWidth) + ' px zu breit');
+    });
+  });
+
   (async function(){
     for (const [name, fn] of asyncTests){
       try { const r = await fn(); if (r === true) { ok++; out.push('OK   ' + name); }

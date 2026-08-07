@@ -6,6 +6,33 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 07.08.2026 — Am PC mehrere Auswertungen nebeneinander
+
+Ab 900 px Breite steht neben der eingestellten Auswertung **jede gespeicherte** — ein Raster
+aus so vielen Spalten, wie hineinpassen (drei bei 1400 px). Genau dafür gibt es die
+gespeicherten: nebeneinander lassen sie sich vergleichen, untereinander muss man sich das
+zweite Bild merken. Am Handy bleibt es bei einer; dort wäre alles andere nur Scrollen.
+
+- Jedes Diagramm hat seine **eigene Ablesehilfe**. Ein gemeinsames Fadenkreuz über
+  verschiedene Achsen hinweg würde Stellen verbinden, die nichts miteinander zu tun haben.
+- Jede gespeicherte Auswertung bringt **ihre eigenen Filter** mit (Gewässer, Zeitraum,
+  Fischart) — sie folgt nicht der Filterzeile oben, sonst wäre sie nicht mehr die
+  gespeicherte.
+- Die **Bedienelemente wachsen bewusst nicht mit** (760 px). Ein Auswahlfeld über zwei Meter
+  liest sich schlechter, nicht besser — dieselbe Regel wie bei der Fangliste seit dem 02.08.
+- Kacheln, Wenig-Daten-Warnung und der Schlusshinweis laufen über die ganze Breite.
+- ⚠️ **Der Verteilungs-Hinweis steht jetzt einmal unter allem statt in jeder Karte.** Bei
+  fünf Auswertungen nebeneinander war derselbe Absatz fünfmal kein Hinweis mehr, sondern
+  Rauschen. Kartenspezifische Hinweise (Mehrfachzählung bei Farben, „Übrige", fehlende
+  Reihenfolge) bleiben je Karte.
+
+**Prüfungen:** 330 grün, darunter zehn neue zum großen Bildschirm — dass mehrere Diagramme
+da sind, dass sie in einer Reihe stehen und nicht untereinander, dass am Handy nur eines
+bleibt, und dass die geladene Auswertung nicht doppelt erscheint.
+⚠️ Diese Prüfungen laufen im iframe über `w.eval(…)`: `state` ist im geladenen Dokument ein
+`const` auf oberster Ebene und damit **keine** Eigenschaft von `window` — `w.state` ist
+undefined, `w.eval('state…')` sieht die Bindung.
+
 ## 07.08.2026 — Statistik-Baukasten, Angelzeit ans Konto
 
 **Die Statistik ist ein Baukasten statt einer Liste.** Vorher standen sechs fertige
