@@ -6,6 +6,26 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 07.08.2026 — Neues App-Icon
+
+Karls Vorlage (Bild auf Discord, *„nimm das linke als app icon"*): springender Fisch mit
+Rute und Haken über einer Welle. Aus dem Entwurf freigestellt, entrauscht (der Entwurf hatte
+senkrechte Streifen im Grund) und auf den App-Hintergrund `#0e1418` gesetzt — dieselbe Farbe
+wie `theme_color`, damit beim Start kein andersfarbiges Rechteck aufblitzt.
+
+- `icon-192.png` und `icon-512.png` neu, Motiv auf 78 % der Kantenlänge.
+- ⚠️ **`icon-maskable-512.png` ist neu und eine eigene Datei.** Vorher trugen beide Icons
+  `purpose: "any maskable"`. Android schneidet aus einem maskable Icon einen Kreis heraus —
+  ein Icon, das beides sein soll, muss sein Motiv in der inneren 80 %-Zone halten und ist
+  dann überall zu klein. Jetzt: normale Icons groß, das maskable mit Motiv auf 60 %.
+- `icon.svg` (der alte grüne Fisch) ist **raus** — aus dem Manifest, aus dem Kopf der Seite
+  und aus dem Service Worker. Der Browser-Reiter nimmt jetzt `icon-192.png`.
+- Service-Worker auf `v12`.
+
+⚠️ **Am iPhone reicht Neuladen nicht.** iOS merkt sich das Symbol beim Anlegen der
+Verknüpfung. Alte Verknüpfung vom Home-Bildschirm löschen, Seite in Safari öffnen, über
+Teilen → „Zum Home-Bildschirm" neu anlegen.
+
 ## 07.08.2026 — Am PC mehrere Auswertungen nebeneinander
 
 Ab 900 px Breite steht neben der eingestellten Auswertung **jede gespeicherte** — ein Raster

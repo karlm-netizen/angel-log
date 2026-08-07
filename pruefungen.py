@@ -1316,6 +1316,62 @@ TESTS = r"""
     return ((await fotoFuerCloud(kaputt)) === null) || 'kam etwas zurueck';
   });
 
+  // ---- App-Icon ----
+  // Karls Ansage vom 07.08. (Bild auf Discord): "Nimm das linke als app icon."
+  const bildLaedt = (pfad) => new Promise(fertig => {
+    const i = new Image();
+    i.onload  = () => fertig({ ok: true, w: i.naturalWidth, h: i.naturalHeight });
+    i.onerror = () => fertig({ ok: false });
+    i.src = pfad;
+  });
+  const manifest = async () => await (await fetch('manifest.webmanifest')).json();
+
+  ta('das Icon liegt in 192 und 512', async () => {
+    const a = await bildLaedt('icon-192.png'), b = await bildLaedt('icon-512.png');
+    return (a.ok && a.w === 192 && a.h === 192 && b.ok && b.w === 512 && b.h === 512)
+        || JSON.stringify([a, b]);
+  });
+  // Android schneidet aus einem maskable Icon einen Kreis heraus. Ein Icon mit
+  // "any maskable" muesste sein Motiv in der inneren 80 %-Zone halten -- dann ist
+  // es ueberall zu klein. Deshalb zwei getrennte Dateien.
+  ta('maskable ist ein eigenes Icon, kein doppelter Zweck', async () => {
+    const m = await manifest();
+    const zwecke = m.icons.map(i => i.purpose || 'any');
+    const doppelt = zwecke.filter(p => p.includes('any') && p.includes('maskable'));
+    return (doppelt.length === 0 && zwecke.includes('maskable')) || zwecke.join(' | ');
+  });
+  ta('das maskable Icon ist da', async () => {
+    const r = await bildLaedt('icon-maskable-512.png');
+    return (r.ok && r.w === 512) || JSON.stringify(r);
+  });
+  ta('jedes Icon im Manifest gibt es auch wirklich', async () => {
+    const m = await manifest();
+    for (const i of m.icons){
+      const r = await bildLaedt(i.src);
+      if (!r.ok) return 'fehlt: ' + i.src;
+    }
+    return true;
+  });
+  ta('das alte gruene Fisch-Symbol ist ueberall raus', async () => {
+    const m = await manifest();
+    const imManifest = m.icons.some(i => /\.svg$/.test(i.src));
+    const imKopf = !!document.querySelector('link[rel="icon"][href$=".svg"]');
+    return (!imManifest && !imKopf) || `Manifest ${imManifest}, Kopf ${imKopf}`;
+  });
+  ta('der Reiter im Browser hat ein Symbol', async () => {
+    const l = document.querySelector('link[rel="icon"]');
+    if (!l) return 'kein rel=icon im Kopf';
+    const r = await bildLaedt(l.getAttribute('href'));
+    return r.ok || ('laedt nicht: ' + l.getAttribute('href'));
+  });
+  ta('das Icon passt farblich zum Start der App', async () => {
+    const m = await manifest();
+    const meta = document.querySelector('meta[name="theme-color"]').content.toLowerCase();
+    // Der Grund des Icons ist dieselbe Farbe -- sonst blitzt beim Start ein
+    // andersfarbiges Rechteck auf.
+    return (m.background_color.toLowerCase() === meta) || `${m.background_color} vs ${meta}`;
+  });
+
   // ---- Angelzeit und Auswertungen am Konto ----
   // Bis zum 07.08.2026 lag die Angelzeit nur im localStorage. Gerettet hat sie
   // einzig das Backup, und das ist am 04.08. ausgebaut worden — sie war damit
