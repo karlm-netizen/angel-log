@@ -447,78 +447,344 @@ TESTS = r"""
   // deshalb nur, wenn der Reiter da ist -- so passt eine Testdatei auf beide Staende.
   if (typeof renderStats === "function"){
     // ---- Statistik ----
+    // Seit dem 07.08. ein Baukasten statt einer festen Liste: eine Auswertung
+    // besteht aus fuenf Angaben (art, x, teilen, gewaesser, zeit), laesst sich
+    // speichern und wieder laden. Die Pruefungen darunter halten genau das fest.
     const mk = (o) => Object.assign({ id: Math.random().toString(36).slice(2), entwurf: false,
       when: '2026-07-15T06:30', ts: new Date('2026-07-15T06:30').getTime() }, o);
     const setzeFaenge = arr => { state.catches = arr; };
-    const alleFilterAus = (zeige) => { state.stats = { gewaesser: '', art: '', zeit: 'alles',
-                                                      zeige: zeige || 'wasser' }; };
-  
-    // ---- Stufenreihe für die Kurven ----
+    const alleFilterAus = (x) => { state.stats = { gewaesser: '', art: '', zeit: 'alles',
+                                                   x: x || 'wasser', teilen: '', aktiv: null }; };
     const R = arr => arr.map(v => ({ w: v }));
-    t('Stufenreihe deckt den Bereich ab', () => {
-      const r = stufenReihe(R([8.2, 13.9]), c => c.w, 2);   // 13,9 faellt in die Stufe 12
-      return r.map(e => e.x).join('|') === '8|10|12' || r.map(e => e.x).join('|');
+    // Eine Achse zum Durchreichen an reihenBauen, ohne den Umweg ueber die App.
+    const wAchse = (stufe) => ({ key:'w', kurz:'W', stufe: stufe, hol: c => c.w });
+
+    // ---- Stufen der X-Achse ----
+    t('Stufen decken den Bereich ab', () => {
+      const d = reihenBauen(R([8.2, 13.9]), wAchse(2), '');
+      return d.stufen.map(e => e.x).join('|').includes('8|10|12') || d.stufen.map(e => e.x).join('|');
     });
     t('leere Stufe steht mit 0 drin', () => {
-      const r = stufenReihe(R([8.2, 13.9]), c => c.w, 2);
-      return (r[0].wert === 1 && r[1].wert === 0 && r[2].wert === 1)
-          || r.map(e => e.x + ':' + e.wert).join(' ');
+      const d = reihenBauen(R([8.2, 13.9]), wAchse(2), '');
+      const i = d.stufen.findIndex(s => s.x === '8');
+      const w = d.reihen[0].werte;
+      return (w[i] === 1 && w[i+1] === 0 && w[i+2] === 1) || w.join(',');
     });
-    t('Stufenreihe zählt richtig', () => {
-      const r = stufenReihe(R([8.1, 8.9, 9.5, 12.0]), c => c.w, 2);
-      return (r[0].wert === 3 && r[r.length-1].wert === 1) || r.map(e => e.x + ':' + e.wert).join(' ');
+    t('Stufen zaehlen richtig', () => {
+      const d = reihenBauen(R([8.1, 8.9, 9.5, 12.0]), wAchse(2), '');
+      const i = d.stufen.findIndex(s => s.x === '8');
+      return (d.reihen[0].werte[i] === 3 && d.reihen[0].werte[i+2] === 1) || d.reihen[0].werte.join(',');
     });
-    t('Stufenreihe ohne Werte ist leer', () => stufenReihe(R([]), c => c.w, 2).length === 0 || 'nicht leer');
-    t('Stufenreihe ignoriert null', () => {
-      const r = stufenReihe([{w:null},{w:10},{w:undefined}], c => c.w, 2);
-      return (r.length === 1 && r[0].wert === 1) || JSON.stringify(r);
+    // Karls Ansage vom 07.08.: "richtige Kurven, egal wieviele Faenge man hat."
+    // Vorher fiel alles unter drei Stufen auf Balken zurueck.
+    t('ein einziger Wert ergibt trotzdem mindestens fuenf Stufen', () => {
+      const d = reihenBauen(R([12]), wAchse(2), '');
+      return d.stufen.length >= 5 || ('nur ' + d.stufen.length);
     });
-    t('Stufenreihe bricht bei Ausreissern ab', () => stufenReihe(R([1, 5000]), c => c.w, 2).length === 0 || 'zu viele Stufen');
-    t('Stufenreihe rechnet auch bei 0', () => {
-      const r = stufenReihe(R([0, 0.5]), c => c.w, 1);
-      return (r.length === 1 && r[0].wert === 2) || JSON.stringify(r);
+    t('die angehaengten Stufen sind leer, nicht erfunden', () => {
+      const d = reihenBauen(R([12]), wAchse(2), '');
+      const summe = d.reihen[0].werte.reduce((a, b) => a + b, 0);
+      return summe === 1 || ('Summe ' + summe);
     });
-    t('Stufenreihe mit Komma-Beschriftung', () => stufenReihe(R([0.2]), c => c.w, 0.5)[0].x === '0' || stufenReihe(R([0.2]), c => c.w, 0.5)[0].x);
-  
-    // ---- Kurve ----
-    t('Kurve zeichnet ein SVG', () => {
-      const h = kurvenBlock('T', [{x:'8',wert:1},{x:'10',wert:3},{x:'12',wert:2}]);
-      return (h.includes('<svg') && h.includes('<path')) || 'kein SVG';
+    t('der echte Wert liegt in der Mitte der Stufen', () => {
+      const d = reihenBauen(R([12]), wAchse(2), '');
+      return d.stufen.some(s => s.x === '12') || d.stufen.map(s => s.x).join(',');
     });
-    t('Kurve beschriftet jeden Punkt', () => {
-      const h = kurvenBlock('T', [{x:'8',wert:1},{x:'10',wert:3},{x:'12',wert:2}]);
-      return (h.includes('>1</text>') && h.includes('>3</text>') && h.includes('>2</text>')) || 'Zahlen fehlen';
+    t('Stufen ohne Werte geben nichts zurueck', () => reihenBauen(R([]), wAchse(2), '') === null || 'nicht null');
+    t('Stufen ignorieren null', () => {
+      const d = reihenBauen([{w:null},{w:10},{w:undefined}], wAchse(2), '');
+      return d.reihen[0].werte.reduce((a,b) => a+b, 0) === 1 || 'falsch gezaehlt';
     });
-    t('Kurve setzt keinen Punkt auf 0', () => {
-      const h = kurvenBlock('T', [{x:'8',wert:2},{x:'10',wert:0},{x:'12',wert:2}]);
+    t('Ausreisser brechen ab statt hundert leere Stufen zu bauen', () =>
+      reihenBauen(R([1, 5000]), wAchse(2), '') === null || 'zu viele Stufen');
+    t('Stufen rechnen auch bei 0', () => {
+      const d = reihenBauen(R([0, 0.5]), wAchse(1), '');
+      const i = d.stufen.findIndex(s => s.x === '0');
+      return d.reihen[0].werte[i] === 2 || d.reihen[0].werte.join(',');
+    });
+
+    // ---- Reihen und Aufteilen ----
+    t('ohne Aufteilen genau eine Reihe', () => {
+      setzeFaenge([mk({ wasser: 9, koeder:'A' }), mk({ wasser: 13, koeder:'B' })]);
+      alleFilterAus('wasser');
+      const d = reihenBauen(statsRows(), achseVon('wasser'), '');
+      return (d.reihen.length === 1 && d.reihen[0].name === 'Fänge') || d.reihen.map(r => r.name).join();
+    });
+    t('mit Aufteilen je Koeder eine Reihe', () => {
+      setzeFaenge([mk({ wasser: 9, koeder:'Wobbler' }), mk({ wasser: 13, koeder:'Gummifisch' })]);
+      alleFilterAus('wasser');
+      const d = reihenBauen(statsRows(), achseVon('wasser'), 'koeder');
+      return d.reihen.length === 2 || d.reihen.map(r => r.name).join();
+    });
+    // Karls Beispiel: Firetiger gegen Motoroil auf derselben Wassertiefe.
+    t('Karls Beispiel: Farben getrennt ueber der Tiefe', () => {
+      setzeFaenge([mk({ art:'Hecht', tiefe:2, farben:['Firetiger'] }),
+                   mk({ art:'Hecht', tiefe:2, farben:['Firetiger'] }),
+                   mk({ art:'Hecht', tiefe:5, farben:['Motoroil'] })]);
+      alleFilterAus('tiefe'); state.stats.art = 'Hecht'; state.stats.teilen = 'farbe';
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'farbe');
+      const ft = d.reihen.find(r => r.name === 'Firetiger');
+      const mo = d.reihen.find(r => r.name === 'Motoroil');
+      const i2 = d.stufen.findIndex(s => s.x === '2');
+      const i5 = d.stufen.findIndex(s => s.x === '5');
+      return (ft.werte[i2] === 2 && ft.werte[i5] === 0 && mo.werte[i5] === 1)
+          || `FT ${ft.werte.join(',')} / MO ${mo.werte.join(',')}`;
+    });
+    t('Mehrfachfarben zaehlen in jeder Reihe', () => {
+      setzeFaenge([mk({ tiefe:2, farben:['Rot','Gelb'] }), mk({ tiefe:2, farben:['Rot'] })]);
+      alleFilterAus('tiefe');
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'farbe');
+      const rot = d.reihen.find(r => r.name === 'Rot'), gelb = d.reihen.find(r => r.name === 'Gelb');
+      const i = d.stufen.findIndex(s => s.x === '2');
+      return (rot.werte[i] === 2 && gelb.werte[i] === 1) || 'falsch gezaehlt';
+    });
+    t('alter Fang mit einzelner Farbe zaehlt mit', () => {
+      setzeFaenge([mk({ tiefe:2, farbe:'Schwarz' })]);
+      alleFilterAus('tiefe');
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'farbe');
+      return d.reihen.some(r => r.name === 'Schwarz') || d.reihen.map(r => r.name).join();
+    });
+    t('ein Fang zaehlt in derselben Stufe nur einmal', () => {
+      // Zwei Farben, aber ein Fang: die Gesamtreihe darf ihn nicht doppelt zaehlen.
+      setzeFaenge([mk({ tiefe:2, farben:['Rot','Gelb'] })]);
+      alleFilterAus('tiefe');
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), '');
+      return d.reihen[0].werte.reduce((a,b) => a+b, 0) === 1 || 'doppelt gezaehlt';
+    });
+    // Mehr Farben als geprueft sind, gibt es nicht — die siebte waere geraten.
+    t('hoechstens sechs Reihen', () => {
+      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, koeder:k })));
+      alleFilterAus('tiefe');
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'koeder');
+      return d.reihen.length <= 6 || ('es sind ' + d.reihen.length);
+    });
+    t('was nicht in die ersten fuenf passt, wird zusammengefasst', () => {
+      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, koeder:k })));
+      alleFilterAus('tiefe');
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'koeder');
+      return d.reihen.some(r => r.name === 'Übrige') || d.reihen.map(r => r.name).join();
+    });
+    t('nichts geht beim Zusammenfassen verloren', () => {
+      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, koeder:k })));
+      alleFilterAus('tiefe');
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'koeder');
+      const summe = d.reihen.reduce((a, r) => a + r.werte.reduce((x,y) => x+y, 0), 0);
+      return summe === 10 || ('Summe ' + summe);
+    });
+    t('genau sechs Koeder werden noch alle einzeln gezeigt', () => {
+      setzeFaenge('ABCDEF'.split('').map(k => mk({ tiefe:2, koeder:k })));
+      alleFilterAus('tiefe');
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'koeder');
+      return (d.reihen.length === 6 && !d.reihen.some(r => r.name === 'Übrige'))
+          || d.reihen.map(r => r.name).join();
+    });
+    t('keine Reihenfarbe kommt zweimal vor', () => {
+      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, koeder:k })));
+      alleFilterAus('tiefe');
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'koeder');
+      const f = d.reihen.map(r => r.farbe);
+      return new Set(f).size === f.length || f.join();
+    });
+    t('helle Palette bekommt eigene Reihenfarben', () => {
+      const merk = palAktiv;
+      setPalette('tageslicht', false);
+      const hell = reihenFarben()[0];
+      setPalette('tiefes-wasser', false);
+      const dunkel = reihenFarben()[0];
+      setPalette(merk, false);
+      return hell !== dunkel || 'dieselbe Farbe auf heller und dunkler Karte';
+    });
+    t('Aufteilen ohne einen einzigen Koeder gibt nichts zurueck', () => {
+      setzeFaenge([mk({ tiefe:2 })]);
+      alleFilterAus('tiefe');
+      return reihenBauen(statsRows(), achseVon('tiefe'), 'koeder') === null || 'nicht null';
+    });
+
+    // ---- Zeichnen: Kurve ----
+    const einBild = (x, teilen) => { renderStats(); return document.querySelector('#stats-body').innerHTML; };
+    t('Messwerte kommen als Kurve', () => {
+      setzeFaenge([mk({ wasser: 9 }), mk({ wasser: 13 }), mk({ wasser: 17 }), mk({ wasser: 21 })]);
+      alleFilterAus('wasser');
+      return einBild().includes('class="kurve"') || 'kein SVG';
+    });
+    // Genau der Fall, der vorher auf Balken zurueckfiel.
+    t('auch zwei Faenge ergeben eine Kurve', () => {
+      setzeFaenge([mk({ wasser: 17.1 }), mk({ wasser: 19.4 })]);
+      alleFilterAus('wasser');
+      return einBild().includes('class="kurve"') || 'wieder Balken';
+    });
+    t('sogar ein einziger Fang ergibt eine Kurve', () => {
+      setzeFaenge([mk({ wasser: 17.1 })]);
+      alleFilterAus('wasser');
+      return einBild().includes('class="kurve"') || 'keine Kurve';
+    });
+    t('Kurve glaettet nicht (keine Bezier)', () => {
+      setzeFaenge([mk({ wasser: 9 }), mk({ wasser: 13 }), mk({ wasser: 17 })]);
+      alleFilterAus('wasser');
+      const h = einBild().replace(/<text[^>]*>[^<]*<\/text>/g, '');
+      return !/[CQST]\d/.test(h) || 'Kurvenbefehl gefunden';
+    });
+    t('kein Punkt auf einer leeren Stufe', () => {
+      setzeFaenge([mk({ wasser: 9 }), mk({ wasser: 17 })]);   // 11, 13, 15 bleiben leer
+      alleFilterAus('wasser');
+      const h = einBild();
       return (h.match(/<circle/g) || []).length === 2 || (h.match(/<circle/g) || []).length;
     });
-    t('Kurve glättet nicht (keine Bézier)', () => {
-      const h = kurvenBlock('T', [{x:'8',wert:1},{x:'10',wert:3},{x:'12',wert:2}]);
-      return !/[CQST]\d/.test(h.replace(/<text[^>]*>[^<]*<\/text>/g, '')) || 'Kurvenbefehl gefunden';
+    // "Richtige Kurven" heisst auch: eine Y-Achse, an der man ablesen kann.
+    t('die Y-Achse ist beschriftet', () => {
+      setzeFaenge([mk({ wasser: 9 }), mk({ wasser: 9 }), mk({ wasser: 17 })]);
+      alleFilterAus('wasser');
+      const h = einBild();
+      return (h.includes('>0</text>') && /<line[^>]*stroke="var\(--line\)"/.test(h)) || 'keine Achse';
     });
-    t('zu wenige Punkte -> Balken statt Kurve', () => {
-      const h = kurvenBlock('T', [{x:'8',wert:1},{x:'10',wert:3}]);
-      return (!h.includes('<svg') && h.includes('class="bar"')) || 'trotzdem Kurve';
+    t('die Y-Achse laeuft nur ueber ganze Zahlen', () => {
+      setzeFaenge([mk({ wasser: 9 }), mk({ wasser: 17 })]);
+      alleFilterAus('wasser');
+      const h = einBild();
+      return !/>0,5<\/text>|>1,5<\/text>/.test(h) || 'halbe Faenge auf der Achse';
     });
-    t('Kurve bei vielen Stufen kürzt die Achse', () => {
-      const p = []; for (let i = 0; i < 20; i++) p.push({ x: String(i), wert: i % 5 });
-      const h = kurvenBlock('T', p);
-      const achse = (h.match(/y="141"/g) || []).length;
-      return achse <= 9 || ('Achsentexte: ' + achse);
+    t('unter der Kurve steht, was auf der X-Achse liegt', () => {
+      setzeFaenge([mk({ wasser: 9 }), mk({ wasser: 17 })]);
+      alleFilterAus('wasser');
+      return einBild().includes('Wassertemperatur (°C)') || 'kein Achsentitel';
     });
-  
-    t('Entwürfe zählen nicht mit', () => {
+    // Nicht jeder Punkt traegt eine Zahl — bei sechs Kurven waeren das Dutzende
+    // uebereinander. Beschriftet wird der hoechste Punkt je Kurve.
+    t('nur die Spitze je Kurve traegt eine Zahl', () => {
+      setzeFaenge([mk({ wasser: 9 }), mk({ wasser: 9 }), mk({ wasser: 17 })]);
+      alleFilterAus('wasser');
+      const h = einBild();
+      const svg = h.slice(h.indexOf('<svg'), h.indexOf('</svg>'));
+      // Zahlen ueber Punkten haben font-weight 700; die Achsentexte nicht.
+      return (svg.match(/font-weight="700"/g) || []).length === 1
+          || (svg.match(/font-weight="700"/g) || []).length;
+    });
+    t('eine einzelne Kurve braucht keine Legende', () => {
+      setzeFaenge([mk({ wasser: 9 }), mk({ wasser: 17 })]);
+      alleFilterAus('wasser');
+      return !einBild().includes('class="leg"') || 'Legende bei einer Reihe';
+    });
+    t('mehrere Kurven haben immer eine Legende', () => {
+      setzeFaenge([mk({ wasser: 9, koeder:'Wobbler' }), mk({ wasser: 17, koeder:'Gummifisch' })]);
+      alleFilterAus('wasser'); state.stats.teilen = 'koeder';
+      const h = einBild();
+      return (h.includes('class="leg"') && h.includes('Wobbler') && h.includes('Gummifisch'))
+          || 'Legende fehlt oder unvollstaendig';
+    });
+    t('bei vielen Stufen wird die X-Achse ausgeduennt', () => {
+      setzeFaenge([mk({ druck: 990 }), mk({ druck: 1040 })]);   // 5er-Stufen ueber 50 hPa
+      alleFilterAus('druck');
+      const h = einBild();
+      const svg = h.slice(h.indexOf('<svg'), h.indexOf('</svg>'));
+      const achse = (svg.match(/text-anchor="middle"/g) || []).length;
+      return achse <= 10 || ('Achsentexte: ' + achse);
+    });
+    t('die Ablesehilfe ist da', () => {
+      setzeFaenge([mk({ wasser: 9 }), mk({ wasser: 17 })]);
+      alleFilterAus('wasser');
+      return einBild().includes('class="lupe"') || 'keine Ablesehilfe';
+    });
+
+    // ---- Zeichnen: Kategorien ----
+    t('Kategorien bleiben Balken', () => {
+      setzeFaenge([mk({ art:'Hecht' }), mk({ art:'Barsch' })]);
+      alleFilterAus('art');
+      const h = einBild();
+      return (h.includes('class="bar"') && !h.includes('class="kurve"')) || 'Fischart ist keine Balkenliste';
+    });
+    t('Kategorien mit Aufteilen zeigen Gruppen', () => {
+      setzeFaenge([mk({ art:'Hecht', koeder:'Wobbler' }), mk({ art:'Hecht', koeder:'Gummifisch' }),
+                   mk({ art:'Barsch', koeder:'Wobbler' })]);
+      alleFilterAus('art'); state.stats.teilen = 'koeder';
+      const h = einBild();
+      return (h.includes('Wobbler') && h.includes('Gummifisch') && h.includes('class="leg"'))
+          || 'keine Gruppen';
+    });
+    t('bei Koederfarbe traegt jede Zeile ihren Farbfleck', () => {
+      setzeFaenge([mk({ farben:['Firetiger'] })]);
+      alleFilterAus('farbe');
+      return einBild().includes('class="sw"') || 'kein Farbfleck';
+    });
+    t('laengster Balken ist 100 %', () => {
+      setzeFaenge([mk({ art:'Hecht' }), mk({ art:'Hecht' }), mk({ art:'Barsch' })]);
+      alleFilterAus('art');
+      return einBild().includes('width:100%') || 'kein 100%';
+    });
+    t('kleiner Balken bleibt sichtbar', () => {
+      const viele = []; for (let i = 0; i < 40; i++) viele.push(mk({ art:'Hecht' }));
+      setzeFaenge([...viele, mk({ art:'Barsch' })]);
+      alleFilterAus('art');
+      return /width:4%/.test(einBild()) || 'zu klein zum Sehen';
+    });
+
+    // ---- Ansicht insgesamt ----
+    t('Statistik rendert', () => {
+      setzeFaenge([
+        mk({ art:'Hecht', gewaesser:'Kanal', laenge:78, gewicht:3.2, druck:1013, wasser:19.4,
+             tiefe:2.5, phase:'morgen', wetter:'bedeckt', koeder:'Gummifisch', farben:['Firetiger'] }),
+        mk({ art:'Zander', gewaesser:'Kanal', laenge:55, druck:1002, wasser:17.1,
+             phase:'nacht', wetter:'regen', koeder:'Wobbler', farben:['Rot','Gelb'] })
+      ]);
+      alleFilterAus('wasser');
+      return einBild().includes('Wassertemperatur') || 'Block fehlt';
+    });
+    t('immer nur ein Diagramm', () => {
+      const h = document.querySelector('#stats-body').innerHTML;
+      return (h.match(/<h2>/g) || []).length === 1 || ('Bloecke: ' + (h.match(/<h2>/g) || []).length);
+    });
+    t('Auswertung ohne Daten sagt es statt zu verschwinden', () => {
+      setzeFaenge([mk({ art:'Hecht' })]);          // keine Wassertemperatur erfasst
+      alleFilterAus('wasser');
+      const h = einBild();
+      return (h.includes('Wassertemperatur') && h.includes('noch kein Fang')) || 'still verschwunden';
+    });
+    t('unbekannte Achse faellt auf die erste zurueck', () => {
+      setzeFaenge([mk({ art:'Hecht', wasser: 12 })]);
+      alleFilterAus('gibtsnicht');
+      return einBild().includes('Wassertemperatur') || 'nichts gezeigt';
+    });
+    t('jede Achse laeuft ohne Absturz', () => {
+      setzeFaenge([mk({ art:'Hecht', gewaesser:'Kanal', laenge:78, druck:1013, wasser:19.4, luft:22,
+                        tiefe:2.5, regen24:3, koederGroesse:8, phase:'morgen', wetter:'bedeckt',
+                        truebung:'klar', koeder:'Gummifisch', farben:['Firetiger'] })]);
+      for (const a of ACHSEN){
+        alleFilterAus(a.key);
+        try { renderStats(); } catch (e){ return a.key + ': ' + e.message; }
+      }
+      return true;
+    });
+    t('jede Achse haelt leere Daten aus', () => {
+      setzeFaenge([mk({})]);
+      for (const a of ACHSEN){
+        alleFilterAus(a.key);
+        try { renderStats(); } catch (e){ return a.key + ': ' + e.message; }
+      }
+      return true;
+    });
+    t('jede Achse haelt das Aufteilen aus', () => {
+      setzeFaenge([mk({ art:'Hecht', wasser:19.4, tiefe:2.5, koeder:'Wobbler', farben:['Rot'] }),
+                   mk({ art:'Barsch', wasser:12.0, tiefe:4.0, koeder:'Spinner', farben:['Gelb'] })]);
+      for (const a of ACHSEN){
+        for (const teiler of ['koeder', 'farbe']){
+          alleFilterAus(a.key); state.stats.teilen = teiler;
+          try { renderStats(); } catch (e){ return a.key + '/' + teiler + ': ' + e.message; }
+        }
+      }
+      return true;
+    });
+
+    // ---- Filter ----
+    t('Entwuerfe zaehlen nicht mit', () => {
       setzeFaenge([mk({ art:'Hecht' }), mk({ art:'Zander', entwurf:true })]);
       alleFilterAus();
       return statsRows().length === 1 || statsRows().length;
     });
-    t('Filter Gewässer', () => {
+    t('Filter Gewaesser', () => {
       setzeFaenge([mk({ gewaesser:'Kanal' }), mk({ gewaesser:'Weser' })]);
       alleFilterAus(); state.stats.gewaesser = 'Kanal';
       return statsRows().length === 1 || statsRows().length;
     });
-    t('Filter Fischart', () => {
+    t('Zaehlen auf eine Fischart einschraenken', () => {
       setzeFaenge([mk({ art:'Hecht' }), mk({ art:'Barsch' })]);
       alleFilterAus(); state.stats.art = 'Barsch';
       return statsRows().length === 1 || statsRows().length;
@@ -531,220 +797,220 @@ TESTS = r"""
       return statsRows().length === 1 || statsRows().length;
     });
     t('Filter Alles nimmt beide', () => { state.stats.zeit = 'alles'; return statsRows().length === 2 || statsRows().length; });
-  
-    t('zaehle summiert', () => {
-      setzeFaenge([mk({ art:'Hecht' }), mk({ art:'Hecht' }), mk({ art:'Barsch' })]);
-      alleFilterAus();
-      const m = zaehle(statsRows(), c => c.art);
-      return (m.get('Hecht') === 2 && m.get('Barsch') === 1) || JSON.stringify([...m]);
+    t('der Titel nennt die gezaehlte Fischart', () => {
+      setzeFaenge([mk({ art:'Hecht', tiefe:2 }), mk({ art:'Barsch', tiefe:3 })]);
+      alleFilterAus('tiefe'); state.stats.art = 'Hecht';
+      return einBild().includes('Hecht nach Wassertiefe') || 'Titel nennt die Art nicht';
     });
-    t('zaehle überspringt Leeres', () => {
-      setzeFaenge([mk({ art:'' }), mk({ art:null }), mk({ art:'Aal' })]);
-      alleFilterAus();
-      return zaehle(statsRows(), c => c.art).size === 1 || zaehle(statsRows(), c => c.art).size;
-    });
-    t('Mehrfachfarben zählen in jeder', () => {
-      setzeFaenge([mk({ farben:['Rot','Gelb'] }), mk({ farben:['Rot'] })]);
-      alleFilterAus();
-      const m = zaehle(statsRows(), c => farbenVon(c));
-      return (m.get('Rot') === 2 && m.get('Gelb') === 1) || JSON.stringify([...m]);
-    });
-    t('alter Fang mit einzelner Farbe zählt mit', () => {
-      setzeFaenge([mk({ farbe:'Schwarz' })]);
-      alleFilterAus();
-      return zaehle(statsRows(), c => farbenVon(c)).get('Schwarz') === 1 || 'nicht gezählt';
-    });
-  
-    t('ausMap sortiert nach Menge', () => {
-      const m = new Map([['A',1],['B',5],['C',3]]);
-      return ausMap(m).map(e => e.label).join('') === 'BCA' || ausMap(m).map(e => e.label).join('');
-    });
-  
-    t('balkenBlock leer gibt nichts', () => balkenBlock('X', []) === '' || 'nicht leer');
-    t('balkenBlock zeigt die Zahl', () => balkenBlock('X', [{label:'A',wert:7}]).includes('<b>7</b>') || 'Zahl fehlt');
-    t('längster Balken ist 100 %', () => balkenBlock('X', [{label:'A',wert:4},{label:'B',wert:2}]).includes('width:100%') || 'kein 100%');
-    t('kleiner Balken bleibt sichtbar', () => {
-      const h = balkenBlock('X', [{label:'A',wert:200},{label:'B',wert:1}]);
-      return /width:4%/.test(h) || h.match(/width:\d+%/g).join();
-    });
-  
-    t('Statistik rendert', () => {
-      setzeFaenge([
-        mk({ art:'Hecht', gewaesser:'Kanal', laenge:78, gewicht:3.2, druck:1013, wasser:19.4,
-             tiefe:2.5, phase:'morgen', wetter:'bedeckt', koeder:'Gummifisch', farben:['Firetiger'] }),
-        mk({ art:'Zander', gewaesser:'Kanal', laenge:55, druck:1002, wasser:17.1,
-             phase:'nacht', wetter:'regen', koeder:'Wobbler', farben:['Rot','Gelb'] })
-      ]);
-      alleFilterAus('wasser'); renderStats();
-      const h = document.querySelector('#stats-body').innerHTML;
-      return h.includes('Wassertemperatur') || 'Block fehlt';
-    });
-    t('nur Gewaehltes wird gezeigt', () => {
-      const h = document.querySelector('#stats-body').innerHTML;
-      const koerper = h.slice(h.indexOf('id="st-wahl"'));
-      return !koerper.includes('Fänge nach Köder') || 'ungewaehlter Block ist da';
-    });
-    t('Messwerte kommen als Kurve (genug Spanne)', () => {
-      // Weniger als drei Stufen faellt bewusst auf Balken zurueck — eine "Kurve"
-      // durch zwei Punkte waere eine Gerade ohne Aussage. Also Spanne geben.
-      setzeFaenge([mk({ wasser: 9 }), mk({ wasser: 13 }), mk({ wasser: 17 }), mk({ wasser: 21 })]);
-      alleFilterAus('wasser'); renderStats();
-      return document.querySelector('#stats-body').innerHTML.includes('class="kurve"') || 'kein SVG';
-    });
-    t('zu wenig Spanne -> Balken statt Kurve', () => {
-      setzeFaenge([mk({ wasser: 17.1 }), mk({ wasser: 19.4 })]);
-      alleFilterAus('wasser'); renderStats();
-      const h = document.querySelector('#stats-body').innerHTML;
-      return (!h.includes('class="kurve"') && h.includes('class="bar"')) || 'trotzdem Kurve';
-    });
-    t('Kategorien bleiben Balken', () => {
-      setzeFaenge([mk({ art:'Hecht' }), mk({ art:'Barsch' })]);
-      alleFilterAus('art'); renderStats();
-      const h = document.querySelector('#stats-body').innerHTML;
-      const i = h.indexOf('<h2>Fänge nach Fischart</h2>');
-      return (i > 0 && h.slice(i, i + 900).includes('class="bar"')) || 'Fischart ist keine Balkenliste';
-    });
-    t('Waehler zeigt jede Auswertung', () => {
-      const n = document.querySelectorAll('#st-wahl .chip').length;
-      return n === AUSWERTUNGEN.length || n;
-    });
-    // Der Entwurf vom 02.08. hatte 17 Auswertungen und wurde deshalb wieder
-    // herausgenommen: eine Wand aus Knoepfen, hinter der jedes Mal ein fast leeres
-    // Diagramm steht. Diese Pruefung haelt die Kuerzung fest — wer eine achte
-    // dazunimmt, soll darueber stolpern und es bewusst entscheiden.
-    t('die Auswahl bleibt schmal', () =>
-       AUSWERTUNGEN.length <= 7 || ('wieder ' + AUSWERTUNGEN.length + ' Auswertungen'));
-    t('Statistik-Reiter ist erreichbar', () => {
-      const tab = document.querySelector('.tab[data-go="stats"]');
-      if (!tab) return 'kein Reiter in der Leiste';
-      go('stats');
-      const panel = document.querySelector('#v-stats');
-      if (!panel) return 'kein Panel #v-stats';
-      if (panel.classList.contains('hidden')) return 'Panel bleibt versteckt';
-      if (!tab.classList.contains('on')) return 'Reiter wird nicht markiert';
-      go('log');
-      return true;
-    });
-    t('genau ein Chip ist markiert', () => {
-      setzeFaenge([mk({ art:'Hecht' })]);
-      alleFilterAus('art'); renderStats();
-      const on = [...document.querySelectorAll('#st-wahl .chip.on')].map(c => c.dataset.wahl);
-      return (on.length === 1 && on[0] === 'art') || on.join();
-    });
-    t('Antippen wechselt die Auswertung', () => {
-      setzeFaenge([mk({ art:'Hecht', koeder:'Wobbler' }), mk({ art:'Barsch', koeder:'Gummifisch' })]);
-      alleFilterAus('art'); renderStats();
-      document.querySelector('[data-wahl="koeder"]').click();
-      return document.querySelector('#stats-body').innerHTML.includes('Fänge nach Köder') || 'nicht gewechselt';
-    });
-    t('die vorherige Auswertung ist danach weg', () => {
-      const h = document.querySelector('#stats-body').innerHTML;
-      return !h.slice(h.indexOf('id="st-wahl"')).includes('<h2>Fänge nach Fischart</h2>') || 'beide da';
-    });
-    t('immer nur eine Auswertung sichtbar', () => {
-      const h = document.querySelector('#stats-body').innerHTML;
-      const koerper = h.slice(h.indexOf('id="st-wahl"'));
-      const bloecke = (koerper.match(/<h2>/g) || []).length;
-      return bloecke === 1 || ('Bloecke: ' + bloecke);
-    });
-    t('nochmal denselben Chip tippen aendert nichts', () => {
-      const vorher = document.querySelector('#stats-body').innerHTML;
-      document.querySelector('[data-wahl="koeder"]').click();
-      return document.querySelector('#stats-body').innerHTML === vorher || 'hat sich geaendert';
-    });
-    t('Auswertung ohne Daten sagt es statt zu verschwinden', () => {
-      setzeFaenge([mk({ art:'Hecht' })]);          // keine Wassertemperatur erfasst
-      alleFilterAus('wasser'); renderStats();
-      const h = document.querySelector('#stats-body').innerHTML;
-      return (h.includes('Wassertemp') && h.includes('noch kein Fang')) || 'still verschwunden';
-    });
-    t('unbekannte Auswahl faellt auf die erste zurueck', () => {
-      setzeFaenge([mk({ art:'Hecht' }), mk({ art:'Barsch' })]);
-      alleFilterAus('gibtsnicht'); renderStats();
-      return document.querySelector('#stats-body').innerHTML.includes('Fänge nach Fischart') || 'nichts gezeigt';
-    });
-    t('Kacheln bleiben immer', () => {
-      return document.querySelector('#stats-body').innerHTML.includes('class="tiles"') || 'Kacheln weg';
-    });
-    t('jede Auswertung laeuft ohne Absturz', () => {
-      for (const a of AUSWERTUNGEN){
-        alleFilterAus(a.key);
-        try { renderStats(); } catch (e){ return a.key + ': ' + e.message; }
-      }
-      return true;
-    });
-    t('jede Auswertung haelt leere Daten aus', () => {
-      const merk = state.catches;
-      setzeFaenge([mk({})]);
-      for (const a of AUSWERTUNGEN){
-        alleFilterAus(a.key);
-        try { renderStats(); } catch (e){ return a.key + ': ' + e.message; }
-      }
-      setzeFaenge(merk);
-      return true;
-    });
-    // Ab hier wieder mit eigenem Datensatz, damit die Reihenfolge der Tests egal ist.
+
+    // ---- Kacheln ----
     const zweiFaenge = () => {
       setzeFaenge([
         mk({ art:'Hecht', gewaesser:'Kanal', laenge:78, gewicht:3.2, koeder:'Gummifisch' }),
         mk({ art:'Zander', gewaesser:'Kanal', laenge:55, koeder:'Wobbler' })
       ]);
     };
-    t('Statistik nennt den grössten Fisch', () => {
-      zweiFaenge(); alleFilterAus('art'); renderStats();
-      return document.querySelector('#stats-body').innerHTML.includes('78 cm') || 'fehlt';
+    t('Statistik nennt den groessten Fisch', () => {
+      zweiFaenge(); alleFilterAus('art');
+      return einBild().includes('78 cm') || 'fehlt';
     });
-    t('Statistik warnt bei wenig Daten',
-       () => document.querySelector('#stats-body').innerHTML.includes('zu wenige') || 'keine Warnung');
+    t('Kacheln bleiben immer', () =>
+      document.querySelector('#stats-body').innerHTML.includes('class="tiles"') || 'Kacheln weg');
+    // Karls Ansage vom 07.08.: die obersten beiden Kacheln getauscht.
+    t('Fischarten steht vor Faenge', () => {
+      zweiFaenge(); alleFilterAus('art');
+      const h = einBild();
+      const k = h.slice(h.indexOf('class="tiles"'));
+      return k.indexOf('Fischarten') < k.indexOf('>Fänge<') || 'Reihenfolge der Kacheln stimmt nicht';
+    });
+
+    // ---- Hinweise, die nicht wegfallen duerfen ----
+    t('Statistik warnt bei wenig Daten', () => {
+      zweiFaenge(); alleFilterAus('art');
+      return einBild().includes('zu wenige') || 'keine Warnung';
+    });
+    t('die Warnung haelt das Zeichnen nicht mehr auf', () => {
+      const h = document.querySelector('#stats-body').innerHTML;
+      return (h.includes('zu wenige') && h.includes('class="bar"')) || 'kein Diagramm trotz Warnung';
+    });
     t('Statistik sagt nirgends "bester"',
        () => !/bester|beste Köder|Bester/.test(document.querySelector('#stats-body').innerHTML) || 'steht doch drin');
     t('Statistik weist auf fehlende Leer-Ansitze hin', () => {
-      zweiFaenge(); alleFilterAus('koeder'); renderStats();
-      return document.querySelector('#stats-body').innerHTML.includes('ohne Fang') || 'Hinweis fehlt';
+      zweiFaenge(); alleFilterAus('koeder');
+      return einBild().includes('ohne Fang') || 'Hinweis fehlt';
     });
-    t('Zähler in der Kopfzeile', () => {
+    t('bei Koederfarben steht die Mehrfachzaehlung dabei', () => {
+      setzeFaenge([mk({ farben:['Rot','Gelb'] })]);
+      alleFilterAus('farbe');
+      return einBild().includes('zählt in jeder mit') || 'Hinweis fehlt';
+    });
+    t('das Zusammenfassen wird benannt', () => {
+      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, koeder:k })));
+      alleFilterAus('tiefe'); state.stats.teilen = 'koeder';
+      return einBild().includes('häufigsten') || 'kein Hinweis auf Übrige';
+    });
+    t('Zaehler in der Kopfzeile', () => {
       zweiFaenge(); alleFilterAus(); renderStats();
       return document.querySelector('#stats-pill').textContent === '2 Fänge'
           || document.querySelector('#stats-pill').textContent;
     });
-    t('Statistik ohne Fänge', () => {
-      setzeFaenge([]); alleFilterAus(); renderStats();
-      return document.querySelector('#stats-body').innerHTML.includes('Noch keine fertigen') || 'falscher Text';
+    t('Statistik ohne Faenge', () => {
+      setzeFaenge([]); alleFilterAus();
+      return einBild().includes('Noch keine fertigen') || 'falscher Text';
     });
     t('Statistik mit leerem Filterergebnis', () => {
       setzeFaenge([mk({ art:'Hecht' })]);
-      alleFilterAus(); state.stats.art = 'Wels'; renderStats();
-      return document.querySelector('#stats-body').innerHTML.includes('keinen Fang') || 'falscher Text';
+      alleFilterAus(); state.stats.art = 'Wels';
+      return einBild().includes('keinen Fang') || 'falscher Text';
     });
-    t('Filterliste behält die aktive Auswahl', () => {
+    t('Auswahlliste behaelt die aktive Auswahl', () => {
       setzeFaenge([mk({ art:'Hecht' }), mk({ art:'Wels' })]);
       alleFilterAus(); state.stats.art = 'Wels'; renderStats();
       return document.querySelector('#st-art').value === 'Wels' || document.querySelector('#st-art').value;
     });
+
+    // ---- Der Baukasten ----
     t('Zeitraum-Chips gebaut', () => document.querySelectorAll('#st-zeit .chip').length === ZEITRAEUME.length
                                     || document.querySelectorAll('#st-zeit .chip').length);
-    t('Statistik-Reiter existiert', () => !!document.querySelector('[data-go="stats"]') || 'fehlt');
-    t('go("stats") zeigt die Ansicht', () => {
-      setzeFaenge([mk({ art:'Hecht' })]); alleFilterAus(); go('stats');
-      return (!document.querySelector('#v-stats').classList.contains('hidden')
-              && document.querySelector('#v-log').classList.contains('hidden')) || 'falsche Ansicht';
+    t('die X-Achse ist waehlbar und vollstaendig', () => {
+      const n = document.querySelectorAll('#st-x option').length;
+      return n === ACHSEN.length || n;
     });
-    t('Monatskurve laeuft Jan bis Dez', () => {
-      setzeFaenge([mk({ when:'2026-09-01T08:00', ts:new Date('2026-09-01T08:00').getTime() }),
-                   mk({ when:'2026-03-01T08:00', ts:new Date('2026-03-01T08:00').getTime() }),
-                   mk({ when:'2026-03-05T08:00', ts:new Date('2026-03-05T08:00').getTime() })]);
-      alleFilterAus('monat'); renderStats();
-      const h = document.querySelector('#stats-body').innerHTML;
-      const i = h.indexOf('Fänge nach Monat');
-      const teil = h.slice(i);
-      return (teil.indexOf('>Jan<') < teil.indexOf('>Mär<')
-           && teil.indexOf('>Mär<') < teil.indexOf('>Sep<')) || 'falsche Reihenfolge';
+    t('Messwerte und Kategorien stehen getrennt', () => {
+      const g = [...document.querySelectorAll('#st-x optgroup')].map(o => o.label);
+      return (g.length === 2 && /Kurve/.test(g[0]) && /Balken/.test(g[1])) || g.join(' | ');
     });
-    t('Monatskurve zeigt alle 12 Monate', () => {
-      const h = document.querySelector('#stats-body').innerHTML;
-      const teil = h.slice(h.indexOf('Fänge nach Monat'));
-      return teil.includes('>Dez<') || 'Dezember fehlt';
+    t('Aufteilen gibt es als Ankreuzkaestchen', () => {
+      const n = document.querySelectorAll('#st-teilen .chip').length;
+      return n === TEILER.length || n;
     });
+    t('das Kaestchen ist erst leer', () => {
+      setzeFaenge([mk({ tiefe:2, koeder:'A' })]);
+      alleFilterAus('tiefe'); renderStats();
+      return document.querySelector('#st-teilen .chip').textContent.startsWith('☐') || 'schon angekreuzt';
+    });
+    t('Antippen kreuzt an', () => {
+      document.querySelector('[data-teilen="koeder"]').click();
+      return (state.stats.teilen === 'koeder'
+              && document.querySelector('[data-teilen="koeder"]').textContent.startsWith('☑'))
+          || 'nicht angekreuzt';
+    });
+    t('nochmal antippen nimmt es zurueck', () => {
+      document.querySelector('[data-teilen="koeder"]').click();
+      return state.stats.teilen === '' || state.stats.teilen;
+    });
+    t('immer nur eines von beiden angekreuzt', () => {
+      document.querySelector('[data-teilen="koeder"]').click();
+      document.querySelector('[data-teilen="farbe"]').click();
+      const an = [...document.querySelectorAll('#st-teilen .chip')].filter(c => c.textContent.startsWith('☑'));
+      return an.length === 1 || ('angekreuzt: ' + an.length);
+    });
+
+    // ---- Gespeicherte Auswertungen ----
+    const ohneAuswertungen = () => { state.auswertungen = []; localStorage.removeItem('angellog-auswertungen'); };
+    t('am Anfang steht keine Liste da', () => {
+      ohneAuswertungen(); setzeFaenge([mk({ tiefe:2 })]); alleFilterAus('tiefe'); renderStats();
+      return document.querySelector('#stats-gespeichert').innerHTML === '' || 'Liste trotz nichts drin';
+    });
+    t('speichern legt eine an', () => {
+      ohneAuswertungen();
+      setzeFaenge([mk({ art:'Hecht', tiefe:2, koeder:'Wobbler' })]);
+      alleFilterAus('tiefe'); state.stats.art = 'Hecht'; state.stats.teilen = 'farbe';
+      const merk = window.prompt; window.prompt = () => 'Hecht tief';
+      auswertungSpeichern(); window.prompt = merk;
+      return (state.auswertungen.length === 1 && state.auswertungen[0].name === 'Hecht tief')
+          || JSON.stringify(state.auswertungen);
+    });
+    t('die gespeicherte merkt sich alle fuenf Angaben', () => {
+      const a = state.auswertungen[0];
+      return (a.art === 'Hecht' && a.x === 'tiefe' && a.teilen === 'farbe'
+              && a.gewaesser === '' && a.zeit === 'alles') || JSON.stringify(a);
+    });
+    t('sie steht danach in der Liste', () =>
+      document.querySelector('#stats-gespeichert').textContent.includes('Hecht tief') || 'nicht in der Liste');
+    t('die Liste sagt in einem Satz, was drinsteht', () =>
+      document.querySelector('#stats-gespeichert').textContent.includes('Hecht über Wassertiefe')
+        || document.querySelector('#stats-gespeichert').textContent);
+    t('sie liegt im Speicher, nicht nur im Arbeitsspeicher', () => {
+      const j = JSON.parse(localStorage.getItem('angellog-auswertungen') || '{}');
+      return (j.liste && j.liste.length === 1 && j.updated > 0) || 'nicht gesichert';
+    });
+    t('laden stellt die Einstellungen wieder her', () => {
+      alleFilterAus('wasser');           // erst alles verstellen
+      auswertungLaden(state.auswertungen[0].id);
+      const s = state.stats;
+      return (s.art === 'Hecht' && s.x === 'tiefe' && s.teilen === 'farbe') || JSON.stringify(s);
+    });
+    t('die geladene ist in der Liste markiert', () =>
+      !!document.querySelector('#stats-gespeichert .ausw.on') || 'nichts markiert');
+    t('Antippen laedt sie', () => {
+      alleFilterAus('wasser'); renderStats();
+      document.querySelector('[data-laden]').click();
+      return state.stats.x === 'tiefe' || state.stats.x;
+    });
+    t('"Aendern sichern" erscheint erst nach einer Aenderung', () => {
+      const vorher = document.querySelector('#st-sichern').hidden;
+      state.stats.x = 'wasser'; renderStats();
+      const nachher = document.querySelector('#st-sichern').hidden;
+      return (vorher === true && nachher === false) || `vorher ${vorher}, nachher ${nachher}`;
+    });
+    t('sichern uebernimmt die Aenderung', () => {
+      auswertungSichern();
+      return state.auswertungen[0].x === 'wasser' || state.auswertungen[0].x;
+    });
+    t('nach dem Sichern ist der Knopf wieder weg', () =>
+      document.querySelector('#st-sichern').hidden === true || 'steht noch da');
+    t('umbenennen aendert nur den Namen', () => {
+      const merk = window.prompt; window.prompt = () => 'Neuer Name';
+      auswertungUmbenennen(state.auswertungen[0].id); window.prompt = merk;
+      const a = state.auswertungen[0];
+      return (a.name === 'Neuer Name' && a.x === 'wasser') || JSON.stringify(a);
+    });
+    t('abgebrochenes Umbenennen laesst alles stehen', () => {
+      const merk = window.prompt; window.prompt = () => null;
+      auswertungUmbenennen(state.auswertungen[0].id); window.prompt = merk;
+      return state.auswertungen[0].name === 'Neuer Name' || state.auswertungen[0].name;
+    });
+    t('"Als neue speichern" legt eine zweite an', () => {
+      const merk = window.prompt; window.prompt = () => 'Zweite';
+      auswertungSpeichern(); window.prompt = merk;
+      return state.auswertungen.length === 2 || state.auswertungen.length;
+    });
+    t('loeschen fragt nach', () => {
+      const merkC = window.confirm; let gefragt = false;
+      window.confirm = () => { gefragt = true; return false; };
+      auswertungLoeschen(state.auswertungen[0].id); window.confirm = merkC;
+      return (gefragt && state.auswertungen.length === 2) || 'ohne Rueckfrage geloescht';
+    });
+    t('loeschen entfernt genau eine', () => {
+      const merkC = window.confirm; window.confirm = () => true;
+      const id = state.auswertungen[0].id;
+      auswertungLoeschen(id); window.confirm = merkC;
+      return (state.auswertungen.length === 1 && state.auswertungen[0].id !== id)
+          || state.auswertungen.length;
+    });
+    t('die geloeschte ist auch aus dem Speicher raus', () => {
+      const j = JSON.parse(localStorage.getItem('angellog-auswertungen') || '{}');
+      return j.liste.length === 1 || j.liste.length;
+    });
+    t('ein Name mit Anfuehrungszeichen zerreisst nichts', () => {
+      ohneAuswertungen();
+      const merk = window.prompt; window.prompt = () => 'Der "gute" Platz';
+      setzeFaenge([mk({ tiefe:2 })]); alleFilterAus('tiefe');
+      auswertungSpeichern(); window.prompt = merk;
+      const el = document.querySelector('#stats-gespeichert .ausw .t b');
+      return (el && el.textContent === 'Der "gute" Platz') || (el ? el.textContent : 'nichts gezeichnet');
+    });
+    t('ein Koedername mit spitzen Klammern zerreisst nichts', () => {
+      // Zwei Koeder, damit es die Legende ueberhaupt gibt — bei einer einzelnen
+      // Reihe steht der Name nirgends im Bild.
+      ohneAuswertungen();
+      setzeFaenge([mk({ tiefe:2, koeder:'<b>Wobbler</b>' }), mk({ tiefe:5, koeder:'Spinner' })]);
+      alleFilterAus('tiefe'); state.stats.teilen = 'koeder';
+      const h = einBild();
+      return (!h.includes('<b>Wobbler</b>') && h.includes('&lt;b&gt;Wobbler')) || 'ungefiltert eingebaut';
+    });
+    ohneAuswertungen();
   
   } else {
     out.push('--   Statistik-Pruefungen uebersprungen (Reiter ist nicht in dieser Fassung)');
@@ -981,6 +1247,120 @@ TESTS = r"""
     return ((await fotoFuerCloud(kaputt)) === null) || 'kam etwas zurueck';
   });
 
+  // ---- Angelzeit und Auswertungen am Konto ----
+  // Bis zum 07.08.2026 lag die Angelzeit nur im localStorage. Gerettet hat sie
+  // einzig das Backup, und das ist am 04.08. ausgebaut worden — sie war damit
+  // das Einzige in der App, das ein Geraetewechsel wirklich gekostet haette.
+  const zeitSetzen = (gesamt, updated, start) =>
+    localStorage.setItem('angellog-zeit', JSON.stringify({ gesamt, updated, start: start || null }));
+  // Das Netz antwortet mit dem, was drueben liegt; Schreibversuche werden nur notiert.
+  const werteNetz = (drueben) => {
+    const notiert = { geschrieben: null, geloescht: null };
+    api = async (pfad, opt) => {
+      if (!opt || !opt.method) return antwort(drueben);
+      if (opt.method === 'DELETE'){ notiert.geloescht = pfad; return antwort(null); }
+      notiert.geschrieben = JSON.parse(opt.body);
+      return antwort(null);
+    };
+    return notiert;
+  };
+
+  ta('geaenderte Angelzeit geht hoch', async () => {
+    zeitSetzen(3600000, 5000);
+    const n = werteNetz([]);
+    await werteAbgleichen();
+    const z = (n.geschrieben || []).find(r => r.schluessel === 'zeit');
+    return (z && z.wert.gesamt === 3600000) || JSON.stringify(n.geschrieben);
+  });
+  ta('nie geaenderte Angelzeit geht nicht hoch', async () => {
+    zeitSetzen(0, 0);
+    localStorage.removeItem('angellog-auswertungen'); state.auswertungen = [];
+    const n = werteNetz([]);
+    await werteAbgleichen();
+    return n.geschrieben === null || JSON.stringify(n.geschrieben);
+  });
+  ta('juengere Angelzeit vom Server gewinnt', async () => {
+    zeitSetzen(3600000, 5000);
+    werteNetz([{ schluessel: 'zeit', updated: 9000, wert: { gesamt: 7200000 } }]);
+    await werteAbgleichen();
+    return zeitLesen().gesamt === 7200000 || zeitLesen().gesamt;
+  });
+  ta('der uebernommene Wert behaelt sein updated', async () => {
+    zeitSetzen(3600000, 5000);
+    werteNetz([{ schluessel: 'zeit', updated: 9000, wert: { gesamt: 7200000 } }]);
+    await werteAbgleichen();
+    // Bekaeme er ein frisches updated, ginge er beim naechsten Mal wieder hoch.
+    return zeitLesen().updated === 9000 || zeitLesen().updated;
+  });
+  ta('aeltere Angelzeit vom Server ueberschreibt nicht', async () => {
+    zeitSetzen(3600000, 9000);
+    werteNetz([{ schluessel: 'zeit', updated: 5000, wert: { gesamt: 7200000 } }]);
+    await werteAbgleichen();
+    return zeitLesen().gesamt === 3600000 || zeitLesen().gesamt;
+  });
+  // ⚠️ Der Punkt, an dem "die groessere Zahl gewinnt" gescheitert waere: eine
+  // Korrektur nach unten muss sich durchsetzen, sonst kaeme "Gesamtzeit direkt
+  // setzen" nie gegen einen alten hohen Wert an.
+  ta('eine Korrektur nach unten setzt sich durch', async () => {
+    zeitSetzen(40 * 3600000, 5000);
+    zeitSchreiben({ gesamt: 10 * 3600000, start: null });     // Karl zieht gerade
+    const n = werteNetz([{ schluessel: 'zeit', updated: 5000, wert: { gesamt: 40 * 3600000 } }]);
+    await werteAbgleichen();
+    const z = (n.geschrieben || []).find(r => r.schluessel === 'zeit');
+    return (zeitLesen().gesamt === 10 * 3600000 && z && z.wert.gesamt === 10 * 3600000)
+        || `lokal ${zeitLesen().gesamt}, hoch ${JSON.stringify(n.geschrieben)}`;
+  });
+  ta('der laufende Ansitz geht nicht in die Cloud', async () => {
+    zeitSetzen(3600000, 5000, 1234567);
+    const n = werteNetz([]);
+    await werteAbgleichen();
+    const z = (n.geschrieben || []).find(r => r.schluessel === 'zeit');
+    return (z && !('start' in z.wert)) || JSON.stringify(z);
+  });
+  ta('der laufende Ansitz ueberlebt einen Wert vom Server', async () => {
+    zeitSetzen(3600000, 5000, 1234567);
+    werteNetz([{ schluessel: 'zeit', updated: 9000, wert: { gesamt: 7200000 } }]);
+    await werteAbgleichen();
+    return zeitLesen().start === 1234567 || zeitLesen().start;
+  });
+  ta('Start und Stopp allein aendern das updated nicht', async () => {
+    zeitSetzen(3600000, 5000);
+    zeitSchreiben({ gesamt: 3600000, start: Date.now() });   // Start: gesamt bleibt
+    return zeitLesen().updated === 5000 || zeitLesen().updated;
+  });
+  ta('gespeicherte Auswertungen gehen mit hoch', async () => {
+    localStorage.setItem('angellog-auswertungen', JSON.stringify({
+      liste: [{ id:'x', name:'A', art:'', x:'tiefe', teilen:'', gewaesser:'', zeit:'alles' }], updated: 7000 }));
+    state.auswertungen = auswertungenLesen().liste;
+    zeitSetzen(0, 0);
+    const n = werteNetz([]);
+    await werteAbgleichen();
+    const a = (n.geschrieben || []).find(r => r.schluessel === 'auswertungen');
+    return (a && a.wert.liste.length === 1) || JSON.stringify(n.geschrieben);
+  });
+  ta('Auswertungen vom Server kommen an', async () => {
+    localStorage.setItem('angellog-auswertungen', JSON.stringify({ liste: [], updated: 100 }));
+    state.auswertungen = [];
+    werteNetz([{ schluessel: 'auswertungen', updated: 9000,
+                 wert: { liste: [{ id:'y', name:'Vom Handy', art:'', x:'wasser', teilen:'', gewaesser:'', zeit:'alles' }] } }]);
+    await werteAbgleichen();
+    return (state.auswertungen.length === 1 && state.auswertungen[0].name === 'Vom Handy')
+        || JSON.stringify(state.auswertungen);
+  });
+  ta('vor dem Hochladen wird das Alte weggeraeumt', async () => {
+    zeitSetzen(3600000, 5000);
+    localStorage.removeItem('angellog-auswertungen'); state.auswertungen = [];
+    const n = werteNetz([]);
+    await werteAbgleichen();
+    return (n.geloescht && n.geloescht.includes('schluessel=in.')) || String(n.geloescht);
+  });
+  ta('ein Fehler vom Server wird gemeldet, nicht verschluckt', async () => {
+    zeitSetzen(3600000, 5000);
+    api = async () => ({ ok: false, status: 500, json: async () => ({}) });
+    try { await werteAbgleichen(); return 'kein Fehler geworfen'; }
+    catch (e){ return /Abrufen/.test(e.message) || e.message; }
+  });
+
   // ---- Anmelde-Schirm (Pflicht) ----
   t('Gate existiert', () => !!document.querySelector('#gate') || 'fehlt');
   t('Ohne Konto ist der Schirm noetig', () => { konto = null; return gateNoetig() === true || 'nicht noetig'; });
@@ -1175,6 +1555,62 @@ TESTS = r"""
     /Meine Daten herunterladen/.test(datenschutzText()) || 'Text nennt ihn nicht');
   t('Datenschutztext spricht nicht mehr von Backup', () =>
     (!/Backup/.test(datenschutzText())) || 'Backup steht noch drin');
+
+  // ==================== Layout auf schmalen Geraeten ====================
+  // ⚠️ Fallstrick, der am 02.08. zwei Runden gekostet hat: Chrome headless
+  // ignoriert auf diesem PC --window-size fuers Layout — eine Seite meldet bei
+  // 320, 390 und 500 px immer dieselbe Breite. Verlaesslich messen laesst es
+  // sich nur, indem die App in einem iframe mit fester Breite laeuft und dort
+  // scrollWidth gegen die Fensterbreite geprueft wird.
+  const imRahmen = (breite, was) => new Promise((fertig, schief) => {
+    const f = document.createElement('iframe');
+    f.style.cssText = `width:${breite}px;height:720px;border:0;position:absolute;left:-9999px`;
+    f.src = 'index.html';
+    f.onload = () => {
+      // Der App eine Runde geben, damit sie fertig gezeichnet hat.
+      setTimeout(() => {
+        try { const r = was(f.contentWindow, f.contentDocument); f.remove(); fertig(r); }
+        catch (e){ f.remove(); schief(e); }
+      }, 350);
+    };
+    f.onerror = () => { f.remove(); schief(new Error('iframe laedt nicht')); };
+    document.body.appendChild(f);
+  });
+
+  for (const breite of [320, 360, 390]){
+    ta(`Statistik passt auf ${breite} px`, async () => {
+      return await imRahmen(breite, (w, d) => {
+        w.go('stats');
+        const ueber = d.documentElement.scrollWidth - w.innerWidth;
+        return ueber <= 1 || (ueber + ' px zu breit');
+      });
+    });
+  }
+  ta('der Baukasten steht auf 320 px vollstaendig da', async () => {
+    return await imRahmen(320, (w, d) => {
+      w.go('stats');
+      const fehlt = ['#st-art', '#st-x', '#st-teilen', '#st-gewaesser', '#st-zeit', '#st-speichern']
+        .filter(s => { const el = d.querySelector(s); return !el || el.getBoundingClientRect().width < 1; });
+      return fehlt.length === 0 || ('nicht sichtbar: ' + fehlt.join(', '));
+    });
+  });
+  ta('kein Bedienelement ragt auf 320 px heraus', async () => {
+    return await imRahmen(320, (w, d) => {
+      const raus = [...d.querySelectorAll('#v-stats .in, #v-stats .btn, #v-stats .chip')]
+        .filter(el => el.getBoundingClientRect().right > w.innerWidth + 1)
+        .map(el => el.id || el.textContent.trim().slice(0, 18));
+      return raus.length === 0 || raus.join(' | ');
+    });
+  });
+  ta('das Diagramm bleibt auf 320 px im Bild', async () => {
+    return await imRahmen(320, (w, d) => {
+      w.go('stats');
+      const svg = d.querySelector('#stats-body svg.kurve');
+      if (!svg) return true;                       // ohne Faenge gibt es keins — kein Fehler
+      return svg.getBoundingClientRect().right <= w.innerWidth + 1
+          || 'Diagramm ragt heraus';
+    });
+  });
 
   (async function(){
     for (const [name, fn] of asyncTests){

@@ -85,6 +85,52 @@ create policy "eigene faenge loeschen" on public.angel_faenge
   for delete using (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------
+--  3b. Kleine Werte am Konto (Angelzeit, eigene Auswertungen)
+--
+--  Nicht alles in dieser App ist ein Fang. Die aufsummierte Angelzeit und die
+--  selbst gebauten Auswertungen hängen an keiner ID, es gibt sie je Konto genau
+--  einmal, und ein "Grabstein" ergibt für sie keinen Sinn. Sie passen deshalb
+--  nicht in angel_faenge, sondern in diese sehr kleine zweite Tabelle: eine
+--  Zeile je Konto und Schlüssel.
+--
+--  ⚠️ Warum es sie überhaupt gibt: die Angelzeit lag bis zum 07.08.2026 nur im
+--  localStorage des Geräts. Gerettet hat sie einzig das Backup — und das ist am
+--  04.08. ausgebaut worden. Damit war die aufsummierte Zeit das Einzige in der
+--  ganzen App, das ein Gerätewechsel oder gelöschte Browserdaten wirklich
+--  gekostet hätten; alle Fänge kommen über den Sync zurück.
+--
+--  updated ist wie bei den Fängen die Uhr des Geräts und entscheidet Konflikte:
+--  die jüngere Bearbeitung gewinnt. Bewusst NICHT "der größere Wert gewinnt" —
+--  das wäre bei einer Zeit naheliegend und würde "Gesamtzeit direkt setzen"
+--  unmöglich machen, weil eine Korrektur nach unten nie durchkäme.
+-- ---------------------------------------------------------------------
+create table if not exists public.angel_werte (
+  user_id     uuid   not null default auth.uid()
+                     references auth.users(id) on delete cascade,
+  schluessel  text   not null,
+  updated     bigint not null,
+  serverzeit  timestamptz not null default now(),
+  wert        jsonb,
+  primary key (user_id, schluessel)
+);
+
+alter table public.angel_werte enable row level security;
+
+drop policy if exists "eigene werte lesen"    on public.angel_werte;
+drop policy if exists "eigene werte anlegen"  on public.angel_werte;
+drop policy if exists "eigene werte aendern"  on public.angel_werte;
+drop policy if exists "eigene werte loeschen" on public.angel_werte;
+
+create policy "eigene werte lesen"    on public.angel_werte
+  for select using (auth.uid() = user_id);
+create policy "eigene werte anlegen"  on public.angel_werte
+  for insert with check (auth.uid() = user_id);
+create policy "eigene werte aendern"  on public.angel_werte
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "eigene werte loeschen" on public.angel_werte
+  for delete using (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------
 --  4. Konto löschen
 --
 --  Muss es geben, sobald fremde Daten im Spiel sind: Art. 17 DSGVO gibt

@@ -92,7 +92,39 @@
   .bl .sw{width:11px; height:11px; border-radius:99px; display:inline-block;
     vertical-align:-1px; margin-right:6px; border:1px solid rgba(128,128,128,.45)}
   .hint{font-size:12px; color:var(--muted); line-height:1.5; margin-top:10px}
-  .kurve{width:100%; height:auto; display:block; margin-top:2px; overflow:visible}
+  .kurve{width:100%; height:auto; display:block; margin-top:2px; overflow:visible; touch-action:pan-y}
+
+  /* Mehrere Kurven übereinander (Aufteilen nach Köder/Farbe).
+     ⚠️ Die Legende ist Pflicht, sobald mehr als eine Kurve da ist: in den vier
+     hellen Paletten liegen drei der sechs Reihenfarben unter 3:1 gegen die
+     Kartenfläche. Der Name neben dem Farbpunkt trägt die Zuordnung, nicht die
+     Farbe allein. */
+  .leg{display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:10px}
+  .leg span{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted)}
+  .leg i{width:10px; height:10px; border-radius:99px; flex:none;
+    box-shadow:0 0 0 2px var(--card)}
+  .achse{font-size:11.5px; color:var(--muted); text-align:center; margin-top:4px}
+  /* Überschrift einer Balkengruppe (Kategorie + Aufteilen) */
+  .grp{display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+    font-size:14px; font-weight:700; margin-bottom:2px}
+  .grp b{color:var(--muted); font-variant-numeric:tabular-nums; flex:none}
+  /* Ablesehilfe: Fadenkreuz + Werte am angetippten Punkt. */
+  .lupe{font-size:12.5px; color:var(--muted); margin-top:8px; min-height:18px; line-height:1.5}
+  .lupe b{color:var(--txt); font-variant-numeric:tabular-nums}
+  .lupe i{width:9px; height:9px; border-radius:99px; display:inline-block;
+    vertical-align:0; margin:0 5px 0 10px}
+  .lupe i:first-child{margin-left:0}
+  /* Gespeicherte Auswertungen */
+  .ausw{display:flex; align-items:center; gap:8px; padding:9px 11px; border-radius:12px;
+    background:var(--card2); border:1px solid var(--line); margin-bottom:7px}
+  .ausw:last-child{margin-bottom:0}
+  .ausw.on{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent)}
+  .ausw .t{flex:1; min-width:0}
+  .ausw .t b{display:block; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .ausw .t span{display:block; font-size:11.5px; color:var(--muted); margin-top:1px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .ausw button{flex:none; background:none; border:0; color:var(--muted); font-size:15px;
+    padding:5px 7px; border-radius:9px}
 
   /* Fotos */
   .photos{display:flex; flex-wrap:wrap; gap:8px}
@@ -483,21 +515,42 @@
 <section id="v-stats" class="hidden">
   <div class="head"><h1>Statistik</h1><span class="pill" id="stats-pill">—</span></div>
   <div class="wrap">
-    <!-- Eine Filterzeile für alles darunter, nicht je Auswertung eine eigene. -->
+    <!-- Gespeicherte Auswertungen. Eine Auswertung ist genau das, was unten
+         eingestellt ist — antippen lädt sie zurück, ✎ benennt um, ✕ löscht. -->
+    <div id="stats-gespeichert"></div>
+
+    <!-- Der Baukasten. Eine Auswertung beantwortet immer dieselbe Form von
+         Frage: „wie viele <Fische> über <Größe>". Deshalb steht oben, was
+         gezählt wird, darunter, worüber. -->
     <div class="card">
+      <div class="g2 fld">
+        <div>
+          <label class="f" for="st-art">Zählen</label>
+          <select class="in" id="st-art"></select>
+        </div>
+        <div>
+          <label class="f" for="st-x">Über</label>
+          <select class="in" id="st-x"></select>
+        </div>
+      </div>
+      <div class="fld">
+        <label class="f">Aufteilen nach</label>
+        <div class="chips" id="st-teilen"></div>
+        <div class="hint" id="st-teilen-hint" style="margin-top:7px" hidden></div>
+      </div>
       <div class="g2 fld">
         <div>
           <label class="f" for="st-gewaesser">Gewässer</label>
           <select class="in" id="st-gewaesser"></select>
         </div>
         <div>
-          <label class="f" for="st-art">Fischart</label>
-          <select class="in" id="st-art"></select>
+          <label class="f">Zeitraum</label>
+          <div class="chips" id="st-zeit"></div>
         </div>
       </div>
-      <div class="fld">
-        <label class="f">Zeitraum</label>
-        <div class="chips" id="st-zeit"></div>
+      <div class="row">
+        <button class="btn" id="st-sichern" style="flex:1" hidden>✓ Änderungen sichern</button>
+        <button class="btn" id="st-speichern" style="flex:1">✚ Auswertung speichern</button>
       </div>
     </div>
     <div id="stats-body"></div>
@@ -678,6 +731,13 @@ const dirLabel = deg => DIRS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16
 const $  = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 
+/* Eigene Texte (Ködername, Gewässer, Name einer Auswertung) landen in der
+   Statistik auch in SVG-Attributen. Ein Anführungszeichen im Ködernamen würde
+   dort die Auszeichnung zerreißen — deshalb hier durch. */
+const esc = s => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
 /* ---------------------------- Datenbank ----------------------------
    Zwei Speicher: `catches` sind die Fänge, `graeber` merkt sich gelöschte IDs.
 
@@ -777,11 +837,33 @@ let zeitTicker = null;
 function zeitLesen(){
   try {
     const j = JSON.parse(localStorage.getItem(ZEIT_KEY) || '{}');
-    return { gesamt: Number(j.gesamt) || 0, start: Number(j.start) || null };
-  } catch { return { gesamt: 0, start: null }; }
+    return { gesamt: Number(j.gesamt) || 0, start: Number(j.start) || null,
+             updated: Number(j.updated) || 0 };
+  } catch { return { gesamt: 0, start: null, updated: 0 }; }
 }
-function zeitSchreiben(z){
-  try { localStorage.setItem(ZEIT_KEY, JSON.stringify(z)); } catch {}
+
+/* ⚠️ `updated` entscheidet beim Abgleich, welche Fassung gewinnt — genau wie
+   bei einem Fang. Es wird nur hochgezählt, wenn sich die **Gesamtzeit** wirklich
+   ändert. Start und Stopp allein zählen nicht: der laufende Ansitz (`start`)
+   bleibt im Gerät und geht nie in die Cloud. Ein zweites Gerät hätte mit einem
+   fremden Startzeitpunkt nichts anfangen können, und beim Stoppen landet die
+   Dauer ohnehin in `gesamt`.
+
+   Der zweite Parameter ist der Weg von außen nach innen: kommt ein Wert vom
+   Server, wird dessen `updated` übernommen statt ein neues erzeugt — sonst
+   sähe der übernommene Wert jünger aus als er ist und würde beim nächsten
+   Abgleich zurückgeschickt. */
+function zeitSchreiben(z, updated){
+  const alt = zeitLesen();
+  const gesamt = Number(z.gesamt) || 0;
+  const geaendert = gesamt !== alt.gesamt;
+  try {
+    localStorage.setItem(ZEIT_KEY, JSON.stringify({
+      gesamt, start: z.start == null ? null : Number(z.start),
+      updated: updated != null ? updated : (geaendert ? Date.now() : alt.updated)
+    }));
+  } catch {}
+  if (updated == null && geaendert) werteAnstossen();
 }
 // "3 h 25 min" — Sekunden interessieren bei einem Ansitz niemanden.
 function dauerText(ms){
@@ -897,8 +979,12 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) rend
 
 /* ---------------------------- Farbpalette ---------------------------- */
 const PAL_KEY = 'angellog-palette';
+// Welche Palette gerade an ist — die Statistik braucht es, weil die Reihenfarben
+// für helle und dunkle Karten verschiedene Stufen haben.
+let palAktiv = 'tiefes-wasser';
 function setPalette(key, speichern){
   const p = (PALETTEN[key] || PALETTEN['tiefes-wasser'])[1];
+  palAktiv = PALETTEN[key] ? key : 'tiefes-wasser';
   const s = document.documentElement.style;
   s.setProperty('--bg', p.bg);         s.setProperty('--card', p.card);
   s.setProperty('--card2', p.card2);   s.setProperty('--line', p.line);
@@ -918,7 +1004,12 @@ function renderPalettes(){
 }
 $('#pal').addEventListener('click', e => {
   const b = e.target.closest('[data-pal]');
-  if (b) setPalette(b.dataset.pal);
+  if (!b) return;
+  setPalette(b.dataset.pal);
+  // Die Reihenfarben der Statistik stecken als feste Werte im gezeichneten SVG,
+  // nicht in CSS-Variablen — beim Palettenwechsel muss sie also neu gezeichnet
+  // werden, sonst stünden dunkle Farben auf einer hellen Karte.
+  if (state.view === 'stats') renderStats();
 });
 
 /* ---------------------------- Zustand ---------------------------- */
@@ -930,7 +1021,13 @@ const state = {
   form: { photos: [], lat: null, lon: null, farben: [], phase: '', wetter: '', truebung: '',
           regen24: null, regen48: null, pegel: null, wasserAuto: null },
   detailId: null,
-  stats: { gewaesser: '', art: '', zeit: 'alles', zeige: 'art' },
+  /* Eine Auswertung ist genau diese fünf Angaben: was gezählt wird (`art`),
+     worüber (`x`), ob nach Köder oder Farbe aufgeteilt wird (`teilen`), und die
+     beiden Einschränkungen Gewässer und Zeitraum. `aktiv` ist die ID der
+     gespeicherten Auswertung, die gerade geladen ist — null heißt „frei
+     eingestellt, noch nicht gespeichert". */
+  stats: { gewaesser: '', art: '', zeit: 'alles', x: 'wasser', teilen: '', aktiv: null },
+  auswertungen: [],  // gespeicherte Auswertungen, hängen am Konto
   urls: []          // ObjectURLs, die beim Ansichtswechsel wieder freigegeben werden
 };
 
@@ -1395,21 +1492,45 @@ function buildStatics(){
   $('#ch-farbe').innerHTML = FARBEN.map(([n, hex]) =>
     `<button class="chip" data-farbe="${n}"><i class="sw" style="background:${hex}"></i>${n}</button>`).join('');
 
-  // Statistik: Zeitraum-Knöpfe stehen fest, die Auswertungs-Knöpfe entstehen beim
-  // Zeichnen (sie hängen an der Auswahl). Deshalb hier nur die Zeiträume.
+  /* Statistik: alles, was feststeht. Die beiden Auswahllisten (Zählen,
+     Gewässer) hängen am Bestand und werden erst beim Zeichnen gefüllt. */
   $('#st-zeit').innerHTML = ZEITRAEUME.map(([k, l]) =>
     `<button class="chip${k === state.stats.zeit ? ' on' : ''}" data-zeit="${k}">${l}</button>`).join('');
   $('#st-zeit').onclick = e => {
     const b = e.target.closest('[data-zeit]'); if (!b) return;
     state.stats.zeit = b.dataset.zeit; renderStats();
   };
+  // Messwerte und Kategorien getrennt, weil nur die einen eine Kurve ergeben.
+  const achsGruppe = (titel, liste) => `<optgroup label="${titel}">` + liste.map(a =>
+    `<option value="${a.key}">${a.kurz}${a.einheit ? ' (' + a.einheit + ')' : ''}</option>`).join('') + '</optgroup>';
+  $('#st-x').innerHTML = achsGruppe('Messwerte — als Kurve', ACHSEN.filter(istKurve))
+                       + achsGruppe('Kategorien — als Balken', ACHSEN.filter(a => !istKurve(a)));
+  $('#st-x').onchange = e => { state.stats.x = e.target.value; renderStats(); };
+
+  /* Aufteilen: zwei Kästchen, aber immer nur eines an. Nach Köder **und** Farbe
+     gleichzeitig aufzuteilen ergäbe je Kombination eine Kurve — bei fünf Ködern
+     und sechs Farben dreißig Stück, und hinter keiner davon genug Fänge. */
+  $('#st-teilen').innerHTML = TEILER.map(t =>
+    `<button class="chip" data-teilen="${t.key}"><span>☐ </span>${t.kurz}</button>`).join('');
+  $('#st-teilen').onclick = e => {
+    const b = e.target.closest('[data-teilen]'); if (!b) return;
+    state.stats.teilen = state.stats.teilen === b.dataset.teilen ? '' : b.dataset.teilen;
+    renderStats();
+  };
   $('#st-gewaesser').onchange = e => { state.stats.gewaesser = e.target.value; renderStats(); };
   $('#st-art').onchange       = e => { state.stats.art       = e.target.value; renderStats(); };
-  // Die Auswahl-Knöpfe werden bei jedem Zeichnen neu erzeugt — der Griff muss
-  // deshalb am Rahmen hängen, der stehen bleibt, nicht an den Knöpfen selbst.
-  $('#stats-body').onclick = e => {
-    const b = e.target.closest('[data-wahl]'); if (!b) return;
-    state.stats.zeige = b.dataset.wahl; renderStats();
+
+  $('#st-speichern').onclick = auswertungSpeichern;
+  $('#st-sichern').onclick   = auswertungSichern;
+  // Die Zeilen entstehen bei jedem Zeichnen neu — der Griff hängt deshalb am
+  // Rahmen, der stehen bleibt, nicht an den Zeilen selbst.
+  $('#stats-gespeichert').onclick = e => {
+    const weg = e.target.closest('[data-weg]');
+    if (weg) return auswertungLoeschen(weg.dataset.weg);
+    const um = e.target.closest('[data-um]');
+    if (um) return auswertungUmbenennen(um.dataset.um);
+    const laden = e.target.closest('[data-laden]');
+    if (laden) auswertungLaden(laden.dataset.laden);
   };
 }
 function selectPhase(k){
@@ -1882,11 +2003,13 @@ $('#btn-export').onclick = async () => {
     }
     out.push(copy);
   }
-  // Die Angelzeit gehört mit hinein — sie liegt nur im localStorage und wäre
-  // sonst das einzige, was in der Datei fehlt.
-  const blob = new Blob([JSON.stringify({ app: 'angel-log', version: 1,
+  // Angelzeit und die eigenen Auswertungen gehören mit hinein. Art. 20 DSGVO
+  // meint alle Daten, nicht nur die Fänge — und eine Datei, in der etwas fehlt,
+  // ist als Auskunft schlechter als keine.
+  const blob = new Blob([JSON.stringify({ app: 'angel-log', version: 2,
                           exported: new Date().toISOString(),
-                          zeit: zeitLesen(), catches: out })],
+                          zeit: zeitLesen(), auswertungen: state.auswertungen,
+                          catches: out })],
                         { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -2165,6 +2288,87 @@ async function herunterladen(){
   return geaendert;
 }
 
+/* ---------- Kleine Werte am Konto ----------
+   Angelzeit und die eigenen Auswertungen sind keine Fänge: sie hängen an keiner
+   ID, es gibt sie genau einmal, und ein „Grabstein" ergibt für sie keinen Sinn.
+   Sie liegen deshalb in einer zweiten, sehr kleinen Tabelle — eine Zeile je
+   Nutzer und Schlüssel.
+
+   ⚠️ **Warum das sein muss.** Bis hierher lag die Angelzeit ausschließlich im
+   localStorage. Gerettet hat sie einzig das Backup, und das ist am 04.08.
+   ausgebaut worden. Damit war die aufsummierte Zeit das Einzige in der ganzen
+   App, das ein Gerätewechsel oder gelöschte Browserdaten wirklich gekostet
+   hätten — alle Fänge kommen über den Sync zurück, die Zeit nicht.
+
+   ⚠️ **Es gilt „die jüngere Bearbeitung gewinnt", nicht „die größere Zahl".**
+   Naheliegend wäre, bei der Angelzeit immer den höheren Wert zu nehmen — so hat
+   es das alte Backup gemacht, und verlieren kann man damit nie. Es macht aber
+   „Gesamtzeit direkt setzen" kaputt: wer 40 h auf 10 h geradezieht, bekäme beim
+   nächsten Abgleich die 40 h zurück, und die Korrektur ließe sich nie
+   durchsetzen. Deshalb dieselbe Regel wie bei den Fängen. */
+const WERTE_TABELLE = '/rest/v1/angel_werte';
+
+const WERTE = {
+  zeit: {
+    lies: () => { const z = zeitLesen(); return { wert: { gesamt: z.gesamt }, updated: z.updated }; },
+    nimm: (w, updated) => {
+      const z = zeitLesen();
+      zeitSchreiben({ gesamt: Number(w && w.gesamt) || 0, start: z.start }, updated);
+      renderZeit();
+    }
+  },
+  auswertungen: {
+    lies: () => { const a = auswertungenLesen(); return { wert: { liste: a.liste }, updated: a.updated }; },
+    nimm: (w, updated) => {
+      auswertungenSchreiben(Array.isArray(w && w.liste) ? w.liste : [], updated);
+      if (state.view === 'stats') renderStats();
+    }
+  }
+};
+
+/* Erst runter, dann rauf — und hochgeladen wird nur, was hier nachweislich
+   jünger ist. Andersherum würde ein Gerät, das lange nicht anhatte, seinen
+   alten Stand über den neuen schreiben, bevor es ihn überhaupt gesehen hat. */
+async function werteAbgleichen(){
+  const r = await api(`${WERTE_TABELLE}?select=schluessel,updated,wert`);
+  if (!r.ok) throw new Error('Abrufen fehlgeschlagen (' + r.status + ')');
+  const drueben = new Map((await r.json()).map(z => [z.schluessel, z]));
+
+  const raus = [];
+  for (const [schluessel, w] of Object.entries(WERTE)){
+    const hier = w.lies();
+    const dort = drueben.get(schluessel);
+    const dortZeit = dort ? (Number(dort.updated) || 0) : -1;
+    if (dortZeit > hier.updated) w.nimm(dort.wert, dortZeit);
+    else if (hier.updated && hier.updated > dortZeit)
+      raus.push({ schluessel, updated: hier.updated, wert: hier.wert });
+  }
+  if (!raus.length) return 0;
+
+  /* Ersetzen statt „upsert": der Schlüssel allein ist nicht eindeutig (erst
+     zusammen mit dem Konto), und die user_id steht hier gar nicht zur
+     Verfügung — sie setzt die Datenbank selbst ein. Ein Löschen davor ist bei
+     zwei Zeilen billiger als der Umweg, die eigene Konto-ID mitzuführen.
+     Die Zugriffsregel sorgt dafür, dass ausschließlich eigene Zeilen fallen. */
+  const liste = raus.map(z => `"${z.schluessel}"`).join(',');
+  const weg = await api(`${WERTE_TABELLE}?schluessel=in.(${encodeURIComponent(liste)})`,
+    { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+  if (!weg.ok) throw new Error('Hochladen fehlgeschlagen (' + weg.status + ')');
+  const rr = await api(WERTE_TABELLE, { method: 'POST',
+    headers: { 'Prefer': 'return=minimal' }, body: JSON.stringify(raus) });
+  if (!rr.ok) throw new Error('Hochladen fehlgeschlagen (' + rr.status + ')');
+  return raus.length;
+}
+
+/* Angelzeit und Auswertungen ändern sich beim Tippen, nicht beim Speichern
+   eines Fangs — ein eigener, träger Anstoß, damit nicht jeder Tastendruck
+   eine Anfrage auslöst. */
+let werteTimer = null;
+function werteAnstossen(){
+  clearTimeout(werteTimer);
+  werteTimer = setTimeout(() => syncJetzt(true), 4000);
+}
+
 async function syncJetzt(still){
   if (!cloudAn() || !konto || syncLaeuft) return;
   if (!navigator.onLine){ if (!still) toast('Kein Netz — wird nachgeholt'); return; }
@@ -2173,6 +2377,7 @@ async function syncJetzt(still){
   try {
     const rauf  = await hochladen();
     const runter = await herunterladen();
+    await werteAbgleichen();
     if (runter) { await reload(); renderList(); }
     try { localStorage.setItem(SYNC_KEY + '-zeit', String(Date.now())); } catch {}
     if (!still) toast(rauf || runter ? `Abgeglichen · ${rauf} hoch, ${runter} runter` : 'Alles schon aktuell');
@@ -2393,7 +2598,8 @@ function datenschutzText(){
     nicht nutzen. Gespeichert werden dabei: deine E-Mail-Adresse, dein
     <b>Benutzername</b>, ein verschlüsselter Abdruck deines Passworts sowie alle
     Angaben zu deinen Fängen — einschließlich <b>Fangorten</b> und <b>Fotos</b> in
-    verkleinerter Form.
+    verkleinerter Form. Dazu deine <b>Angelzeit</b> (die aufsummierte Dauer deiner
+    Ansitze) und die <b>Auswertungen</b>, die du dir selbst zusammenstellst.
     Das liegt bei Supabase (Supabase Inc.) auf Servern in der EU.
     Der Betreiber dieser App hat als Inhaber des Projekts technisch Zugriff darauf.
     Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Bereitstellung der App); für
@@ -2450,16 +2656,104 @@ $('#btn-datenschutz').onclick = () => {
    Deshalb sind alle Überschriften als Verteilung formuliert und nirgends steht
    "bester". Das ist keine Kleinigkeit: die umgekehrte Lesart wäre schlicht falsch.
 
-   ⚠️ Diese Fassung ist bewusst schmaler als der Entwurf vom 02.08. (Branch
-   `statistik-entwurf`, Tag `statistik-v1`). Dort standen 17 Auswertungen zur Wahl —
-   Luftdruck, Ködergröße, Mondphase, Trübung und so weiter. Bei einer Handvoll Fängen
-   ist das eine Wand aus Knöpfen, hinter der jedes Mal ein fast leeres Diagramm steht.
-   Hier sind es sechs, und zwar die, auf die es beim Angeln hinausläuft: was, womit,
-   wann am Tag, wann im Jahr, wo, bei welcher Wassertemperatur. Die übrigen elf sind
-   nicht gelöscht — sie stehen im Branch und sind je eine Zeile in AUSWERTUNGEN. */
+   ⚠️ **Seit dem 07.08. ist das ein Baukasten, keine Liste mehr.** Vorher standen
+   siebzehn fertige Auswertungen zur Wahl (Branch `statistik-entwurf`), danach
+   sechs. Beides war dasselbe Missverständnis in zwei Größen: eine fertige Liste
+   beantwortet nie die Frage, die einer gerade hat. Eine Auswertung hat immer
+   dieselbe Form — „wie viele **<Fische>** über **<Größe>**" — und besteht deshalb
+   aus fünf Angaben:
+
+     art     was gezählt wird (alle Fische, oder nur Hechte)
+     x       worüber gezählt wird (Wassertiefe, Uhrzeit, Lufttemperatur …)
+     teilen  ob je Köder bzw. Köderfarbe eine eigene Kurve entsteht
+     gewaesser + zeit   die beiden Einschränkungen
+
+   Diese fünf Angaben lassen sich benennen, speichern, wieder laden, ändern und
+   löschen. Gespeichert liegen sie am Konto (siehe WERTE weiter oben), nicht nur
+   im Gerät — genau der Fehler, der die Angelzeit fast gekostet hätte.
+
+   ⚠️ **Die Y-Achse ist immer eine Anzahl von Fängen.** Nie eine zweite Größe.
+   Zwei Skalen in einem Bild sind die zuverlässigste Art, aus zwei ehrlichen
+   Reihen eine Falschaussage zu bauen — je nachdem, wie man die Achsen streckt,
+   „belegt" dasselbe Bild jeden beliebigen Zusammenhang. */
 
 const ZEITRAEUME = [['alles','Alles'],['jahr','Dieses Jahr'],['12m','12 Monate'],['30t','30 Tage']];
 const MONATE_KURZ = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+
+/* ---- Farben für übereinanderliegende Kurven ----
+   Sechs Reihenfarben, je eine Stufe für die hellen und die dunklen Paletten.
+   Geprüft wurde rechnerisch, nicht nach Augenmaß: Helligkeitsband, Buntheit,
+   Abstand benachbarter Farben unter simulierter Rot- und Grünblindheit
+   (OKLab-ΔE ≥ 8) und Kontrast gegen die Kartenfläche — gegen die dunkelste
+   (#111d23) und die hellste (#1f1810) dunkle Karte und gegen beide hellen
+   (#ffffff, #fbf8f1).
+
+   ⚠️ **Die Reihenfolge ist die Absicherung, nicht Geschmack.** Nebeneinander
+   liegende Plätze sind die, die am ehesten verwechselt werden; die Reihenfolge
+   ist so gewählt, dass genau diese Paare den Abstand halten. Wer sie umsortiert,
+   muss neu prüfen.
+
+   ⚠️ **In den hellen Paletten liegen Grün, Gelb und Rosa unter 3:1** gegen die
+   Karte. Zulässig ist das nur mit sichtbarer Beschriftung — deshalb ist die
+   Legende bei mehr als einer Kurve Pflicht und nicht abschaltbar.
+
+   ⚠️ **Mehr als sechs Kurven gibt es nicht.** Eine siebte Farbe wäre geraten und
+   von einer der sechs nicht mehr sicher zu unterscheiden. Was nicht in die
+   ersten fünf passt, wird zu „Übrige" zusammengefasst. */
+const REIHEN_DUNKEL = ['#3987e5','#d95926','#199e70','#c98500','#d55181','#9085e9'];
+const REIHEN_HELL   = ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#4a3aa7'];
+const HELLE_PALETTEN = new Set(['papier','tageslicht','sand','nebel']);
+const reihenFarben = () => HELLE_PALETTEN.has(palAktiv) ? REIHEN_HELL : REIHEN_DUNKEL;
+const UEBRIGE = 'Übrige';
+const MAX_REIHEN = 6;
+
+const alsListe = w => Array.isArray(w) ? w.filter(x => x != null && x !== '')
+                    : (w == null || w === '') ? [] : [w];
+
+/* ---- Was auf die X-Achse kann ----
+   `stufe` gesetzt  → Messwert, wird in Stufen zusammengefasst und zur Kurve.
+   `reihe` gesetzt  → feste Skala (24 Stunden, 12 Monate), ebenfalls Kurve.
+   `kat` gesetzt    → Kategorie ohne natürliche Reihenfolge, bleibt Balken.
+
+   ⚠️ Warum Kategorien **keine** Kurve bekommen, obwohl Karl „richtige Kurven"
+   wollte: eine Linie zwischen „Hecht" und „Barsch" behauptet, dass zwischen
+   beiden etwas liegt und dass die Reihenfolge etwas bedeutet. Beides ist falsch.
+   Bei 12 °C ist es richtig — die liegen zwischen 10 und 14. Die Trennung steht
+   deshalb auch sichtbar im Auswahlfeld. */
+const ACHSEN = [
+  { key:'wasser', kurz:'Wassertemperatur', einheit:'°C',       stufe:2, hol: c => c.wasser },
+  { key:'luft',   kurz:'Lufttemperatur',   einheit:'°C',       stufe:2, hol: c => c.luft },
+  { key:'tiefe',  kurz:'Wassertiefe',      einheit:'m',        stufe:1, hol: c => c.tiefe },
+  { key:'druck',  kurz:'Luftdruck',        einheit:'hPa',      stufe:5, hol: c => c.druck },
+  { key:'regen',  kurz:'Regen davor',      einheit:'mm/24 h',  stufe:2, hol: c => c.regen24 },
+  { key:'laenge', kurz:'Fischlänge',       einheit:'cm',       stufe:5, hol: c => c.laenge },
+  { key:'koedergroesse', kurz:'Ködergröße', einheit:'cm',      stufe:2, hol: c => c.koederGroesse },
+  { key:'stunde', kurz:'Uhrzeit', einheit:'Uhr',
+    reihe: () => Array.from({ length: 24 }, (_, i) => String(i)),
+    schluessel: c => { const d = new Date(c.when); return isNaN(d) ? null : String(d.getHours()); } },
+  { key:'monat',  kurz:'Monat',
+    reihe: () => MONATE_KURZ.slice(),
+    schluessel: c => { const d = new Date(c.when); return isNaN(d) ? null : MONATE_KURZ[d.getMonth()]; } },
+  { key:'art',       kurz:'Fischart',      kat: c => c.art },
+  { key:'koeder',    kurz:'Köder',         kat: c => c.koeder },
+  { key:'farbe',     kurz:'Köderfarbe',    kat: c => farbenVon(c) },
+  { key:'tageszeit', kurz:'Tageszeit',     kat: c => phaseLabel(c.phase) },
+  { key:'wetter',    kurz:'Wetter',        kat: c => c.wetter && (wetterIcon(c.wetter) + ' ' + wetterLabel(c.wetter)) },
+  { key:'mond',      kurz:'Mondphase',     kat: c => { const m = mondFor(c.when); return m && (m.icon + ' ' + m.name); } },
+  { key:'trueb',     kurz:'Wassertrübung', kat: c => (TRUEBUNG.find(([k]) => k === c.truebung) || [,null])[1] },
+  { key:'gewaesser', kurz:'Gewässer',      kat: c => c.gewaesser }
+];
+const achseVon = k => ACHSEN.find(a => a.key === k) || ACHSEN[0];
+const istKurve = a => !!(a.stufe || a.reihe);
+
+/* ---- Wonach sich Kurven aufteilen lassen ----
+   Karls Beispiel war „Firetiger gegen Motoröl". Beides sind in dieser App
+   **Köderfarben**, nicht Ködernamen — deshalb stehen beide Wege zur Wahl. */
+const TEILER = [
+  { key:'koeder', kurz:'Köder',      hol: c => alsListe(c.koeder) },
+  { key:'farbe',  kurz:'Köderfarbe', hol: c => alsListe(farbenVon(c)) }
+];
+const teilerVon = k => TEILER.find(t => t.key === k) || null;
 
 function statsRows(){
   const f = state.stats;
@@ -2478,158 +2772,400 @@ function statsRows(){
   });
 }
 
-function zaehle(rows, fn){
-  const m = new Map();
-  rows.forEach(r => {
-    const w = fn(r);
-    (Array.isArray(w) ? w : [w]).forEach(k => {
-      if (k == null || k === '') return;
-      m.set(k, (m.get(k) || 0) + 1);
+/* ---------------- Gespeicherte Auswertungen ----------------
+   Liegen im localStorage und gehen über WERTE mit ans Konto. `updated`
+   entscheidet beim Abgleich, welche Fassung gewinnt. */
+const AUSW_KEY = 'angellog-auswertungen';
+
+function auswertungenLesen(){
+  try {
+    const j = JSON.parse(localStorage.getItem(AUSW_KEY) || '{}');
+    return { liste: Array.isArray(j.liste) ? j.liste : [], updated: Number(j.updated) || 0 };
+  } catch { return { liste: [], updated: 0 }; }
+}
+function auswertungenSchreiben(liste, updated){
+  state.auswertungen = liste;
+  try {
+    localStorage.setItem(AUSW_KEY, JSON.stringify({
+      liste, updated: updated != null ? updated : Date.now() }));
+  } catch {}
+  if (updated == null) werteAnstossen();
+}
+
+// Die Einstellungen, aus denen eine Auswertung besteht — und nur die. `aktiv`
+// gehört nicht dazu, das ist die Merkstelle, welche gerade geladen ist.
+const auswNehmen = s => ({ art: s.art, x: s.x, teilen: s.teilen,
+                           gewaesser: s.gewaesser, zeit: s.zeit });
+const auswGleich = (a, b) => !!a && !!b && ['art','x','teilen','gewaesser','zeit']
+  .every(k => (a[k] || '') === (b[k] || ''));
+
+function auswBeschreibung(a){
+  const teile = [(a.art || 'Alle Fische') + ' über ' + achseVon(a.x).kurz];
+  if (teilerVon(a.teilen)) teile.push('nach ' + teilerVon(a.teilen).kurz);
+  if (a.gewaesser) teile.push(a.gewaesser);
+  const z = ZEITRAEUME.find(([k]) => k === a.zeit);
+  if (z && a.zeit !== 'alles') teile.push(z[1]);
+  return teile.join(' · ');
+}
+
+function renderGespeicherte(){
+  const ziel = $('#stats-gespeichert');
+  if (!state.auswertungen.length){ ziel.innerHTML = ''; return; }
+  ziel.innerHTML = `<div class="card"><label class="f">Meine Auswertungen</label>`
+    + state.auswertungen.map(a => `
+      <div class="ausw${a.id === state.stats.aktiv ? ' on' : ''}" data-laden="${a.id}">
+        <div class="t"><b>${esc(a.name)}</b><span>${esc(auswBeschreibung(a))}</span></div>
+        <button data-um="${a.id}" title="Umbenennen" aria-label="Umbenennen">✎</button>
+        <button data-weg="${a.id}" title="Löschen" aria-label="Löschen">✕</button>
+      </div>`).join('')
+    + `</div>`;
+}
+
+function auswertungSpeichern(){
+  const name = (prompt('Name für diese Auswertung:',
+    (state.stats.art || 'Alle Fische') + ' / ' + achseVon(state.stats.x).kurz) || '').trim();
+  if (!name) return;
+  const neu = { id: uid(), name, ...auswNehmen(state.stats) };
+  auswertungenSchreiben([...state.auswertungen, neu]);
+  state.stats.aktiv = neu.id;
+  renderStats();
+  toast('Auswertung gespeichert');
+}
+
+function auswertungSichern(){
+  const id = state.stats.aktiv;
+  if (!id) return;
+  auswertungenSchreiben(state.auswertungen.map(a =>
+    a.id === id ? { ...a, ...auswNehmen(state.stats) } : a));
+  renderStats();
+  toast('Änderungen gesichert');
+}
+
+function auswertungLaden(id){
+  const a = state.auswertungen.find(x => x.id === id);
+  if (!a) return;
+  Object.assign(state.stats, auswNehmen(a), { aktiv: a.id });
+  renderStats();
+}
+
+function auswertungUmbenennen(id){
+  const a = state.auswertungen.find(x => x.id === id);
+  if (!a) return;
+  const name = (prompt('Neuer Name:', a.name) || '').trim();
+  if (!name) return;
+  auswertungenSchreiben(state.auswertungen.map(x => x.id === id ? { ...x, name } : x));
+  renderStats();
+}
+
+function auswertungLoeschen(id){
+  const a = state.auswertungen.find(x => x.id === id);
+  if (!a || !confirm(`Auswertung „${a.name}" löschen?`)) return;
+  auswertungenSchreiben(state.auswertungen.filter(x => x.id !== id));
+  if (state.stats.aktiv === id) state.stats.aktiv = null;
+  renderStats();
+}
+
+/* ---------------- Zahlen ----------------
+   Baut aus den Fängen die Stufen der X-Achse und je Reihe eine Zahlenkette.
+   Rückgabe: { stufen, reihen, kurve, xTitel, mehrfach } oder null. */
+function stufeVon(c, achse){
+  if (achse.stufe){
+    const v = achse.hol(c);
+    return (v == null || !isFinite(v)) ? [] : [Math.floor(v / achse.stufe)];
+  }
+  return alsListe(achse.reihe ? achse.schluessel(c) : achse.kat(c));
+}
+
+function reihenBauen(rows, achse, teilerKey){
+  const teiler = teilerVon(teilerKey);
+
+  // 1. Die Stufen der X-Achse.
+  let stufen;
+  if (achse.stufe){
+    const werte = rows.map(achse.hol).filter(v => v != null && isFinite(v));
+    if (!werte.length) return null;
+    let u0 = Math.floor(Math.min(...werte) / achse.stufe);
+    let u1 = Math.floor(Math.max(...werte) / achse.stufe);
+    if (u1 - u0 > 40) return null;        // ein Ausreißer würde hundert leere Stufen erzeugen
+    /* ⚠️ Mindestens fünf Stufen, auch wenn alle Fänge in derselben liegen.
+       Das erfindet keine Daten: die angehängten Stufen haben tatsächlich null
+       Fänge, und leere Stufen gehören ohnehin ausdrücklich mit hinein. Es sorgt
+       nur dafür, dass eine Kurve auch bei drei Fängen als Kurve zu erkennen ist
+       statt als einzelner Punkt — genau das war Karls Beschwerde am 07.08. */
+    while (u1 - u0 < 4){ u0--; u1++; }
+    const z = v => String(Math.round(v * 100) / 100).replace('.', ',');
+    stufen = [];
+    for (let k = u0; k <= u1; k++) stufen.push({ k, x: z(k * achse.stufe) });
+  } else if (achse.reihe){
+    stufen = achse.reihe().map(x => ({ k: x, x }));
+  } else {
+    const haeufig = new Map();
+    rows.forEach(c => alsListe(achse.kat(c)).forEach(k => haeufig.set(k, (haeufig.get(k) || 0) + 1)));
+    stufen = [...haeufig.entries()].sort((a, b) => b[1] - a[1]).map(([x]) => ({ k: x, x }));
+  }
+  if (!stufen.length) return null;
+
+  // 2. Die Reihen. Ohne Aufteilen genau eine; mit Aufteilen die häufigsten,
+  //    der Rest zusammengefasst — nie mehr Farben als geprüfte da sind.
+  let namen = [null];
+  if (teiler){
+    const gesamt = new Map();
+    rows.forEach(c => teiler.hol(c).forEach(n => gesamt.set(n, (gesamt.get(n) || 0) + 1)));
+    const sortiert = [...gesamt.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n);
+    if (!sortiert.length) return null;
+    namen = sortiert.length <= MAX_REIHEN ? sortiert
+          : [...sortiert.slice(0, MAX_REIHEN - 1), UEBRIGE];
+  }
+
+  const farben = reihenFarben();
+  const reihen = namen.map((n, i) => ({
+    name: n == null ? 'Fänge' : n,
+    farbe: teiler ? farben[i] : 'var(--accent)',
+    werte: new Array(stufen.length).fill(0)
+  }));
+
+  const platz = new Map(stufen.map((s, i) => [String(s.k), i]));
+  const bekannt = new Set(namen);
+  rows.forEach(c => {
+    const ks = stufeVon(c, achse);
+    if (!ks.length) return;
+    const zu = teiler
+      ? [...new Set(teiler.hol(c).map(n => bekannt.has(n) ? n : UEBRIGE))]
+      : [null];
+    zu.forEach(n => {
+      const ri = namen.indexOf(n);
+      if (ri < 0) return;
+      // Ein Fang mit mehreren Farben zählt in jeder Stufe genau einmal.
+      [...new Set(ks.map(String))].forEach(k => {
+        const xi = platz.get(k);
+        if (xi != null) reihen[ri].werte[xi]++;
+      });
     });
   });
-  return m;
+
+  if (!reihen.some(r => r.werte.some(v => v > 0))) return null;
+
+  return {
+    stufen, reihen, kurve: istKurve(achse),
+    xTitel: achse.kurz + (achse.einheit ? ' (' + achse.einheit + ')' : ''),
+    // Zählt ein Fang in mehreren Kategorien mit, ergibt die Summe mehr als die
+    // Zahl der Fänge. Das muss dranstehen, sonst wirkt die Auswertung falsch.
+    mehrfach: achse.key === 'farbe' || teilerKey === 'farbe'
+  };
 }
 
-// Kategorien ohne natürliche Reihenfolge (Fischart, Köder, Gewässer) nach Häufigkeit.
-function ausMap(m){
-  return [...m.entries()].map(([label, wert]) => ({ label, wert }))
-                         .sort((a, b) => b.wert - a.wert);
+/* ---------------- Zeichnen ----------------
+   Ein Schritt für die Y-Achse, der sich glatt lesen lässt. Fänge sind ganze
+   Zahlen, deshalb nie feiner als 1. */
+function tickSchritt(max){
+  const roh = Math.max(1, max) / 4;
+  const p = Math.pow(10, Math.floor(Math.log10(roh)));
+  const s = [1, 2, 2.5, 5, 10].map(m => m * p).find(m => m >= roh) || p * 10;
+  return Math.max(1, Math.ceil(s));
 }
 
-/* Ein Balkenblock. Alle Balken derselben Farbe: die Länge trägt die Aussage,
-   und die Zahl steht immer daneben — niemand muss Längen schätzen. */
-function balkenBlock(titel, eintraege, hinweis){
-  if (!eintraege.length) return '';
-  const max = Math.max(...eintraege.map(e => e.wert));
-  const zeilen = eintraege.map(e => `
-    <div class="bar">
-      <div class="bl"><span>${e.label}</span><b>${e.wert}</b></div>
-      <div class="bt"><i style="width:${Math.max(4, Math.round(e.wert / max * 100))}%"></i></div>
-    </div>`).join('');
-  return `<div class="card"><h2>${titel}</h2>${zeilen}
-    ${hinweis ? `<div class="hint">${hinweis}</div>` : ''}</div>`;
-}
+// Der zuletzt gezeichnete Stand — die Ablesehilfe braucht ihn nach dem Zeichnen.
+let letztesBild = null;
 
-/* Kurven für Messwerte (Wassertemperatur, Monat, Uhrzeit). Bei etwas Messbarem hat
-   die Reihenfolge eine Bedeutung — 12 °C liegt zwischen 10 und 14 —, und genau das
-   zeigt ein Balken nicht.
+/* ⚠️ Keine geglättete Linie. Ein Spline würde Zwischenwerte erfinden, die nie
+   gemessen wurden. Gerade Abschnitte zwischen den Punkten, und leere Stufen
+   stehen mit null drin — ließe man sie weg, verbände die Linie 8 °C direkt mit
+   14 °C und behauptete einen Verlauf, den es nicht gibt.
 
-   Zwei Dinge sind hier wichtiger als das Aussehen:
-   1. **Leere Stufen müssen mit 0 drin sein.** Ließe man sie weg, verbände die Linie
-      8 °C direkt mit 14 °C und behauptete einen Verlauf, den es nicht gibt.
-   2. **Keine geglättete Kurve.** Gerade Abschnitte zwischen den Punkten; ein Spline
-      würde Zwischenwerte erfinden, die nie gemessen wurden.
-   Die Zahl steht an jedem Punkt, damit nichts allein an der Höhe hängt. */
-function kurvenBlock(titel, punkte, hinweis){
-  if (punkte.length < 3) return balkenBlock(titel, punkte.map(p => ({ label: p.x, wert: p.wert })), hinweis);
-
-  const W = 320, H = 148, pL = 12, pR = 12, pT = 26, pB = 24;
-  const max = Math.max(...punkte.map(p => p.wert), 1);
-  const n = punkte.length;
+   ⚠️ Nicht jeder Punkt trägt seine Zahl. Bei sechs Kurven à zwanzig Stufen
+   wären das 120 Zahlen übereinander. Beschriftet wird der höchste Punkt je
+   Kurve; alles andere liest man an der Y-Achse ab oder tippt es an. */
+function diagramm(d, titel){
+  const W = 320, H = 178, pL = 26, pR = 10, pT = 16, pB = 30;
+  const n = d.stufen.length;
+  const max = Math.max(1, ...d.reihen.flatMap(r => r.werte));
+  const schritt = tickSchritt(max);
+  const oben = Math.max(schritt, Math.ceil(max / schritt) * schritt);
   const x = i => pL + (n === 1 ? (W - pL - pR) / 2 : i * (W - pL - pR) / (n - 1));
-  const y = v => H - pB - (v / max) * (H - pT - pB);
+  const y = v => H - pB - (v / oben) * (H - pT - pB);
 
-  const pts  = punkte.map((p, i) => [x(i), y(p.wert)]);
-  const linie = pts.map(([a, b], i) => (i ? 'L' : 'M') + a.toFixed(1) + ' ' + b.toFixed(1)).join(' ');
-  const flaeche = `M${pts[0][0].toFixed(1)} ${(H - pB).toFixed(1)} `
-    + pts.map(([a, b]) => `L${a.toFixed(1)} ${b.toFixed(1)}`).join(' ')
-    + ` L${pts[n-1][0].toFixed(1)} ${(H - pB).toFixed(1)} Z`;
+  const ticks = [];
+  for (let v = 0; v <= oben + 1e-9; v += schritt) ticks.push(v);
+  const gitter = ticks.map(v =>
+    `<line x1="${pL}" y1="${y(v).toFixed(1)}" x2="${W - pR}" y2="${y(v).toFixed(1)}"
+           stroke="var(--line)" stroke-width="1" opacity="${v === 0 ? '1' : '.5'}"/>`).join('');
+  const yTexte = ticks.map(v =>
+    `<text x="${pL - 5}" y="${(y(v) + 3.4).toFixed(1)}" text-anchor="end" font-size="9.5"
+           fill="var(--muted)">${v}</text>`).join('');
 
   // Bei vielen Stufen nicht jede beschriften — sonst überlappen die Achsentexte.
   const jeder = Math.ceil(n / 7);
-  const xTexte = punkte.map((p, i) => (i % jeder === 0 || i === n - 1)
-    ? `<text x="${x(i).toFixed(1)}" y="${H - 7}" text-anchor="middle" font-size="9.5"
-             fill="var(--muted)">${p.x}</text>` : '').join('');
-  const werte = punkte.map((p, i) => p.wert === 0 ? '' :
-    `<text x="${x(i).toFixed(1)}" y="${(y(p.wert) - 9).toFixed(1)}" text-anchor="middle"
-           font-size="10" font-weight="700" fill="var(--muted)">${p.wert}</text>`).join('');
-  const punkteSvg = punkte.map((p, i) => p.wert === 0 ? '' :
-    `<circle cx="${x(i).toFixed(1)}" cy="${y(p.wert).toFixed(1)}" r="3.2"
-             fill="var(--accent)" stroke="var(--card)" stroke-width="2"/>`).join('');
+  const xTexte = d.stufen.map((s, i) => (i % jeder === 0 || i === n - 1)
+    ? `<text x="${x(i).toFixed(1)}" y="${H - 11}" text-anchor="middle" font-size="9.5"
+             fill="var(--muted)">${esc(s.x)}</text>` : '').join('');
 
-  return `<div class="card"><h2>${titel}</h2>
-    <svg class="kurve" viewBox="0 0 ${W} ${H}" role="img" aria-label="${titel}">
-      <line x1="${pL}" y1="${H - pB}" x2="${W - pR}" y2="${H - pB}" stroke="var(--line)" stroke-width="1"/>
-      <path d="${flaeche}" fill="var(--accent)" opacity=".13"/>
-      <path d="${linie}" fill="none" stroke="var(--accent)" stroke-width="2"
-            stroke-linejoin="round" stroke-linecap="round"/>
-      ${punkteSvg}${werte}${xTexte}
+  const einzeln = d.reihen.length === 1;
+  const zeichnung = d.reihen.map(r => {
+    const pts = r.werte.map((v, i) => [x(i), y(v)]);
+    const linie = pts.map(([a, b], i) => (i ? 'L' : 'M') + a.toFixed(1) + ' ' + b.toFixed(1)).join(' ');
+    // Die Fläche nur bei einer einzigen Kurve — übereinander würden sich
+    // sechs halbdurchsichtige Flächen zu Matsch addieren.
+    const flaeche = einzeln
+      ? `<path d="M${pts[0][0].toFixed(1)} ${(H - pB).toFixed(1)} `
+        + pts.map(([a, b]) => `L${a.toFixed(1)} ${b.toFixed(1)}`).join(' ')
+        + ` L${pts[n - 1][0].toFixed(1)} ${(H - pB).toFixed(1)} Z" fill="${r.farbe}" opacity=".13"/>`
+      : '';
+    // Ring in Kartenfarbe, damit sich kreuzende Punkte nicht verschmelzen.
+    const punkte = r.werte.map((v, i) => v === 0 ? '' :
+      `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3.2" fill="${r.farbe}"
+               stroke="var(--card)" stroke-width="2"/>`).join('');
+    /* Die Zahl an der Spitze. Am linken und rechten Rand hängt sie sonst halb
+       aus dem Bild bzw. liegt auf der Y-Achsen-Beschriftung — deshalb dort
+       nicht mittig, sondern nach innen gesetzt. Der Rand in Kartenfarbe hält
+       sie über Gitterlinien und fremden Kurven lesbar. */
+    const hoch = r.werte.indexOf(Math.max(...r.werte));
+    const anker = hoch === 0 ? 'start' : hoch === n - 1 ? 'end' : 'middle';
+    const spitze = r.werte[hoch] > 0
+      ? `<text x="${x(hoch).toFixed(1)}" y="${(y(r.werte[hoch]) - 9).toFixed(1)}"
+               text-anchor="${anker}" font-size="10" font-weight="700"
+               fill="var(--muted)" stroke="var(--card)" stroke-width="3"
+               paint-order="stroke">${r.werte[hoch]}</text>` : '';
+    return flaeche
+      + `<path d="${linie}" fill="none" stroke="${r.farbe}" stroke-width="2"
+               stroke-linejoin="round" stroke-linecap="round"/>` + punkte + spitze;
+  }).join('');
+
+  letztesBild = { ...d, W, pL, pR, n };
+
+  return `<div class="card"><h2>${esc(titel)}</h2>
+    <svg class="kurve" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(titel)}">
+      ${gitter}${yTexte}
+      <line class="fk" x1="0" y1="${pT}" x2="0" y2="${H - pB}" stroke="var(--muted)"
+            stroke-width="1" stroke-dasharray="3 3" opacity="0"/>
+      ${zeichnung}${xTexte}
     </svg>
-    ${hinweis ? `<div class="hint">${hinweis}</div>` : ''}</div>`;
+    <div class="achse">${esc(d.xTitel)}</div>
+    ${legende(d)}
+    <div class="lupe"></div>
+    ${hinweise(d)}</div>`;
 }
 
-/* Stufen über den ganzen beobachteten Bereich, Lücken ausdrücklich mit 0.
-   Genau daran scheitern solche Auswertungen sonst: fehlende Stufen wegzulassen
-   verwandelt eine Lücke in eine Verbindung. */
-function stufenReihe(rows, feld, breite){
-  const werte = rows.map(feld).filter(v => v != null && isFinite(v));
-  if (!werte.length) return [];
-  const u0 = Math.floor(Math.min(...werte) / breite);
-  const u1 = Math.floor(Math.max(...werte) / breite);
-  if (u1 - u0 > 40) return [];                 // Ausreißer würden 100 leere Stufen erzeugen
-  const z = v => String(Math.round(v * 100) / 100).replace('.', ',');
-  const reihe = [];
-  for (let k = u0; k <= u1; k++) reihe.push({ x: z(k * breite), wert: 0, k });
-  werte.forEach(v => {
-    const k = Math.floor(v / breite);
-    const e = reihe.find(r => r.k === k);
-    if (e) e.wert++;
-  });
-  return reihe;
+/* Kategorien bleiben Balken — eine Linie zwischen „Hecht" und „Barsch" würde
+   eine Reihenfolge behaupten, die es nicht gibt. Mit Aufteilen wird daraus je
+   Kategorie eine kleine Gruppe, eine Zeile je Reihe. */
+function balken(d, titel){
+  const max = Math.max(1, ...d.reihen.flatMap(r => r.werte));
+  const einzeln = d.reihen.length === 1;
+  const breite = v => Math.max(4, Math.round(v / max * 100));
+
+  const zeilen = d.stufen.map((s, i) => {
+    if (einzeln){
+      const v = d.reihen[0].werte[i];
+      return `<div class="bar">
+        <div class="bl"><span>${swatch(d, s.x)}${esc(s.x)}</span><b>${v}</b></div>
+        <div class="bt"><i style="width:${breite(v)}%;background:${d.reihen[0].farbe}"></i></div>
+      </div>`;
+    }
+    /* Die Kategorie steht über ihrer Gruppe und muss kräftiger sein als die
+       Reihen darunter — sonst liest sich die Liste als eine Ebene statt als
+       zwei. Die Zahl rechts trägt die Gruppe insgesamt. */
+    const summe = d.reihen.reduce((a, r) => a + r.werte[i], 0);
+    const teile = d.reihen.map(r => r.werte[i] === 0 ? '' : `
+      <div class="bl" style="margin:4px 0 3px"><span class="muted"><i class="sw" style="background:${r.farbe}"></i>${esc(r.name)}</span><b>${r.werte[i]}</b></div>
+      <div class="bt"><i style="width:${breite(r.werte[i])}%;background:${r.farbe}"></i></div>`).join('');
+    return teile ? `<div class="bar" style="margin-bottom:16px">
+      <div class="grp">${esc(s.x)}<b>${summe}</b></div>${teile}</div>` : '';
+  }).join('');
+
+  letztesBild = null;
+  return `<div class="card"><h2>${esc(titel)}</h2>${zeilen}
+    ${einzeln ? '' : legende(d)}${hinweise(d)}</div>`;
+}
+
+// Beim Balken „Köderfarbe" trägt jede Zeile ihren echten Farbfleck — der ist
+// hier keine Kodierung, sondern die Sache selbst.
+function swatch(d, label){
+  if (d.xKey !== 'farbe') return '';
+  const f = FARBEN.find(x => x[0] === label);
+  return f ? `<i class="sw" style="background:${f[1]}"></i>` : '';
+}
+
+function legende(d){
+  if (d.reihen.length < 2) return '';    // eine Reihe braucht keine — der Titel nennt sie
+  return `<div class="leg">${d.reihen.map(r =>
+    `<span><i style="background:${r.farbe}"></i>${esc(r.name)}</span>`).join('')}</div>`;
+}
+
+function hinweise(d){
+  const t = [];
+  if (d.mehrfach) t.push('Ein Fang mit mehreren Köderfarben zählt in jeder mit — '
+    + 'die Summe kann deshalb größer sein als die Zahl der Fänge.');
+  if (d.reihen.some(r => r.name === UEBRIGE))
+    t.push(`Alles außer den fünf häufigsten steht zusammengefasst als „${UEBRIGE}".`);
+  t.push(HINWEIS_VERTEILUNG);
+  return `<div class="hint">${t.join(' ')}</div>`;
 }
 
 const HINWEIS_VERTEILUNG =
   'Zeigt, wie sich deine Fänge verteilen — nicht, was besser fängt. '
   + 'Dafür müssten auch Ansitze ohne Fang erfasst sein.';
 
-/* Sechs Auswertungen, entlang der sechs Fragen, die ein Angler tatsächlich stellt.
-   Messbares wird zur Kurve (die Reihenfolge der Werte bedeutet etwas), Kategorien
-   bleiben Balken. Reihenfolge hier = Reihenfolge der Knöpfe. */
-const AUSWERTUNGEN = [
-  { key:'art', kurz:'Fischart', bau: r => balkenBlock('Fänge nach Fischart', ausMap(zaehle(r, c => c.art))) },
-  { key:'koeder', kurz:'Köder', bau: r =>
-      balkenBlock('Fänge nach Köder', ausMap(zaehle(r, c => c.koeder)), HINWEIS_VERTEILUNG) },
-  { key:'stunde', kurz:'Uhrzeit', bau: r =>
-      kurvenBlock('Fänge nach Uhrzeit', (() => {
-        const z = new Array(24).fill(0);
-        r.forEach(c => { const d = new Date(c.when); if (!isNaN(d)) z[d.getHours()]++; });
-        return z.map((wert, i) => ({ x: String(i), wert }));
-      })()) },
-  { key:'monat', kurz:'Monat', bau: r =>
-      kurvenBlock('Fänge nach Monat', (() => {
-        const z = new Array(12).fill(0);
-        r.forEach(c => { const d = new Date(c.when); if (!isNaN(d)) z[d.getMonth()]++; });
-        return z.map((wert, i) => ({ x: MONATE_KURZ[i], wert }));
-      })()) },
-  { key:'gewaesser', kurz:'Gewässer', bau: r =>
-      balkenBlock('Fänge nach Gewässer', ausMap(zaehle(r, c => c.gewaesser)), HINWEIS_VERTEILUNG) },
-  { key:'wasser', kurz:'Wassertemp.', bau: r =>
-      kurvenBlock('Fänge nach Wassertemperatur (°C)', stufenReihe(r, c => c.wasser, 2),
-        'Leere Stufen stehen mit null drin — sonst würde die Linie eine Lücke zu einem Verlauf machen.') }
-];
+/* Ablesehilfe: Fadenkreuz plus die Werte an der angetippten Stelle. Ohne sie
+   ließen sich die Zahlen zwischen zwei Y-Linien nur schätzen — und mit sechs
+   Kurven kann nicht an jedem Punkt eine Zahl stehen. */
+function lupeVerdrahten(){
+  const svg = $('#stats-body svg.kurve');
+  const aus = $('#stats-body .lupe');
+  const d = letztesBild;
+  if (!svg || !aus || !d) return;
+  const fk = svg.querySelector('.fk');
+  const ruhe = 'Tippe ins Diagramm, um die Werte an einer Stelle abzulesen.';
+  aus.textContent = ruhe;
 
-function waehler(){
-  return `<div class="card">
-    <label class="f">Fänge nach …</label>
-    <div class="chips" id="st-wahl">${AUSWERTUNGEN.map(a =>
-      `<button class="chip${a.key === state.stats.zeige ? ' on' : ''}"
-               data-wahl="${a.key}">${a.kurz}</button>`).join('')}</div>
-  </div>`;
+  const xAt = i => d.pL + (d.n === 1 ? (d.W - d.pL - d.pR) / 2
+                                     : i * (d.W - d.pL - d.pR) / (d.n - 1));
+  const zeigen = e => {
+    const r = svg.getBoundingClientRect();
+    if (!r.width) return;
+    const vx = (e.clientX - r.left) / r.width * d.W;
+    let best = 0;
+    for (let i = 1; i < d.n; i++)
+      if (Math.abs(xAt(i) - vx) < Math.abs(xAt(best) - vx)) best = i;
+    fk.setAttribute('x1', xAt(best).toFixed(1));
+    fk.setAttribute('x2', xAt(best).toFixed(1));
+    fk.setAttribute('opacity', '1');
+    aus.innerHTML = `<b>${esc(d.stufen[best].x)}</b> — ` + d.reihen.map(r2 =>
+      `<i style="background:${r2.farbe}"></i>${esc(r2.name)} <b>${r2.werte[best]}</b>`).join('');
+  };
+  const weg = () => { fk.setAttribute('opacity', '0'); aus.textContent = ruhe; };
+
+  svg.addEventListener('pointerdown', zeigen);
+  svg.addEventListener('pointermove', e => { if (e.buttons || e.pointerType === 'mouse') zeigen(e); });
+  svg.addEventListener('pointerleave', weg);
+  svg.addEventListener('pointercancel', weg);
 }
 
+/* ---------------- Zeichnen der ganzen Ansicht ---------------- */
 function renderStats(){
-  // Filterlisten aus dem gesamten Bestand, nicht aus der gefilterten Auswahl —
+  // Auswahllisten aus dem gesamten Bestand, nicht aus der gefilterten Auswahl —
   // sonst verschwindet die Option, mit der man gerade filtert.
   const fertig = state.catches.filter(c => !c.entwurf);
   const opts = (sel, werte, aktuell, alle) => {
     $(sel).innerHTML = `<option value="">${alle}</option>`
-      + werte.map(w => `<option value="${w}"${w === aktuell ? ' selected' : ''}>${w}</option>`).join('');
+      + werte.map(w => `<option value="${esc(w)}"${w === aktuell ? ' selected' : ''}>${esc(w)}</option>`).join('');
   };
   opts('#st-gewaesser', [...new Set(fertig.map(c => c.gewaesser).filter(Boolean))].sort(),
        state.stats.gewaesser, 'Alle Gewässer');
   opts('#st-art', [...new Set(fertig.map(c => c.art).filter(Boolean))].sort(),
-       state.stats.art, 'Alle Arten');
+       state.stats.art, 'Alle Fische');
+  $('#st-x').value = state.stats.x;
   $$('#st-zeit .chip').forEach(c => c.classList.toggle('on', c.dataset.zeit === state.stats.zeit));
+  $$('#st-teilen .chip').forEach(c => {
+    const an = c.dataset.teilen === state.stats.teilen;
+    c.classList.toggle('on', an);
+    c.firstChild.textContent = an ? '☑ ' : '☐ ';
+  });
+
+  const geladen = state.auswertungen.find(a => a.id === state.stats.aktiv);
+  const geaendert = geladen && !auswGleich(geladen, state.stats);
+  $('#st-sichern').hidden = !geaendert;
+  $('#st-speichern').textContent = geladen ? '✚ Als neue speichern' : '✚ Auswertung speichern';
+  renderGespeicherte();
 
   const rows = statsRows();
   $('#stats-pill').textContent = rows.length + (rows.length === 1 ? ' Fang' : ' Fänge');
@@ -2655,8 +3191,8 @@ function renderStats(){
   // eine Eigenschaft der App.
   const kachel = (n, l) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div></div>`;
   const kacheln = `<div class="card"><div class="tiles">
-    ${kachel(rows.length, rows.length === 1 ? 'Fang' : 'Fänge')}
     ${kachel(arten.size, arten.size === 1 ? 'Fischart' : 'Fischarten')}
+    ${kachel(rows.length, rows.length === 1 ? 'Fang' : 'Fänge')}
     ${kachel(groesster ? zahl(groesster.laenge) + ' cm' : '—', groesster && groesster.art ? 'Größter · ' + groesster.art : 'Größter')}
     ${kachel(schwerster ? zahl(schwerster.gewicht) + ' kg' : '—', schwerster && schwerster.art ? 'Schwerster · ' + schwerster.art : 'Schwerster')}
   </div></div>`;
@@ -2664,6 +3200,7 @@ function renderStats(){
   // Ehrlichkeit an der richtigen Stelle: bei einer Handvoll Fängen sagt keine
   // Verteilung etwas aus. Lieber einmal deutlich dranschreiben als Balken zeigen,
   // aus denen jemand ein Muster liest, das nur Zufall ist.
+  // ⚠️ Das hält nichts mehr auf — gezeichnet wird ab dem ersten Fang.
   const duenn = rows.length < 15
     ? `<div class="card"><div class="hint" style="margin:0">
          <b>${rows.length} ${rows.length === 1 ? 'Fang' : 'Fänge'} in dieser Auswahl.</b>
@@ -2671,16 +3208,20 @@ function renderStats(){
          aussagekräftig. Bis dahin zeigt die Auswertung schlicht, was bisher drinsteht.</div></div>`
     : '';
 
-  // Genau eine Auswertung. Eine Liste aus siebzehn Blöcken beantwortet keine Frage,
-  // sie verschiebt sie nur nach unten — man wählt eine Sache und sieht sie.
-  const a = AUSWERTUNGEN.find(x => x.key === state.stats.zeige) || AUSWERTUNGEN[0];
-  // Wichtig: eine Auswertung ohne Daten muss das *sagen*. Gäbe sie nur nichts
-  // zurück, passierte beim Antippen sichtbar gar nichts und die App wirkt kaputt.
-  const inhalt = a.bau(rows) || `<div class="card"><h2>${a.kurz}</h2>
-    <div class="hint" style="margin:0">Dazu hat in dieser Auswahl noch kein Fang einen Wert
-    — oder es sind zu wenige für einen Verlauf.</div></div>`;
+  const achse = achseVon(state.stats.x);
+  const d = reihenBauen(rows, achse, state.stats.teilen);
+  const titel = (state.stats.art || 'Fänge') + ' nach ' + achse.kurz;
 
-  body.innerHTML = kacheln + waehler() + duenn + inhalt;
+  // Wichtig: eine Auswertung ohne Daten muss das *sagen*. Gäbe sie nur nichts
+  // zurück, passierte beim Umstellen sichtbar gar nichts und die App wirkt kaputt.
+  const inhalt = !d
+    ? `<div class="card"><h2>${esc(titel)}</h2>
+       <div class="hint" style="margin:0">Dazu hat in dieser Auswahl noch kein Fang einen Wert.
+       ${istKurve(achse) ? 'Bei automatisch geholten Werten heißt das meist: der Fang wurde ohne Netz erfasst.' : ''}</div></div>`
+    : (d.kurve ? diagramm(d, titel) : balken({ ...d, xKey: achse.key }, titel));
+
+  body.innerHTML = kacheln + duenn + inhalt;
+  if (d && d.kurve) lupeVerdrahten();
 }
 
 /* ---------------------------- Ansichtswechsel ---------------------------- */
@@ -2719,6 +3260,7 @@ window.addEventListener('unhandledrejection', e =>
   let pal = 'tiefes-wasser';
   try { pal = localStorage.getItem(PAL_KEY) || pal; } catch {}
   setPalette(pal, false);
+  state.auswertungen = auswertungenLesen().liste;
   buildStatics();
   go('log');                       // Oberfläche steht sofort, auch wenn der Speicher klemmt
   try {
