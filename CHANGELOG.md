@@ -22,17 +22,26 @@ gerade hat. Eine Auswertung besteht jetzt aus fünf Angaben:
 
 - **Auswertungen lassen sich speichern**, wieder laden, umbenennen, ändern und löschen.
   Sie liegen **am Konto**, nicht nur im Gerät.
-- **Richtige Kurven, unabhängig von der Zahl der Fänge.** Vorher fiel alles unter drei
-  Stufen auf Balken zurück. Jetzt gibt es eine Kurve ab dem ersten Fang; die X-Achse wird
-  auf mindestens fünf Stufen aufgezogen, damit eine Kurve als Kurve zu erkennen ist.
+- **Alles ist eine Kurve. Balken gibt es nicht mehr.** Vorher fiel alles unter drei Stufen
+  auf Balken zurück, und Kategorien blieben grundsätzlich Balken. Jetzt gibt es eine Kurve
+  ab dem ersten Fang und für jede der 17 Größen; die X-Achse wird auf mindestens fünf Stufen
+  aufgezogen, damit eine Kurve als Kurve zu erkennen ist.
   ⚠️ Das erfindet nichts — die angehängten Stufen haben tatsächlich null Fänge.
 - **Echte Achsen.** Y-Achse mit Gitterlinien und Beschriftung (nur ganze Zahlen, Fänge sind
   keine Bruchteile), X-Achse mit Titel darunter. Beschriftet wird nur noch der höchste Punkt
-  je Kurve; alles andere liest man an der Achse ab oder tippt es an.
+  je Kurve; alles andere liest man an der Achse ab oder tippt es an. Lange Achsentexte werden
+  gekürzt und ausgedünnt, vollständig stehen sie in der Ablesehilfe.
 - **Ablesehilfe:** Antippen setzt ein Fadenkreuz und zeigt die Werte aller Kurven an dieser Stelle.
-- **Kategorien bleiben Balken** (Fischart, Köder, Wetter …). Eine Linie zwischen „Hecht" und
-  „Barsch" würde eine Reihenfolge behaupten, die es nicht gibt. Mit Aufteilen werden daraus
-  Gruppen. Die Trennung steht sichtbar im Auswahlfeld.
+- ⚠️ **Der Einwand gegen Kurven über Kategorien** — eine Linie zwischen „Hecht" und „Barsch"
+  behauptet eine Reihenfolge, die es nicht gibt — ist damit nicht erledigt, sondern in einen
+  **Hinweis unter dem Bild** gewandert: *„Diese Achse hat keine natürliche Reihenfolge …
+  aussagekräftig ist die Höhe der Punkte, nicht der Anstieg dazwischen."* Karl kennt ihn und
+  will es so; wer hier später etwas ändert, soll ihn nicht neu erfinden müssen.
+- **Nebeneffekt, und ein guter:** Tageszeit, Mondphase, Wetter und Wassertrübung haben jetzt
+  ihre **natürliche Reihenfolge** statt einer nach Häufigkeit, und ihre leeren Stufen stehen
+  mit null drin. Als Balkenliste war das egal, als Kurve ist es der Unterschied zwischen
+  richtig und falsch. Nur Fischart, Köder, Köderfarbe und Gewässer stehen weiter nach
+  Häufigkeit — sie haben keine natürliche Ordnung.
 - **Die obersten beiden Kacheln sind getauscht** — Fischarten steht jetzt vor Fänge.
 
 **Angelzeit und Auswertungen hängen am Konto.** Bis heute lag die aufsummierte Angelzeit
@@ -65,7 +74,7 @@ zwei Kurven Pflicht und nicht abschaltbar.
 entschärft, bevor sie ins Bild wandern — ein Anführungszeichen im Ködernamen hätte das
 SVG zerrissen. Service-Worker auf `v11`.
 
-**Prüfungen:** 309 grün, darunter 13 zum Werte-Abgleich und sechs zum Layout auf
+**Prüfungen:** 319 grün, darunter 13 zum Werte-Abgleich und sechs zum Layout auf
 320/360/390 px. Die Layout-Prüfungen laufen über ein iframe mit fester Breite — Chrome
 headless ignoriert auf diesem PC `--window-size` fürs Layout und meldet sonst überall
 dieselbe Breite.

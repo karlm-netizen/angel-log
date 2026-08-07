@@ -671,13 +671,27 @@ TESTS = r"""
       return (h.includes('class="leg"') && h.includes('Wobbler') && h.includes('Gummifisch'))
           || 'Legende fehlt oder unvollstaendig';
     });
-    t('bei vielen Stufen wird die X-Achse ausgeduennt', () => {
-      setzeFaenge([mk({ druck: 990 }), mk({ druck: 1040 })]);   // 5er-Stufen ueber 50 hPa
-      alleFilterAus('druck');
-      const h = einBild();
+    const achsenTexte = () => {
+      const h = document.querySelector('#stats-body').innerHTML;
       const svg = h.slice(h.indexOf('<svg'), h.indexOf('</svg>'));
-      const achse = (svg.match(/text-anchor="middle"/g) || []).length;
-      return achse <= 10 || ('Achsentexte: ' + achse);
+      return (svg.match(/text-anchor="middle"/g) || []).length;
+    };
+    t('kurze Achsentexte duerfen dicht stehen', () => {
+      setzeFaenge([mk({ druck: 990 }), mk({ druck: 1040 })]);   // 5er-Stufen ueber 50 hPa
+      alleFilterAus('druck'); einBild();
+      const n = achsenTexte();
+      return (n >= 6 && n <= 12) || ('Achsentexte: ' + n);
+    });
+    // Acht Mondphasen mit Zeichen und Namen — die passen nicht alle nebeneinander.
+    t('lange Achsentexte werden ausgeduennt', () => {
+      setzeFaenge([mk({ when:'2026-07-01T08:00', ts:1 }), mk({ when:'2026-07-15T08:00', ts:2 })]);
+      alleFilterAus('mond'); einBild();
+      const n = achsenTexte();
+      return n <= 5 || ('Achsentexte: ' + n);
+    });
+    t('lange Achsentexte werden abgeschnitten, nicht gequetscht', () => {
+      const h = document.querySelector('#stats-body').innerHTML;
+      return h.includes('…') || 'nichts gekuerzt';
     });
     t('die Ablesehilfe ist da', () => {
       setzeFaenge([mk({ wasser: 9 }), mk({ wasser: 17 })]);
@@ -685,36 +699,84 @@ TESTS = r"""
       return einBild().includes('class="lupe"') || 'keine Ablesehilfe';
     });
 
-    // ---- Zeichnen: Kategorien ----
-    t('Kategorien bleiben Balken', () => {
+    // ---- Kategorien ----
+    // ⚠️ Karls Ansage vom 07.08., zweimal und ausdruecklich: ALLES als Kurve,
+    // auch Fischart und Koeder. Mein Einwand (eine Linie zwischen "Hecht" und
+    // "Barsch" behauptet eine Reihenfolge) steht als Hinweis unter dem Bild.
+    t('auch Kategorien kommen als Kurve', () => {
       setzeFaenge([mk({ art:'Hecht' }), mk({ art:'Barsch' })]);
       alleFilterAus('art');
       const h = einBild();
-      return (h.includes('class="bar"') && !h.includes('class="kurve"')) || 'Fischart ist keine Balkenliste';
+      return (h.includes('class="kurve"') && !h.includes('class="bar"')) || 'Fischart ist keine Kurve';
     });
-    t('Kategorien mit Aufteilen zeigen Gruppen', () => {
+    t('bei Kategorien steht der Hinweis auf die fehlende Reihenfolge', () => {
+      const h = document.querySelector('#stats-body').innerHTML;
+      return h.includes('keine natürliche Reihenfolge') || 'Hinweis fehlt';
+    });
+    t('bei Messwerten steht der Hinweis nicht', () => {
+      setzeFaenge([mk({ wasser: 9 }), mk({ wasser: 17 })]);
+      alleFilterAus('wasser');
+      return !einBild().includes('keine natürliche Reihenfolge') || 'Hinweis steht faelschlich da';
+    });
+    t('Kategorien lassen sich aufteilen', () => {
       setzeFaenge([mk({ art:'Hecht', koeder:'Wobbler' }), mk({ art:'Hecht', koeder:'Gummifisch' }),
                    mk({ art:'Barsch', koeder:'Wobbler' })]);
       alleFilterAus('art'); state.stats.teilen = 'koeder';
       const h = einBild();
       return (h.includes('Wobbler') && h.includes('Gummifisch') && h.includes('class="leg"'))
-          || 'keine Gruppen';
+          || 'keine zwei Kurven';
     });
-    t('bei Koederfarbe traegt jede Zeile ihren Farbfleck', () => {
-      setzeFaenge([mk({ farben:['Firetiger'] })]);
+    t('Koederfarbe kommt als Kurve', () => {
+      setzeFaenge([mk({ farben:['Firetiger'] }), mk({ farben:['Rot'] })]);
       alleFilterAus('farbe');
-      return einBild().includes('class="sw"') || 'kein Farbfleck';
+      return einBild().includes('class="kurve"') || 'keine Kurve';
     });
-    t('laengster Balken ist 100 %', () => {
+    // Als Balkenliste war die Reihenfolge egal, als Kurve ist sie die halbe Aussage.
+    t('die Tageszeit laeuft von morgens nach nachts', () => {
+      setzeFaenge([mk({ phase:'nacht' }), mk({ phase:'morgen' })]);
+      alleFilterAus('tageszeit');
+      const d = reihenBauen(statsRows(), achseVon('tageszeit'), '');
+      return d.stufen.map(s => s.x).join('|') === PHASEN.map(p => p[1]).join('|')
+          || d.stufen.map(s => s.x).join('|');
+    });
+    t('leere Tageszeiten stehen mit null drin', () => {
+      setzeFaenge([mk({ phase:'nacht' }), mk({ phase:'morgen' })]);
+      alleFilterAus('tageszeit');
+      const d = reihenBauen(statsRows(), achseVon('tageszeit'), '');
+      return d.reihen[0].werte.join(',') === '1,0,0,1' || d.reihen[0].werte.join(',');
+    });
+    t('die Truebung laeuft von klar nach sehr trueb', () => {
+      setzeFaenge([mk({ truebung:'sehr' }), mk({ truebung:'klar' })]);
+      alleFilterAus('trueb');
+      const d = reihenBauen(statsRows(), achseVon('trueb'), '');
+      return d.stufen.map(s => s.x).join('|') === TRUEBUNG.map(x => x[1]).join('|')
+          || d.stufen.map(s => s.x).join('|');
+    });
+    t('der Mond laeuft von Neumond nach Neumond', () => {
+      const d = reihenBauen([{ when:'2026-07-01T08:00' }], achseVon('mond'), '');
+      return d.stufen.length === MONDPHASEN.length || d.stufen.length;
+    });
+    t('das Wetter behaelt seine Reihenfolge von klar nach Schnee', () => {
+      setzeFaenge([mk({ wetter:'schnee' }), mk({ wetter:'klar' })]);
+      alleFilterAus('wetter');
+      const d = reihenBauen(statsRows(), achseVon('wetter'), '');
+      return (d.stufen.length === WETTER.length && d.stufen[0].x.includes('Klar'))
+          || d.stufen.map(s => s.x).join('|');
+    });
+    t('ohne feste Liste steht das Haeufigste vorn', () => {
+      setzeFaenge([mk({ art:'Barsch' }), mk({ art:'Hecht' }), mk({ art:'Hecht' })]);
+      alleFilterAus('art');
+      const d = reihenBauen(statsRows(), achseVon('art'), '');
+      return d.stufen[0].x === 'Hecht' || d.stufen.map(s => s.x).join('|');
+    });
+    // Der hoechste Punkt muss die oberste Gitterlinie treffen, sonst verschenkt
+    // die Kurve Hoehe und kleine Unterschiede verschwinden.
+    t('die hoechste Kurve reicht bis zur obersten Linie', () => {
       setzeFaenge([mk({ art:'Hecht' }), mk({ art:'Hecht' }), mk({ art:'Barsch' })]);
       alleFilterAus('art');
-      return einBild().includes('width:100%') || 'kein 100%';
-    });
-    t('kleiner Balken bleibt sichtbar', () => {
-      const viele = []; for (let i = 0; i < 40; i++) viele.push(mk({ art:'Hecht' }));
-      setzeFaenge([...viele, mk({ art:'Barsch' })]);
-      alleFilterAus('art');
-      return /width:4%/.test(einBild()) || 'zu klein zum Sehen';
+      const h = einBild();
+      // Bei Maximum 2 ist die Obergrenze 2 — der Punkt sitzt auf pT (16).
+      return /<circle[^>]*cy="16\.0"/.test(h) || 'Kurve reicht nicht nach oben';
     });
 
     // ---- Ansicht insgesamt ----
@@ -831,7 +893,7 @@ TESTS = r"""
     });
     t('die Warnung haelt das Zeichnen nicht mehr auf', () => {
       const h = document.querySelector('#stats-body').innerHTML;
-      return (h.includes('zu wenige') && h.includes('class="bar"')) || 'kein Diagramm trotz Warnung';
+      return (h.includes('zu wenige') && h.includes('class="kurve"')) || 'kein Diagramm trotz Warnung';
     });
     t('Statistik sagt nirgends "bester"',
        () => !/bester|beste Köder|Bester/.test(document.querySelector('#stats-body').innerHTML) || 'steht doch drin');
@@ -876,9 +938,16 @@ TESTS = r"""
       const n = document.querySelectorAll('#st-x option').length;
       return n === ACHSEN.length || n;
     });
-    t('Messwerte und Kategorien stehen getrennt', () => {
+    // Die Gruppen sagen nicht mehr "Kurve oder Balken" — es ist alles eine
+    // Kurve —, sondern ob die Reihenfolge der X-Achse etwas bedeutet.
+    t('geordnete und ungeordnete Achsen stehen getrennt', () => {
       const g = [...document.querySelectorAll('#st-x optgroup')].map(o => o.label);
-      return (g.length === 2 && /Kurve/.test(g[0]) && /Balken/.test(g[1])) || g.join(' | ');
+      return (g.length === 2 && /Reihenfolge/.test(g[0]) && /Häufigkeit/.test(g[1])) || g.join(' | ');
+    });
+    t('keine Achse gibt es doppelt oder gar nicht', () => {
+      const keys = [...document.querySelectorAll('#st-x option')].map(o => o.value);
+      return (keys.length === ACHSEN.length && new Set(keys).size === keys.length)
+          || keys.join(',');
     });
     t('Aufteilen gibt es als Ankreuzkaestchen', () => {
       const n = document.querySelectorAll('#st-teilen .chip').length;

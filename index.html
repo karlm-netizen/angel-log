@@ -104,10 +104,6 @@
   .leg i{width:10px; height:10px; border-radius:99px; flex:none;
     box-shadow:0 0 0 2px var(--card)}
   .achse{font-size:11.5px; color:var(--muted); text-align:center; margin-top:4px}
-  /* Überschrift einer Balkengruppe (Kategorie + Aufteilen) */
-  .grp{display:flex; justify-content:space-between; align-items:baseline; gap:10px;
-    font-size:14px; font-weight:700; margin-bottom:2px}
-  .grp b{color:var(--muted); font-variant-numeric:tabular-nums; flex:none}
   /* Ablesehilfe: Fadenkreuz + Werte am angetippten Punkt. */
   .lupe{font-size:12.5px; color:var(--muted); margin-top:8px; min-height:18px; line-height:1.5}
   .lupe b{color:var(--txt); font-variant-numeric:tabular-nums}
@@ -1500,11 +1496,13 @@ function buildStatics(){
     const b = e.target.closest('[data-zeit]'); if (!b) return;
     state.stats.zeit = b.dataset.zeit; renderStats();
   };
-  // Messwerte und Kategorien getrennt, weil nur die einen eine Kurve ergeben.
+  /* Alles wird als Kurve gezeichnet. Die Gruppen sagen nur noch, ob die
+     Reihenfolge der X-Achse eine Bedeutung hat — bei Fischart oder Köder tut
+     sie das nicht, dort zählt allein die Höhe der Punkte. */
   const achsGruppe = (titel, liste) => `<optgroup label="${titel}">` + liste.map(a =>
     `<option value="${a.key}">${a.kurz}${a.einheit ? ' (' + a.einheit + ')' : ''}</option>`).join('') + '</optgroup>';
-  $('#st-x').innerHTML = achsGruppe('Messwerte — als Kurve', ACHSEN.filter(istKurve))
-                       + achsGruppe('Kategorien — als Balken', ACHSEN.filter(a => !istKurve(a)));
+  $('#st-x').innerHTML = achsGruppe('Mit fester Reihenfolge', ACHSEN.filter(hatOrdnung))
+                       + achsGruppe('Nach Häufigkeit sortiert', ACHSEN.filter(a => !hatOrdnung(a)));
   $('#st-x').onchange = e => { state.stats.x = e.target.value; renderStats(); };
 
   /* Aufteilen: zwei Kästchen, aber immer nur eines an. Nach Köder **und** Farbe
@@ -2711,15 +2709,24 @@ const alsListe = w => Array.isArray(w) ? w.filter(x => x != null && x !== '')
                     : (w == null || w === '') ? [] : [w];
 
 /* ---- Was auf die X-Achse kann ----
-   `stufe` gesetzt  → Messwert, wird in Stufen zusammengefasst und zur Kurve.
-   `reihe` gesetzt  → feste Skala (24 Stunden, 12 Monate), ebenfalls Kurve.
-   `kat` gesetzt    → Kategorie ohne natürliche Reihenfolge, bleibt Balken.
+   `stufe` gesetzt  → Messwert, wird in Stufen zusammengefasst.
+   `reihe` gesetzt  → feste Skala mit eigener Reihenfolge (24 Stunden, 12 Monate,
+                      vier Tageszeiten, acht Mondphasen, zehn Wetterlagen, vier
+                      Trübungsstufen). Leere Stufen stehen mit null drin.
+   `kat` gesetzt    → Kategorie ohne feste Liste (Fischart, Köder, Farbe,
+                      Gewässer). Reihenfolge nach Häufigkeit.
 
-   ⚠️ Warum Kategorien **keine** Kurve bekommen, obwohl Karl „richtige Kurven"
-   wollte: eine Linie zwischen „Hecht" und „Barsch" behauptet, dass zwischen
-   beiden etwas liegt und dass die Reihenfolge etwas bedeutet. Beides ist falsch.
-   Bei 12 °C ist es richtig — die liegen zwischen 10 und 14. Die Trennung steht
-   deshalb auch sichtbar im Auswahlfeld. */
+   ⚠️ **Alles wird als Kurve gezeichnet — Karls Ansage vom 07.08., zweimal.**
+   Mein Einwand war, dass eine Linie zwischen „Hecht" und „Barsch" eine
+   Reihenfolge behauptet, die es nicht gibt. Er ist damit nicht weg: bei
+   Fischart, Köder, Farbe und Gewässer trägt die Reihenfolge der X-Achse keine
+   Bedeutung, nur die Höhe der Punkte. Karl weiß das und will es so — wer hier
+   später etwas ändert, soll den Einwand kennen und nicht neu erfinden.
+
+   Was sich dadurch verbessert hat: Tageszeit, Mondphase, Wetter und Trübung
+   haben jetzt ihre **natürliche Reihenfolge** statt einer nach Häufigkeit, und
+   ihre leeren Stufen stehen mit null drin. Als Balkenliste war das egal, als
+   Kurve ist es der Unterschied zwischen richtig und falsch. */
 const ACHSEN = [
   { key:'wasser', kurz:'Wassertemperatur', einheit:'°C',       stufe:2, hol: c => c.wasser },
   { key:'luft',   kurz:'Lufttemperatur',   einheit:'°C',       stufe:2, hol: c => c.luft },
@@ -2734,17 +2741,31 @@ const ACHSEN = [
   { key:'monat',  kurz:'Monat',
     reihe: () => MONATE_KURZ.slice(),
     schluessel: c => { const d = new Date(c.when); return isNaN(d) ? null : MONATE_KURZ[d.getMonth()]; } },
-  { key:'art',       kurz:'Fischart',      kat: c => c.art },
-  { key:'koeder',    kurz:'Köder',         kat: c => c.koeder },
-  { key:'farbe',     kurz:'Köderfarbe',    kat: c => farbenVon(c) },
-  { key:'tageszeit', kurz:'Tageszeit',     kat: c => phaseLabel(c.phase) },
-  { key:'wetter',    kurz:'Wetter',        kat: c => c.wetter && (wetterIcon(c.wetter) + ' ' + wetterLabel(c.wetter)) },
-  { key:'mond',      kurz:'Mondphase',     kat: c => { const m = mondFor(c.when); return m && (m.icon + ' ' + m.name); } },
-  { key:'trueb',     kurz:'Wassertrübung', kat: c => (TRUEBUNG.find(([k]) => k === c.truebung) || [,null])[1] },
-  { key:'gewaesser', kurz:'Gewässer',      kat: c => c.gewaesser }
+  // Feste Reihenfolge: die Tageszeit läuft von morgens nach nachts, der Mond
+  // von Neumond nach Neumond, das Wetter von klar nach Schnee, die Trübung von
+  // klar nach sehr trüb. Nach Häufigkeit sortiert wäre das als Kurve Unsinn.
+  { key:'tageszeit', kurz:'Tageszeit',
+    reihe: () => PHASEN.map(p => p[1]),
+    schluessel: c => phaseLabel(c.phase) },
+  { key:'wetter', kurz:'Wetter',
+    reihe: () => WETTER.map(w => w[2] + ' ' + w[1]),
+    schluessel: c => c.wetter && (wetterIcon(c.wetter) + ' ' + wetterLabel(c.wetter)) },
+  { key:'mond', kurz:'Mondphase',
+    reihe: () => MONDPHASEN.map(m => m[2] + ' ' + m[1]),
+    schluessel: c => { const m = mondFor(c.when); return m && (m.icon + ' ' + m.name); } },
+  { key:'trueb', kurz:'Wassertrübung',
+    reihe: () => TRUEBUNG.map(t => t[1]),
+    schluessel: c => (TRUEBUNG.find(([k]) => k === c.truebung) || [,null])[1] },
+  // Ohne feste Liste — die Reihenfolge kommt aus der Häufigkeit.
+  { key:'art',       kurz:'Fischart',   kat: c => c.art },
+  { key:'koeder',    kurz:'Köder',      kat: c => c.koeder },
+  { key:'farbe',     kurz:'Köderfarbe', kat: c => farbenVon(c) },
+  { key:'gewaesser', kurz:'Gewässer',   kat: c => c.gewaesser }
 ];
 const achseVon = k => ACHSEN.find(a => a.key === k) || ACHSEN[0];
-const istKurve = a => !!(a.stufe || a.reihe);
+// Ob die Reihenfolge der X-Achse etwas bedeutet. Gezeichnet wird beides als
+// Kurve; das hier steuert nur den Hinweis darunter.
+const hatOrdnung = a => !!(a.stufe || a.reihe);
 
 /* ---- Wonach sich Kurven aufteilen lassen ----
    Karls Beispiel war „Firetiger gegen Motoröl". Beides sind in dieser App
@@ -2946,11 +2967,14 @@ function reihenBauen(rows, achse, teilerKey){
   if (!reihen.some(r => r.werte.some(v => v > 0))) return null;
 
   return {
-    stufen, reihen, kurve: istKurve(achse),
+    stufen, reihen,
     xTitel: achse.kurz + (achse.einheit ? ' (' + achse.einheit + ')' : ''),
     // Zählt ein Fang in mehreren Kategorien mit, ergibt die Summe mehr als die
     // Zahl der Fänge. Das muss dranstehen, sonst wirkt die Auswertung falsch.
-    mehrfach: achse.key === 'farbe' || teilerKey === 'farbe'
+    mehrfach: achse.key === 'farbe' || teilerKey === 'farbe',
+    // Ohne feste Reihenfolge trägt nur die Höhe der Punkte eine Aussage,
+    // nicht der Verlauf dazwischen. Steht als Hinweis unter dem Bild.
+    ungeordnet: !hatOrdnung(achse)
   };
 }
 
@@ -2993,11 +3017,20 @@ function diagramm(d, titel){
     `<text x="${pL - 5}" y="${(y(v) + 3.4).toFixed(1)}" text-anchor="end" font-size="9.5"
            fill="var(--muted)">${v}</text>`).join('');
 
-  // Bei vielen Stufen nicht jede beschriften — sonst überlappen die Achsentexte.
-  const jeder = Math.ceil(n / 7);
+  /* Bei vielen Stufen nicht jede beschriften — sonst überlappen die Achsentexte.
+     Wie viele hineinpassen, hängt an der Länge: „12" ist kurz, „🌑 Zunehmende
+     Sichel" nicht. Deshalb wird an der längsten Beschriftung gemessen und
+     lange Namen abgeschnitten; vollständig stehen sie in der Ablesehilfe. */
+  const kurz = s => String(s).length > 9 ? String(s).slice(0, 8) + '…' : String(s);
+  // Gemessen wird an der **gekürzten** Länge, nicht an der vollen — sonst
+  // verdrängt ein einziger langer Name („Morgendämmerung") die kurzen daneben,
+  // obwohl er im Bild ohnehin nur neun Zeichen breit ist.
+  const laengste = Math.max(...d.stufen.map(s => kurz(s.x).length));
+  const platz = Math.max(1, Math.floor(45 / laengste));
+  const jeder = Math.ceil(n / platz);
   const xTexte = d.stufen.map((s, i) => (i % jeder === 0 || i === n - 1)
     ? `<text x="${x(i).toFixed(1)}" y="${H - 11}" text-anchor="middle" font-size="9.5"
-             fill="var(--muted)">${esc(s.x)}</text>` : '').join('');
+             fill="var(--muted)">${esc(kurz(s.x))}</text>` : '').join('');
 
   const einzeln = d.reihen.length === 1;
   const zeichnung = d.reihen.map(r => {
@@ -3045,46 +3078,6 @@ function diagramm(d, titel){
     ${hinweise(d)}</div>`;
 }
 
-/* Kategorien bleiben Balken — eine Linie zwischen „Hecht" und „Barsch" würde
-   eine Reihenfolge behaupten, die es nicht gibt. Mit Aufteilen wird daraus je
-   Kategorie eine kleine Gruppe, eine Zeile je Reihe. */
-function balken(d, titel){
-  const max = Math.max(1, ...d.reihen.flatMap(r => r.werte));
-  const einzeln = d.reihen.length === 1;
-  const breite = v => Math.max(4, Math.round(v / max * 100));
-
-  const zeilen = d.stufen.map((s, i) => {
-    if (einzeln){
-      const v = d.reihen[0].werte[i];
-      return `<div class="bar">
-        <div class="bl"><span>${swatch(d, s.x)}${esc(s.x)}</span><b>${v}</b></div>
-        <div class="bt"><i style="width:${breite(v)}%;background:${d.reihen[0].farbe}"></i></div>
-      </div>`;
-    }
-    /* Die Kategorie steht über ihrer Gruppe und muss kräftiger sein als die
-       Reihen darunter — sonst liest sich die Liste als eine Ebene statt als
-       zwei. Die Zahl rechts trägt die Gruppe insgesamt. */
-    const summe = d.reihen.reduce((a, r) => a + r.werte[i], 0);
-    const teile = d.reihen.map(r => r.werte[i] === 0 ? '' : `
-      <div class="bl" style="margin:4px 0 3px"><span class="muted"><i class="sw" style="background:${r.farbe}"></i>${esc(r.name)}</span><b>${r.werte[i]}</b></div>
-      <div class="bt"><i style="width:${breite(r.werte[i])}%;background:${r.farbe}"></i></div>`).join('');
-    return teile ? `<div class="bar" style="margin-bottom:16px">
-      <div class="grp">${esc(s.x)}<b>${summe}</b></div>${teile}</div>` : '';
-  }).join('');
-
-  letztesBild = null;
-  return `<div class="card"><h2>${esc(titel)}</h2>${zeilen}
-    ${einzeln ? '' : legende(d)}${hinweise(d)}</div>`;
-}
-
-// Beim Balken „Köderfarbe" trägt jede Zeile ihren echten Farbfleck — der ist
-// hier keine Kodierung, sondern die Sache selbst.
-function swatch(d, label){
-  if (d.xKey !== 'farbe') return '';
-  const f = FARBEN.find(x => x[0] === label);
-  return f ? `<i class="sw" style="background:${f[1]}"></i>` : '';
-}
-
 function legende(d){
   if (d.reihen.length < 2) return '';    // eine Reihe braucht keine — der Titel nennt sie
   return `<div class="leg">${d.reihen.map(r =>
@@ -3093,6 +3086,12 @@ function legende(d){
 
 function hinweise(d){
   const t = [];
+  /* ⚠️ Der Satz, der den Einwand gegen Kurven über Kategorien ersetzt: bei
+     Fischart, Köder, Farbe und Gewässer sagt nur die Höhe der Punkte etwas,
+     der Verlauf dazwischen nicht. Er darf nicht wegfallen. */
+  if (d.ungeordnet) t.push('Diese Achse hat keine natürliche Reihenfolge — '
+    + 'sie steht nach Häufigkeit. Aussagekräftig ist deshalb die Höhe der Punkte, '
+    + 'nicht der Anstieg dazwischen.');
   if (d.mehrfach) t.push('Ein Fang mit mehreren Köderfarben zählt in jeder mit — '
     + 'die Summe kann deshalb größer sein als die Zahl der Fänge.');
   if (d.reihen.some(r => r.name === UEBRIGE))
@@ -3217,11 +3216,11 @@ function renderStats(){
   const inhalt = !d
     ? `<div class="card"><h2>${esc(titel)}</h2>
        <div class="hint" style="margin:0">Dazu hat in dieser Auswahl noch kein Fang einen Wert.
-       ${istKurve(achse) ? 'Bei automatisch geholten Werten heißt das meist: der Fang wurde ohne Netz erfasst.' : ''}</div></div>`
-    : (d.kurve ? diagramm(d, titel) : balken({ ...d, xKey: achse.key }, titel));
+       ${achse.stufe ? 'Bei automatisch geholten Werten heißt das meist: der Fang wurde ohne Netz erfasst.' : ''}</div></div>`
+    : diagramm(d, titel);
 
   body.innerHTML = kacheln + duenn + inhalt;
-  if (d && d.kurve) lupeVerdrahten();
+  if (d) lupeVerdrahten();
 }
 
 /* ---------------------------- Ansichtswechsel ---------------------------- */
