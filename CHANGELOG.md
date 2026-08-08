@@ -6,6 +6,22 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 08.08.2026 (10) — Ladeleiste nach unten, Mitte ganz frei
+
+Karls Ansage: *„der ladebalken soll nach unten und angel log soll aus der mitte weg."*
+Übrig bleibt der Schirm in seiner einfachsten Form: **das Foto, und unten der Stand.**
+
+- Die Leiste steht jetzt **unten**, mit Abstand über `env(safe-area-inset-bottom)` — sonst
+  läge sie bei einer vom Home-Bildschirm gestarteten App teils unter dem Home-Strich.
+  Dasselbe Thema wie eben oben bei der Dynamic Island, nur andersherum.
+- **Name und Zeichen sind raus.** In der Mitte steht nichts mehr.
+
+⚠️ **Der Schleier ist mitgewandert.** Er dunkelte oben und unten ab, damit die Beschriftung
+lesbar bleibt. Oben steht jetzt nichts mehr — dort weiter abzudunkeln kostete Bild ohne
+Gegenwert, und genau darum ging es ja. Er ist jetzt **unten kräftig und oben fast weg**.
+
+**424 Prüfungen grün** (von 423).
+
 ## 08.08.2026 (9) — Ladeleiste oben statt Zeichen in der Mitte
 
 Karls Ansage: *„das logo soll in der mitte weg dafür aber eine loading leiste ganz oben etwas

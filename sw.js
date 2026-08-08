@@ -2,7 +2,7 @@
 // Eigene Dateien: Netz zuerst, damit Updates sofort ankommen — Cache nur als Offline-Rückfall.
 // Kartenkacheln und Leaflet: Cache zuerst, denn am Wasser ist oft kein Netz und einmal
 // angeschaute Gewässer sollen offline noch da sein. Wetter-API: nie cachen.
-const CACHE  = 'angellog-v22';
+const CACHE  = 'angellog-v23';
 const TILES  = 'angellog-tiles';
 /* ⚠️ Die sechs Ladebildschirm-Fotos gehören hier hinein. Ohne sie im Cache stünde am
    Wasser ohne Netz ein Ladebildschirm ohne Bild — und genau dort wird die App benutzt.

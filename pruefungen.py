@@ -2407,20 +2407,26 @@ window.addEventListener('error', e => {
      groesser und mit prozenten." */
   t('das Zeichen in der Mitte ist raus', () =>
     !document.querySelector('#splash img.zeichen') || 'Zeichen steht noch da');
-  t('die Leiste steht ganz oben, nicht in der Mitte', () => {
-    const oben  = document.querySelector('#splash .oben');
-    const mitte = document.querySelector('#splash .mitte');
-    if (!oben || !mitte) return 'oben oder mitte fehlt';
-    return oben.contains(document.querySelector('#splash .balken'))
-        || 'die Leiste haengt nicht im oberen Block';
+  t('die Leiste steht ganz unten', () => {
+    const unten = document.querySelector('#splash .unten');
+    if (!unten) return 'kein unterer Block';
+    return unten.contains(document.querySelector('#splash .balken'))
+        || 'die Leiste haengt nicht im unteren Block';
   });
-  t('sie laesst Platz fuer die Statusleiste', () => {
-    // Bei einer vom Home-Bildschirm gestarteten App laeuft der Schirm bis unter die
-    // Dynamic Island. Ohne env(safe-area-inset-top) laege die Leiste teils darunter.
+  t('in der Mitte steht nichts mehr', () => {
+    // Karls Ansage: Zeichen und Name raus -- uebrig bleibt das Foto.
+    const reste = ['#splash .mitte', '#splash .name', '#splash img.zeichen']
+      .filter(sel => document.querySelector(sel));
+    return reste.length === 0 || ('noch da: ' + reste.join(', '));
+  });
+  t('sie laesst Platz fuer den Home-Strich', () => {
+    // Bei einer vom Home-Bildschirm gestarteten App laeuft der Schirm bis unter den
+    // Home-Strich. Ohne env(safe-area-inset-bottom) laege die Leiste teils darunter.
     const css = Array.from(document.styleSheets)
       .flatMap(sh => { try { return Array.from(sh.cssRules); } catch (e) { return []; } })
       .map(r => r.cssText).join(' ');
-    return /#splash \.oben[^}]*safe-area-inset-top/.test(css) || 'kein Abstand zur Statusleiste';
+    return /#splash \.unten[^}]*safe-area-inset-bottom/.test(css)
+        || 'kein Abstand zum Home-Strich';
   });
   t('sie ist deutlich groesser als der alte Strich', () => {
     const h = parseFloat(getComputedStyle(document.querySelector('#splash .balken')).height);
@@ -2477,11 +2483,11 @@ window.addEventListener('error', e => {
     return (f && /^splash-[1-6]\.jpg$/.test(f.getAttribute('src') || ''))
         || (f ? ('src ist "' + f.getAttribute('src') + '"') : 'kein Foto-Element');
   });
-  t('das Foto liegt hinter der Beschriftung', () => {
-    // Laege es davor, waere der Name verdeckt -- und zwar je nach Bild unterschiedlich.
+  t('das Foto liegt hinter der Leiste', () => {
+    // Laege es davor, waere der Stand je nach Bild mal sichtbar und mal nicht.
     const foto  = getComputedStyle(document.querySelector('#splash .foto')).zIndex;
-    const mitte = getComputedStyle(document.querySelector('#splash .mitte')).zIndex;
-    return Number(mitte) > Number(foto) || (`Foto ${foto}, Mitte ${mitte}`);
+    const unten = getComputedStyle(document.querySelector('#splash .unten')).zIndex;
+    return Number(unten) > Number(foto) || (`Foto ${foto}, Leiste ${unten}`);
   });
   t('es deckt die ganze Flaeche', () => {
     const st = getComputedStyle(document.querySelector('#splash .foto'));
@@ -2513,7 +2519,7 @@ window.addEventListener('error', e => {
     const css = Array.from(document.styleSheets)
       .flatMap(sh => { try { return Array.from(sh.cssRules); } catch (e) { return []; } })
       .map(r => r.cssText).join(' ');
-    return /#splash\.mitFoto \.name/.test(css) || 'keine eigene Schriftfarbe fuer Fotos';
+    return /#splash\.mitFoto \.prozent/.test(css) || 'keine eigene Schriftfarbe fuer Fotos';
   });
   t('ein Schleier sorgt fuer Lesbarkeit', () =>
     !!document.querySelector('#splash .schleier') || 'kein Schleier');
