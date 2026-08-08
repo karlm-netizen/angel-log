@@ -6,6 +6,37 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 08.08.2026 (8) — Neue Fassungen kommen auch am Handy an
+
+**Karl sah die neue Fassung auf seinem iPhone nicht, sein Kollege schon.** Ursache war nicht
+der Cache, sondern der **Lebenszyklus einer PWA**: der neue Service Worker übernimmt zwar
+sofort (`skipWaiting` + `clients.claim`), aber er lädt die **bereits offene Seite nicht neu**.
+Eine vom Home-Bildschirm gestartete App liegt am iPhone wochenlang im App-Switcher und wird
+nie neu geladen — sie zeigt weiter das HTML von damals. Der Kollege hatte neu installiert und
+deshalb eine frische Seite.
+
+Drei Bausteine dagegen:
+
+- **Beim Start nachsehen** (`registration.update()`). Von sich aus prüft der Browser nur
+  gelegentlich.
+- **Auch beim Zurückkommen aus dem Hintergrund** (`visibilitychange`). Bei einer PWA ist das
+  der häufigste „Start" — ohne das bliebe sie beliebig lange alt.
+- **Übernimmt ein neuer Worker, wird die Seite neu geladen.** Sonst läuft das alte HTML weiter
+  und die Änderung bleibt unsichtbar.
+
+⚠️ **Nicht mitten im Erfassen.** Wer gerade einen Fang eintippt, verlöre den sichtbaren Stand.
+Der Entwurf wäre zwar gesichert, aber ein Neuladen unter den Händen ist trotzdem ein Übergriff
+— dann kommt die neue Fassung beim nächsten Start, mit einem kurzen Hinweis.
+
+⚠️ **Ein Riegel gegen die Endlosschleife.** Ein Worker, der beim Aktivieren erneut wechselt,
+könnte die Seite sonst in eine Dauerschleife aus Neuladen schicken.
+
+⚠️ **Geprüft am Quelltext, nicht am Verhalten:** der Service-Worker-Lebenszyklus lässt sich im
+Prüfrahmen nicht nachstellen (kein echter Worker unter `file://` und keiner im iframe). Das
+steht so in den Prüfungen und ist dort begründet.
+
+**412 Prüfungen grün** (von 407).
+
 ## 08.08.2026 (7) — Der Ladebildschirm bleibt stehen
 
 **Er stand nur Millisekunden** (Karls Meldung) — die Oberfläche ist nach wenigen Millisekunden

@@ -2364,6 +2364,44 @@ window.addEventListener('error', e => {
 
   // ==================== Das Foto im Ladebildschirm ====================
   // Karls Ansage vom 08.08.: vollflaechige Angelfotos, bei jedem Oeffnen ein anderes.
+  /* ==================== Neue Fassung kommt auch an ====================
+     Karls Meldung vom 08.08.: „ich habe es bei mir auf dem handy nicht, mein kollege
+     schon." Der neue Service Worker uebernimmt zwar sofort, laedt die bereits offene
+     Seite aber nicht neu -- und eine PWA am iPhone liegt wochenlang im App-Switcher.
+     Geprueft am Quelltext: der Lebenszyklus laesst sich in diesem Rahmen nicht
+     nachstellen (kein echter Service Worker unter file:// bzw. im iframe). */
+  t('beim Start wird nach einer neuen Fassung gesehen', () => {
+    const js = Array.from(document.scripts).map(s => s.textContent).join(' ');
+    return /reg\.update\(\)/.test(js) || 'kein update() nach der Registrierung';
+  });
+  t('auch beim Zurueckkommen aus dem Hintergrund', () => {
+    // Bei einer PWA ist das der haeufigste "Start" -- ohne das bliebe sie ewig alt.
+    const js = Array.from(document.scripts).map(s => s.textContent).join(' ');
+    return /visibilitychange/.test(js) && /document\.hidden/.test(js)
+        || 'kein Blick beim Zurueckkommen';
+  });
+  t('ein neuer Worker laedt die Seite neu', () => {
+    const js = Array.from(document.scripts).map(s => s.textContent).join(' ');
+    return /controllerchange/.test(js) && /location\.reload\(\)/.test(js)
+        || 'kein Neuladen bei Worker-Wechsel';
+  });
+  t('aber nicht mitten im Erfassen', () => {
+    /* ⚠️ Wer gerade einen Fang eintippt, verloere den sichtbaren Stand. Der Entwurf
+       waere gesichert, ein Neuladen unter den Haenden ist trotzdem ein Uebergriff. */
+    const js = Array.from(document.scripts).map(s => s.textContent).join(' ');
+    const ab = js.indexOf('controllerchange');
+    const block = js.slice(ab, ab + 700);
+    return (/formHatInhalt\(\)/.test(block) && /state\.view === 'new'/.test(block))
+        || 'laedt auch waehrend der Erfassung neu';
+  });
+  t('und nicht in einer Schleife', () => {
+    // Ein Worker, der beim Aktivieren erneut wechselt, koennte die Seite endlos neu laden.
+    const js = Array.from(document.scripts).map(s => s.textContent).join(' ');
+    const ab = js.indexOf('controllerchange');
+    return /neuGeladen/.test(js.slice(Math.max(0, ab - 300), ab + 700))
+        || 'kein Riegel gegen die Endlosschleife';
+  });
+
   t('der Ladebildschirm hat ein Foto', () => {
     const f = document.querySelector('#splash .foto');
     return (f && /^splash-[1-6]\.jpg$/.test(f.getAttribute('src') || ''))
