@@ -2449,11 +2449,30 @@ window.addEventListener('error', e => {
     document.body.appendChild(f);
   });
 
-  ta('nach dem Start ist der Ladebildschirm weg', async () => {
-    return await imRahmenVon('index.html', 400, (w, d) => {
+  /* ⚠️ Karls Ansage vom 08.08.: der Schirm war „nur so ne millisekunde da". Er steht
+     jetzt eine Mindestzeit (SPLASH_MINDESTENS). Die beiden Pruefungen unten fassen beide
+     Seiten an: frueh muss er noch stehen, spaeter muss er weg sein. Nur das Zweite zu
+     pruefen liesse offen, ob die Mindestzeit ueberhaupt wirkt. */
+  ta('kurz nach dem Start steht er noch (Mindestzeit)', async () => {
+    return await imRahmenVon('index.html', 500, (w, d) => {
       const s = d.getElementById('splash');
-      return s.classList.contains('weg') || 'steht noch da';
+      return !s.classList.contains('weg')
+          || 'schon nach 500 ms weg -- die Mindestzeit greift nicht';
     });
+  });
+  ta('nach der Mindestzeit ist der Ladebildschirm weg', async () => {
+    return await imRahmenVon('index.html', 2400, (w, d) => {
+      const s = d.getElementById('splash');
+      return s.classList.contains('weg') || 'steht nach 2,4 s immer noch da';
+    });
+  });
+  t('die Mindestzeit liegt unter dem Notausstieg', () => {
+    /* ⚠️ Laege sie darueber, raeumte der Notausstieg den Schirm weg, waehrend die
+       Mindestzeit ihn noch halten will -- zwei Uhren, die gegeneinander laufen. */
+    const js = Array.from(document.scripts).map(s => s.textContent).join(' ');
+    const m = js.match(/SPLASH_MINDESTENS\s*=\s*(\d+)/);
+    if (!m) return 'SPLASH_MINDESTENS nicht gefunden';
+    return Number(m[1]) < 4500 || ('Mindestzeit ' + m[1] + ' ms >= Notausstieg 4500 ms');
   });
   t('er wartet nicht auf den Speicher', () => {
     // ⚠️ Der Fall, der den Umbau ausgeloest hat: hing das Wegnehmen hinter "await reload()",
@@ -2468,18 +2487,33 @@ window.addEventListener('error', e => {
     const ab = js.indexOf('(async function init(){');
     if (ab < 0) return 'init()-Block nicht gefunden';
     const block = js.slice(ab);
-    const weg = block.indexOf("$('#splash').classList.add('weg')");
+    const weg = block.indexOf('splashWeg()');
     const rel = block.indexOf('await reload()');
     return (weg > -1 && rel > -1 && weg < rel)
         || ('in init(): Wegnehmen bei ' + weg + ', await reload() bei ' + rel);
   });
   ta('und er faengt keine Tipper mehr ab', async () => {
-    return await imRahmenVon('index.html', 700, (w, d) => {
+    return await imRahmenVon('index.html', 2900, (w, d) => {
       const s = d.getElementById('splash');
+      /* ⚠️ Geprueft wird `pointer-events` -- das wirkt sofort mit der Klasse. Deckkraft
+         und `visibility` haengen an einer Transition, und Transitions arbeitet Chrome
+         unter virtueller Zeit nicht ab; sie waeren hier immer 1 bzw. visible. Beide
+         stehen deshalb als Regel-Pruefungen daneben. */
       const st = w.getComputedStyle(s);
-      return (st.visibility === 'hidden' && st.pointerEvents === 'none')
-          || ('visibility ' + st.visibility + ', pointer-events ' + st.pointerEvents);
+      return (st.pointerEvents === 'none' && s.classList.contains('weg'))
+          || ('pointer-events ' + st.pointerEvents + ', Klassen "' + s.className + '"');
     });
+  });
+  t('und er ist danach auch fuer Vorlesehilfen weg', () => {
+    /* ⚠️ Geprueft an der CSS-Regel, nicht am Verhalten: `visibility` schaltet mit
+       Verzoegerung um (transition ... visibility 0s .26s, damit das Bild nicht abreisst),
+       und diese Verzoegerung arbeitet Chrome unter virtueller Zeit nicht ab. Lieber eine
+       ehrliche Regel-Pruefung als eine Verhaltenspruefung, die im Rahmen nie gruen wird. */
+    const regeln = Array.from(document.styleSheets)
+      .flatMap(sh => { try { return Array.from(sh.cssRules); } catch (e) { return []; } })
+      .map(r => r.cssText).filter(t2 => t2.indexOf('#splash.weg') === 0);
+    return (regeln.length > 0 && /visibility:\s*hidden/.test(regeln.join(' ')))
+        || ('Regeln: ' + regeln.join(' | '));
   });
   ta('der Notausstieg greift, wenn init() nie durchlaeuft', async () => {
     // kaputt.html ist dieselbe App mit absichtlich geworfenem Fehler in init().
@@ -2490,7 +2524,7 @@ window.addEventListener('error', e => {
     });
   });
   ta('die Fangliste liegt hinter dem Schirm, nicht unter ihm', async () => {
-    return await imRahmenVon('index.html', 700, (w, d) => {
+    return await imRahmenVon('index.html', 500, (w, d) => {
       const s = d.getElementById('splash');
       return w.getComputedStyle(s).position === 'fixed'
           && d.documentElement.scrollWidth - w.innerWidth <= 1

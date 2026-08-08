@@ -6,6 +6,29 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 08.08.2026 (7) — Der Ladebildschirm bleibt stehen
+
+**Er stand nur Millisekunden** (Karls Meldung) — die Oberfläche ist nach wenigen Millisekunden
+fertig, und damit war das Foto weg, bevor man es gesehen hatte. Jetzt steht er **mindestens
+1,8 Sekunden**.
+
+- ⚠️ **Gezählt wird ab dem Öffnen der Seite**, nicht ab dem Moment, in dem die App fertig ist.
+  Sonst käme die Wartezeit oben drauf: ein langsames Gerät, das eine Sekunde zum Starten
+  braucht, stünde dann 2,8 Sekunden hinter dem Schirm. So ist die Zeit eine **Obergrenze für
+  das Warten** und keine Strafe für ein langsames Gerät.
+- ⚠️ **Die Mindestzeit muss unter dem Notausstieg (4,5 s) liegen** — sonst räumt der den Schirm
+  weg, während die Mindestzeit ihn noch halten will: zwei Uhren, die gegeneinander laufen.
+  Dafür gibt es eine eigene Prüfung.
+- Geprüft wird **beides**: dass er nach 500 ms noch steht und nach 2,4 s weg ist. Nur das
+  Zweite zu prüfen ließe offen, ob die Mindestzeit überhaupt wirkt.
+
+⚠️ **Am Prüfrahmen gelernt:** Chrome arbeitet unter `--virtual-time-budget` **CSS-Transitions
+nicht ab**. Deckkraft und `visibility` bleiben dort auf ihrem Anfangswert, egal wie lange man
+wartet. Was an einer Transition hängt, lässt sich im Rahmen nur als Regel prüfen, nicht am
+Verhalten — steht jetzt so in den Prüfungen und ist dort auch begründet.
+
+**407 Prüfungen grün** (von 404).
+
 ## 08.08.2026 (6) — Angelfotos als Ladebildschirm
 
 **Karls sechs eigene Angelfotos füllen jetzt den Ladebildschirm**, bei jedem Öffnen ein

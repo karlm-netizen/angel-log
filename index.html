@@ -401,6 +401,29 @@ setTimeout(function(){
    blendet sich ein, sobald es geladen ist. Kommt es gar nicht, bleibt der Schirm in
    Palettenfarbe — schlichter, aber nie leer und nie langsamer. Andersherum gebaut wäre ein
    Ladebildschirm mit Foto langsamer als gar keiner. */
+/* ---- Wie lange der Schirm mindestens steht ----
+   Karls Ansage vom 08.08.: „der loading screen ist nur so ne millisekunde da bitte länger
+   anzeigen." Zu Recht — die Oberfläche steht nach wenigen Millisekunden, und damit war das
+   Foto weg, bevor man es gesehen hatte.
+
+   ⚠️ Gezählt wird ab dem **Öffnen der Seite**, nicht ab dem Moment, in dem die App fertig
+   ist. Sonst käme die Wartezeit oben drauf: eine App, die eine Sekunde zum Starten braucht,
+   stünde dann zwei Sekunden hinter dem Schirm. So ist die Zeit eine Obergrenze für das
+   Warten und keine Strafe für ein langsames Gerät.
+   ⚠️ Der Notausstieg unten (4,5 s) bleibt unberührt — er ist die harte Grenze, falls init()
+   nie durchläuft. Die Mindestzeit muss deutlich darunter liegen, sonst räumt der Notausstieg
+   den Schirm weg, während die Mindestzeit ihn noch halten will. */
+var SPLASH_MINDESTENS = 1800;
+var splashSeit = Date.now();
+function splashWeg(){
+  var rest = SPLASH_MINDESTENS - (Date.now() - splashSeit);
+  var nimm = function(){
+    var s = document.getElementById('splash');
+    if (s) s.classList.add('weg');
+  };
+  if (rest > 0) setTimeout(nimm, rest); else nimm();
+}
+
 (function(){
   var ANZAHL = 6;
   var el = document.querySelector('#splash .foto');
@@ -3861,14 +3884,16 @@ window.addEventListener('unhandledrejection', e =>
   buildStatics();
   go('log');                       // Oberfläche steht sofort, auch wenn der Speicher klemmt
 
-  // Ladebildschirm weg, sobald die Oberfläche steht — ausdrücklich NICHT erst, wenn die
-  // Fänge geladen sind.
-  // ⚠️ Der Schirm deckt das Aufblitzen beim Start ab, nicht das Laden der Daten. Hing er am
-  // Speicher, stünde er bei einem vollen Fangbuch sekundenlang, und bei klemmender IndexedDB
-  // (privates Safari-Fenster) bis zum Notausstieg — beides hinter einer Fläche, unter der
-  // die bereits fertige App verborgen liegt. Die Liste füllt sich sichtbar nach, sie hat
-  // ihren eigenen Leerzustand.
-  $('#splash').classList.add('weg');
+  /* Ladebildschirm weg. Zwei Dinge stecken hier drin:
+
+     1. Er hängt **nicht** am Laden der Fänge. Der Schirm deckt das Aufblitzen beim Start ab,
+        nicht das Laden der Daten. Hing er am Speicher, stünde er bei einem vollen Fangbuch
+        sekundenlang und bei klemmender IndexedDB (privates Safari-Fenster) bis zum
+        Notausstieg — beides hinter einer Fläche, unter der die fertige App längst liegt.
+     2. Er steht aber eine **Mindestzeit** (siehe splashWeg). Karl am 08.08.: „der loading
+        screen ist nur so ne millisekunde da". Stimmt — die Oberfläche steht nach wenigen
+        Millisekunden, und damit war das Foto weg, bevor man es gesehen hatte. */
+  splashWeg();
 
   try {
     await reload();
