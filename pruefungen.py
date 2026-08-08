@@ -2402,6 +2402,76 @@ window.addEventListener('error', e => {
         || 'kein Riegel gegen die Endlosschleife';
   });
 
+  /* ==================== Ladeleiste oben (Karls Ansage vom 08.08.) ====================
+     „das logo soll in der mitte weg dafuer aber eine loading leiste ganz oben etwas
+     groesser und mit prozenten." */
+  t('das Zeichen in der Mitte ist raus', () =>
+    !document.querySelector('#splash img.zeichen') || 'Zeichen steht noch da');
+  t('die Leiste steht ganz oben, nicht in der Mitte', () => {
+    const oben  = document.querySelector('#splash .oben');
+    const mitte = document.querySelector('#splash .mitte');
+    if (!oben || !mitte) return 'oben oder mitte fehlt';
+    return oben.contains(document.querySelector('#splash .balken'))
+        || 'die Leiste haengt nicht im oberen Block';
+  });
+  t('sie laesst Platz fuer die Statusleiste', () => {
+    // Bei einer vom Home-Bildschirm gestarteten App laeuft der Schirm bis unter die
+    // Dynamic Island. Ohne env(safe-area-inset-top) laege die Leiste teils darunter.
+    const css = Array.from(document.styleSheets)
+      .flatMap(sh => { try { return Array.from(sh.cssRules); } catch (e) { return []; } })
+      .map(r => r.cssText).join(' ');
+    return /#splash \.oben[^}]*safe-area-inset-top/.test(css) || 'kein Abstand zur Statusleiste';
+  });
+  t('sie ist deutlich groesser als der alte Strich', () => {
+    const h = parseFloat(getComputedStyle(document.querySelector('#splash .balken')).height);
+    return h >= 6 || ('nur ' + h + ' px hoch');
+  });
+  t('sie laeuft ueber die ganze Breite', () => {
+    const b = document.querySelector('#splash .balken').getBoundingClientRect();
+    return b.width > window.innerWidth * 0.7 || ('nur ' + Math.round(b.width) + ' px breit');
+  });
+  t('eine Prozentzahl steht dabei', () => {
+    const el = document.querySelector('#splash .prozent');
+    return (el && /\d+\s*%/.test(el.textContent)) || (el ? el.textContent : 'keine Zahl');
+  });
+  t('die Fuellung folgt der Zahl, nicht einer Animation', () => {
+    /* ⚠️ Vorher lief ein Strich endlos hin und her -- das zeigte Bewegung, keinen Stand.
+       Jetzt steuert die Breite den Stand. */
+    const st = getComputedStyle(document.querySelector('#splash .balken i'));
+    return st.animationName === 'none' || ('laeuft noch als Animation: ' + st.animationName);
+  });
+  t('splashStand setzt Breite, Zahl und Vorlese-Wert zusammen', () => {
+    splashStand(42);
+    const i = document.querySelector('#splash .balken i');
+    const p = document.querySelector('#splash .prozent');
+    const b = document.querySelector('#splash .balken');
+    const ok = i.style.width === '42%' && /42\s*%/.test(p.textContent)
+            && b.getAttribute('aria-valuenow') === '42';
+    return ok || `${i.style.width} / ${p.textContent} / ${b.getAttribute('aria-valuenow')}`;
+  });
+  t('sie bleibt in ihren Grenzen', () => {
+    splashStand(-20);
+    const unten = document.querySelector('#splash .balken i').style.width;
+    splashStand(300);
+    const oben = document.querySelector('#splash .balken i').style.width;
+    return (unten === '0%' && oben === '100%') || (unten + ' / ' + oben);
+  });
+  t('der Ticker laeuft nur bis 96 Prozent', () => {
+    /* ⚠️ Die letzten Prozent gehoeren dem tatsaechlichen Fertigwerden. Stuende die Leiste
+       auf 100, waehrend die App noch arbeitet, waere das eine Luege, die jeder sieht. */
+    const js = Array.from(document.scripts).map(s => s.textContent).join(' ');
+    // ⚠️ Kein [^)]* im Muster -- der Ausdruck enthaelt selbst Klammern, daran ist das
+    // erste Muster gescheitert. Geprueft wird schlicht das Ende des Ausdrucks.
+    return /SPLASH_MINDESTENS \* 100, 96\)/.test(js) || 'kein Deckel bei 96 %';
+  });
+  t('der Notausstieg raeumt den Ticker mit ab', () => {
+    // Sonst zaehlt alle 60 ms etwas weiter, das niemand mehr sieht -- fuer immer.
+    const js = Array.from(document.scripts).map(s => s.textContent).join(' ');
+    const ab = js.indexOf('}, 4500)');
+    const block = js.slice(Math.max(0, ab - 500), ab);
+    return /clearInterval\(splashTicker\)/.test(block) || 'Ticker laeuft weiter';
+  });
+
   t('der Ladebildschirm hat ein Foto', () => {
     const f = document.querySelector('#splash .foto');
     return (f && /^splash-[1-6]\.jpg$/.test(f.getAttribute('src') || ''))

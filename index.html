@@ -44,6 +44,11 @@
 // wird (Skriptfehler weiter unten, abgebrochener Download). Regulär geht der Schirm viel
 // früher weg, sobald die Fangliste steht.
 setTimeout(function(){
+  // ⚠️ Den Ticker mit abräumen. Sonst zählt hier alle 60 ms etwas weiter, das niemand
+  // mehr sieht — für immer, denn der reguläre Weg ist in diesem Fall ja nie gelaufen.
+  if (typeof splashTicker !== 'undefined' && splashTicker){
+    clearInterval(splashTicker); splashTicker = null;
+  }
   var s = document.getElementById('splash');
   if (s) s.classList.add('weg');
 }, 4500);
@@ -117,23 +122,35 @@ setTimeout(function(){
   #splash .schleier.da{opacity:1}
   #splash .mitte{position:relative; z-index:2; display:flex; flex-direction:column;
     align-items:center; gap:18px}
-  #splash img.zeichen{width:112px; height:112px; border-radius:26px}
   #splash .name{font-size:19px; font-weight:600; letter-spacing:-.3px; color:var(--txt)}
-  #splash .balken{width:104px; height:3px; border-radius:2px; overflow:hidden;
+
+  /* ---- Die Ladeleiste ganz oben (Karls Ansage vom 08.08.) ----
+     ⚠️ Vorher lief in der Mitte ein Strich hin und her, unter dem Zeichen. Das Zeichen ist
+     raus, die Leiste nach oben gewandert, größer, mit Prozentzahl.
+     ⚠️ `env(safe-area-inset-top)`: bei einer vom Home-Bildschirm gestarteten App läuft der
+     Schirm bis unter die Statusleiste und die Dynamic Island. Ohne den Abstand läge die
+     Leiste teils darunter. */
+  #splash .oben{position:absolute; left:0; right:0; z-index:2;
+    top:calc(env(safe-area-inset-top) + 14px); padding:0 18px}
+  #splash .balken{width:100%; height:7px; border-radius:999px; overflow:hidden;
     background:var(--line)}
-  #splash .balken i{display:block; width:40%; height:100%; border-radius:2px;
-    background:var(--muted); animation:splashlauf 1.05s ease-in-out infinite}
+  /* Die Füllung wird per Breite gesteuert, nicht per Animation — sie zeigt einen Stand,
+     keine Bewegung um ihrer selbst willen. */
+  #splash .balken i{display:block; width:0%; height:100%; border-radius:999px;
+    background:var(--accent); transition:width .18s linear}
+  #splash .prozent{margin-top:7px; text-align:right; font-size:13px; font-weight:700;
+    font-variant-numeric:tabular-nums; color:var(--txt)}
   /* Sobald ein Foto liegt, muss die Schrift hell sein — auch auf den vier hellen
      Paletten, wo --txt fast schwarz ist und auf dem abgedunkelten Bild verschwände. */
-  #splash.mitFoto .name{color:#fff; text-shadow:0 1px 12px rgba(0,0,0,.55)}
+  #splash.mitFoto .name,
+  #splash.mitFoto .prozent{color:#fff; text-shadow:0 1px 12px rgba(0,0,0,.55)}
   #splash.mitFoto .balken{background:rgba(255,255,255,.28)}
-  #splash.mitFoto .balken i{background:rgba(255,255,255,.85)}
-  @keyframes splashlauf{0%{transform:translateX(-105%)} 100%{transform:translateX(360%)}}
-  /* Wer Bewegung abgeschaltet hat, bekommt einen ruhenden Balken statt eines wandernden
-     und das Foto ohne Einblenden. */
+  #splash.mitFoto .balken i{background:#fff}
+  /* Wer Bewegung abgeschaltet hat, bekommt das Foto ohne Einblenden und die Leiste ohne
+     weiches Nachlaufen — der Stand springt dann einfach. */
   @media (prefers-reduced-motion: reduce){
     #splash{transition:none}
-    #splash .balken i{animation:none; width:100%}
+    #splash .balken i{transition:none}
     #splash .foto, #splash .schleier{transition:none}
   }
   .iconbtn{width:38px; height:38px; flex:0 0 38px; display:grid; place-items:center;
@@ -379,10 +396,14 @@ setTimeout(function(){
        Reihe ist, steht im Speicher, ein fest verdrahtetes src zeigte immer dasselbe. -->
   <img class="foto" alt="" aria-hidden="true">
   <div class="schleier"></div>
+  <!-- Ladeleiste ganz oben (Karls Ansage vom 08.08.). Das Zeichen in der Mitte ist raus. -->
+  <div class="oben">
+    <div class="balken" role="progressbar" aria-label="Wird geladen"
+         aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
+    <div class="prozent">0 %</div>
+  </div>
   <div class="mitte">
-    <img class="zeichen" src="icon-192.png" alt="">
     <div class="name">Angel-Log</div>
-    <div class="balken"><i></i></div>
   </div>
 </div>
 <script>
@@ -415,11 +436,43 @@ setTimeout(function(){
    den Schirm weg, während die Mindestzeit ihn noch halten will. */
 var SPLASH_MINDESTENS = 1800;
 var splashSeit = Date.now();
+
+/* ---- Die Prozentzahl ----
+   ⚠️ **Ehrlich benannt: das ist die Standzeit, kein gemessener Ladefortschritt.** Einen
+   solchen gibt es hier nicht — die Oberfläche steht nach wenigen Millisekunden, die Fänge
+   kommen aus dem Gerät, und weder Menge noch Dauer sind vorher bekannt. Was der Balken zeigt,
+   ist die verlässlichste ehrliche Auskunft, die zu geben ist: **wie lange es noch dauert**,
+   bis der Schirm weggeht.
+
+   ⚠️ Er läuft nur bis 96 %. Die letzten Prozent gehören dem tatsächlichen Fertigwerden —
+   sonst stünde er auf 100 %, während die App noch arbeitet, und das wäre eine Lüge, die
+   jeder sieht. Ist alles fertig, springt er auf 100 und der Schirm blendet kurz danach weg;
+   die Pause ist da, damit die 100 überhaupt zu sehen ist statt im selben Bild zu verschwinden. */
+var splashBalken  = document.querySelector('#splash .balken');
+var splashFuellung = document.querySelector('#splash .balken i');
+var splashProzent = document.querySelector('#splash .prozent');
+var splashTicker  = null;
+
+function splashStand(p){
+  p = Math.max(0, Math.min(100, Math.round(p)));
+  if (splashFuellung) splashFuellung.style.width = p + '%';
+  if (splashProzent)  splashProzent.textContent = p + ' %';
+  if (splashBalken)   splashBalken.setAttribute('aria-valuenow', String(p));
+}
+splashTicker = setInterval(function(){
+  splashStand(Math.min((Date.now() - splashSeit) / SPLASH_MINDESTENS * 100, 96));
+}, 60);
+
 function splashWeg(){
   var rest = SPLASH_MINDESTENS - (Date.now() - splashSeit);
   var nimm = function(){
-    var s = document.getElementById('splash');
-    if (s) s.classList.add('weg');
+    if (splashTicker){ clearInterval(splashTicker); splashTicker = null; }
+    splashStand(100);
+    // Kurz stehen lassen, sonst ist die 100 nie zu sehen.
+    setTimeout(function(){
+      var s = document.getElementById('splash');
+      if (s) s.classList.add('weg');
+    }, 220);
   };
   if (rest > 0) setTimeout(nimm, rest); else nimm();
 }

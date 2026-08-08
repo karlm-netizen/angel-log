@@ -6,6 +6,38 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 08.08.2026 (9) — Ladeleiste oben statt Zeichen in der Mitte
+
+Karls Ansage: *„das logo soll in der mitte weg dafür aber eine loading leiste ganz oben etwas
+größer und mit prozenten."*
+
+- **Das Zeichen in der Mitte ist raus.** Der Name bleibt — sonst sagt der Schirm nicht mehr,
+  welche App startet.
+- **Die Leiste steht ganz oben**, über die volle Breite, **7 px** statt 3, mit **Prozentzahl**
+  darunter.
+- ⚠️ **Abstand zur Statusleiste** über `env(safe-area-inset-top)`. Eine vom Home-Bildschirm
+  gestartete App läuft bis unter die Dynamic Island; ohne den Abstand läge die Leiste teils
+  darunter.
+- Die Füllung folgt jetzt einem **Stand**, nicht mehr einer Animation. Vorher lief ein Strich
+  endlos hin und her — das zeigte Bewegung, aber keinen Fortschritt.
+
+⚠️ **Ehrlich benannt: die Zahl ist die Standzeit, kein gemessener Ladefortschritt.** Einen
+solchen gibt es hier nicht — die Oberfläche steht nach wenigen Millisekunden, die Fänge kommen
+aus dem Gerät, und weder Menge noch Dauer sind vorher bekannt. Was der Balken zeigt, ist die
+verlässlichste ehrliche Auskunft, die zu geben ist: **wie lange es noch dauert**, bis der
+Schirm weggeht.
+
+⚠️ **Er läuft nur bis 96 %.** Die letzten Prozent gehören dem tatsächlichen Fertigwerden —
+stünde er auf 100, während die App noch arbeitet, wäre das eine Lüge, die jeder sieht. Ist
+alles fertig, springt er auf 100, und der Schirm blendet **220 ms später** weg; ohne diese
+Pause wäre die 100 nie zu sehen.
+
+⚠️ **Der Notausstieg räumt den Ticker mit ab.** Sonst zählte alle 60 ms etwas weiter, das
+niemand mehr sieht — und zwar für immer, denn in diesem Fall ist der reguläre Weg ja nie
+gelaufen.
+
+**423 Prüfungen grün** (von 412).
+
 ## 08.08.2026 (8) — Neue Fassungen kommen auch am Handy an
 
 **Karl sah die neue Fassung auf seinem iPhone nicht, sein Kollege schon.** Ursache war nicht
