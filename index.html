@@ -321,8 +321,16 @@ setTimeout(function(){
     align-items:flex-end}
   .sheet.on{display:flex}
   .sheet .inner{background:var(--card); width:100%; max-width:560px; margin:0 auto;
-    border-radius:20px 20px 0 0; padding:18px 18px calc(env(safe-area-inset-bottom) + 18px);
-    max-height:86vh; overflow:auto}
+    border-radius:20px 20px 0 0; padding:8px 18px calc(env(safe-area-inset-bottom) + 18px);
+    max-height:86vh; overflow:auto; transition:transform .22s ease}
+  /* Während des Ziehens darf nichts nachlaufen — sonst hinkt das Blatt am Finger. */
+  .sheet .inner.zieht{transition:none}
+  /* Der Griff sagt, dass man das Blatt herunterwischen kann. Ohne ihn weiß es niemand. */
+  .sheet .griff{width:40px; height:4px; border-radius:999px; background:var(--line);
+    margin:2px auto 10px; flex:0 0 auto}
+  .sheet .kopf{display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin-bottom:12px}
+  .sheet .kopf h2{font-size:17px; margin:0}
   .viewer{position:fixed; inset:0; background:#000; z-index:1100; display:none;
     align-items:center; justify-content:center; padding:12px}
   .viewer.on{display:flex}
@@ -663,7 +671,15 @@ setTimeout(function(){
 <!-- ======================= MENÜ ======================= -->
 <div class="sheet" id="sheet">
   <div class="inner">
-    <h2 style="font-size:17px; margin-bottom:12px">Einstellungen</h2>
+    <div class="griff" id="sheet-griff"></div>
+    <div class="kopf">
+      <h2>Einstellungen</h2>
+      <button class="iconbtn" id="btn-sheet-zu" aria-label="Einstellungen schließen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+    </div>
     <label class="f">Farbpalette</label>
     <div class="pal" id="pal"></div>
     <div id="konto" hidden></div>
@@ -896,13 +912,21 @@ async function allGraeber(){
     r.onerror   = () => rej(r.error);
   });
 }
+/* ⚠️ Der Zeitstempel muss stehen bleiben. Hier stand `updated: Date.now()` — damit
+   bekam ein Grabstein beim Melden einen **jüngeren** Stempel als den, mit dem er
+   gerade hochgeladen wurde. Kommt derselbe Fang später von einem anderen Gerät
+   wieder herunter, entscheidet der Vergleich der Stempel, ob er lebt oder tot ist;
+   ein nachträglich hochgesetzter Grabstein gewinnt gegen eine echte spätere
+   Wiederherstellung und löscht sie erneut. Gemeldet wird ein Grabstein, sein
+   Todeszeitpunkt ändert sich dadurch nicht. */
 async function grabMarkieren(ids){
   if (!ids.length) return;
   const d = await db();
+  const alte = new Map((await allGraeber()).map(g => [g.id, g.updated]));
   return new Promise((res, rej) => {
     const t = d.transaction(GRAB, 'readwrite');
     const s = t.objectStore(GRAB);
-    ids.forEach(id => s.put({ id, updated: Date.now(), gemeldet: true }));
+    ids.forEach(id => s.put({ id, updated: alte.get(id) || Date.now(), gemeldet: true }));
     t.oncomplete = () => res();
     t.onerror    = () => rej(t.error);
   });
@@ -2205,9 +2229,62 @@ $('#btn-map-retry').onclick = () => {
 const blobToDataURL = b => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
 const dataURLToBlob = async d => (await fetch(d)).blob();
 
-$('#btn-menu').onclick = () => $('#sheet').classList.add('on');
-$('#btn-close-sheet').onclick = () => $('#sheet').classList.remove('on');
-$('#sheet').onclick = e => { if (e.target.id === 'sheet') $('#sheet').classList.remove('on'); };
+function sheetZu(){
+  const i = $('#sheet .inner');
+  i.classList.remove('zieht');
+  i.style.transform = '';            // eine stehengebliebene Verschiebung zurücksetzen
+  $('#sheet').classList.remove('on');
+}
+$('#btn-menu').onclick = () => { $('#sheet .inner').scrollTop = 0; $('#sheet').classList.add('on'); };
+$('#btn-close-sheet').onclick = sheetZu;
+$('#btn-sheet-zu').onclick    = sheetZu;
+$('#sheet').onclick = e => { if (e.target.id === 'sheet') sheetZu(); };
+
+/* ---------- Das Blatt herunterwischen ----------
+   Karls Ansage vom 08.08.: am Handy soll man die Einstellungen oben schließen oder
+   herunterwischen können. Bis dahin stand der einzige Knopf ganz unten — man musste
+   erst durch die ganzen Einstellungen scrollen, um wieder herauszukommen.
+
+   ⚠️ Der heikle Teil ist die Abgrenzung zum Scrollen: das Blatt scrollt innen
+   (max-height 86vh). Ein Wisch nach unten darf deshalb **nur** dann das Blatt
+   ziehen, wenn der Inhalt bereits ganz oben steht — sonst nimmt man beim Zurück-
+   scrollen versehentlich das ganze Blatt mit. Am Griff gilt das immer, der ist
+   ausdrücklich zum Ziehen da.
+   ⚠️ Nach oben wird nichts gezogen: ein Blatt, das man nach oben schieben kann,
+   verspricht mehr Inhalt, den es nicht gibt. */
+(function sheetWischen(){
+  const blatt = $('#sheet'), innen = $('#sheet .inner'), griff = $('#sheet-griff');
+  const SCHWELLE = 90;                     // ab hier ist es ein Schließen, kein Verrutschen
+  let y0 = null, dy = 0, amGriff = false;
+
+  innen.addEventListener('touchstart', e => {
+    if (!e.touches || e.touches.length !== 1) return;   // zwei Finger sind Zoomen, nicht Wischen
+    amGriff = griff.contains(e.target);
+    if (!amGriff && innen.scrollTop > 0) { y0 = null; return; }
+    y0 = e.touches[0].clientY; dy = 0;
+    innen.classList.add('zieht');
+  }, { passive: true });
+
+  innen.addEventListener('touchmove', e => {
+    if (y0 == null || !e.touches || !e.touches.length) return;
+    dy = e.touches[0].clientY - y0;
+    if (dy <= 0){ innen.style.transform = ''; return; }
+    // Läuft der Inhalt beim Ziehen doch weiter, war es ein Scrollen — abbrechen.
+    if (!amGriff && innen.scrollTop > 0){ y0 = null; innen.style.transform = ''; innen.classList.remove('zieht'); return; }
+    innen.style.transform = `translateY(${dy}px)`;
+  }, { passive: true });
+
+  const loslassen = () => {
+    if (y0 == null) return;
+    innen.classList.remove('zieht');
+    if (dy > SCHWELLE) sheetZu();
+    else innen.style.transform = '';        // zurückschnappen
+    y0 = null; dy = 0;
+  };
+  innen.addEventListener('touchend', loslassen, { passive: true });
+  innen.addEventListener('touchcancel', loslassen, { passive: true });
+  blatt.addEventListener('touchcancel', loslassen, { passive: true });
+})();
 
 $('#btn-export').onclick = async () => {
   toast('Datei wird gebaut …');
@@ -2418,6 +2495,29 @@ const SYNC_KEY = 'angellog-sync';
 const syncStand = () => { try { return localStorage.getItem(SYNC_KEY) || '1970-01-01T00:00:00Z'; } catch { return '1970-01-01T00:00:00Z'; } };
 const syncStandSetzen = s => { try { localStorage.setItem(SYNC_KEY, s); } catch {} };
 
+/* ---------- Einmalige Reparatur nach dem Fehler vom 08.08.2026 ----------
+   ⚠️ Den Fehler zu beheben genügt nicht. Auf jedem Gerät, das ihn erlebt hat, steht
+   `-push` bereits zu hoch: die durchgefallenen Fänge liegen zwar noch im Gerät, ihr
+   `updated` ist aber kleiner als dieser Stand — sie würden auch mit dem reparierten
+   Code weiter übersprungen, für immer.
+
+   Deshalb einmalig auf 0 zurück. Der nächste Abgleich prüft dann jeden Fang erneut
+   und schickt hoch, was drüben fehlt. Das kostet einmal Datenvolumen für alle Fotos;
+   verloren gehen kann dabei nichts, weil die Datenbank `merge-duplicates` verwendet
+   und ein zweites Hochladen desselben Fangs dieselbe Zeile trifft.
+
+   ⚠️ Der Merker gehört in den localStorage und nicht an die Fassung der App: er darf
+   genau einmal je Gerät greifen, nicht bei jedem Update erneut. */
+const REPARATUR_KEY = 'angellog-reparatur-push-2026-08-08';
+function reparaturPush(){
+  try {
+    if (localStorage.getItem(REPARATUR_KEY)) return false;
+    localStorage.setItem(REPARATUR_KEY, String(Date.now()));
+    localStorage.setItem(SYNC_KEY + '-push', '0');
+    return true;
+  } catch { return false; }
+}
+
 const TABELLE = '/rest/v1/angel_faenge';
 
 async function zeilenSchreiben(zeilen){
@@ -2432,9 +2532,28 @@ async function zeilenSchreiben(zeilen){
   }
 }
 
+/* ⚠️ Der Fehler, der am 08.08.2026 zwei Fänge des Kollegen gekostet hat.
+
+   Hier stand am Ende `setItem(SYNC_KEY + '-push', String(Date.now()))` — der
+   Zeitpunkt **nach** dem Hochladen. Ausgewählt wird aber **vorher**, in der Schleife
+   unten. Dazwischen liegt echte Zeit: Fotos verkleinern und verschicken dauert am
+   Handy im Mobilfunk leicht zehn Sekunden bis eine Minute.
+
+   Jeder Fang, der **in diesem Fenster** erfasst oder geändert wurde, fiel durch:
+   für die laufende Runde war er zu spät, und der neue Stand erklärte ihn zugleich
+   für erledigt. Beim nächsten Abgleich wurde er übersprungen — und bei jedem
+   weiteren auch. Er lag noch im Gerät, kam aber nie in die Cloud und damit auf kein
+   zweites Gerät. Genau die Lage am Wasser: zwei Fische kurz nacheinander eintragen,
+   während der erste mit seinem Foto noch hochlädt.
+
+   Jetzt rückt der Stand nur so weit vor, **wie tatsächlich hochgeladen wurde** —
+   auf das größte `updated` der verschickten Zeilen. Was danach entstand, bleibt
+   offen und geht in der nächsten Runde mit. Der Stand darf nie einen Zeitpunkt
+   behaupten, für den nichts verschickt wurde. */
 async function hochladen(){
   const seit = Number(localStorage.getItem(SYNC_KEY + '-push') || 0);
   const raus = [];
+  let hoechstes = seit;
   for (const c of state.catches){
     if ((c.updated || 0) <= seit) continue;
     if (c.entwurf) continue;                 // Entwürfe sind halbe Sachen, die bleiben lokal
@@ -2447,7 +2566,9 @@ async function hochladen(){
     }
     const daten = { ...c };
     delete daten.photos;
-    raus.push({ id: c.id, updated: c.updated || Date.now(), geloescht: false, daten, fotos });
+    const updated = c.updated || Date.now();
+    if (updated > hoechstes) hoechstes = updated;
+    raus.push({ id: c.id, updated, geloescht: false, daten, fotos });
   }
   // Gelöschtes als Grabstein melden, sonst lebt der Fang auf dem anderen Gerät weiter.
   const graeber = (await allGraeber()).filter(g => !g.gemeldet);
@@ -2455,7 +2576,11 @@ async function hochladen(){
 
   await zeilenSchreiben(raus);
   await grabMarkieren(graeber.map(g => g.id));
-  try { localStorage.setItem(SYNC_KEY + '-push', String(Date.now())); } catch {}
+  /* Nur bis zum größten tatsächlich verschickten `updated` vorrücken — siehe die
+     Erklärung über der Funktion. Grabsteine zählen hier bewusst nicht mit: sie
+     hängen an `gemeldet`, nicht an diesem Stand, und ihr Zeitstempel könnte den
+     Stand über Fänge hinausschieben, die noch gar nicht dran waren. */
+  try { localStorage.setItem(SYNC_KEY + '-push', String(hoechstes)); } catch {}
   return raus.length;
 }
 
@@ -2642,7 +2767,19 @@ async function syncJetzt(still){
       }
     }
 
-    if (runter) { await reload(); renderList(); }
+    /* ⚠️ Hier stand nur `renderList()`. Wer gerade auf der **Karte** stand, während
+       der Abgleich lief, sah die neuen Fänge nicht: die Liste wurde aufgefrischt, die
+       Karte nicht — sie zeichnet erst beim nächsten Ansichtswechsel neu. Das war Karls
+       „bei der Karte gibt es ein Sync-Problem": dort fällt Fehlendes am stärksten auf,
+       weil alles auf einen Blick liegt. Einen eigenen Abgleich hat die Karte nicht,
+       sie zeigt schlicht `state.catches`.
+       Aufgefrischt wird jetzt, was gerade zu sehen ist. */
+    if (runter) {
+      await reload();
+      renderList();
+      if (state.view === 'map')   renderMap();
+      if (state.view === 'stats') renderStats();
+    }
     try { localStorage.setItem(SYNC_KEY + '-zeit', String(Date.now())); } catch {}
     if (!still) toast(rauf || runter ? `Abgeglichen · ${rauf} hoch, ${runter} runter` : 'Alles schon aktuell');
   } catch (e){
@@ -3527,16 +3664,18 @@ function renderStats(){
   let inhalt = bild(state.stats);
   const gezeichnet = () => letzteBilder.length > 0;
 
-  /* Am großen Bildschirm stehen die gespeicherten Auswertungen daneben. Genau
-     dafür gibt es sie: nebeneinander lassen sie sich vergleichen, untereinander
-     muss man sich das zweite Bild merken. Am Handy bleibt es bei einer — dort
-     wäre alles andere Scrollen. Die gerade geladene kommt nicht doppelt. */
-  if (breitesBild()){
-    inhalt += state.auswertungen
-      .filter(a => a.id !== state.stats.aktiv)
-      .map(a => bild(a, a.name))
-      .join('');
-  }
+  /* Die gespeicherten Auswertungen stehen mit da — am großen Bildschirm nebeneinander,
+     am Handy untereinander.
+
+     ⚠️ Bis zum 08.08. war das auf den großen Bildschirm beschränkt, mit der Begründung
+     „am Handy wäre alles andere Scrollen". Karl hat sie ausdrücklich auch am Handy
+     verlangt, und er hat recht: Scrollen ist am Handy das normale Mittel, und ohne die
+     gespeicherten muss man dort jede Auswertung einzeln laden, um sie anzusehen — das
+     ist mehr Aufwand als ein Wisch. Die gerade geladene kommt nicht doppelt. */
+  inhalt += state.auswertungen
+    .filter(a => a.id !== state.stats.aktiv)
+    .map(a => bild(a, a.name))
+    .join('');
 
   /* Der wichtigste Satz im ganzen Reiter, deshalb einmal darunter statt in
      jeder Karte: hier stehen Verteilungen, keine Erfolgsquoten. */
@@ -3613,6 +3752,8 @@ window.addEventListener('unhandledrejection', e =>
   if (cloudAn()){
     konto = kontoLesen();
     renderKonto();
+    // Einmalig, bevor der erste Abgleich läuft — siehe reparaturPush().
+    reparaturPush();
     if (gateNoetig()) gateZeigen();
     else syncJetzt(true);
     // Wer ohne Netz einträgt, soll nicht daran denken müssen.

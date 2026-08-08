@@ -6,6 +6,70 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 08.08.2026 (3) — 🚨 Datenverlust behoben, Karte, Einstellungen, Statistiken am Handy
+
+### 🚨 Zwei Fänge des Kollegen waren weg — Ursache gefunden und behoben
+
+**Der Push-Stand wurde auf die Uhr gesetzt statt auf das, was hochgeladen wurde.**
+Am Ende von `hochladen()` stand `Date.now()` — der Zeitpunkt **nach** dem Verschicken.
+Ausgewählt werden die Fänge aber **davor**. Dazwischen liegt echte Zeit: Fotos verkleinern
+und hochladen dauert am Handy im Mobilfunk zehn Sekunden bis eine Minute.
+
+⚠️ **Jeder Fang, der in diesem Fenster entstand, fiel durch.** Für die laufende Runde war er
+zu spät, und der neue Stand erklärte ihn zugleich für erledigt — beim nächsten Abgleich
+übersprungen, und bei jedem weiteren auch. Er lag noch im Gerät, kam aber nie in die Cloud
+und damit auf kein zweites Gerät. **Genau die Lage am Wasser: zwei Fische kurz nacheinander
+eintragen, während der erste mit seinem Foto noch hochlädt.**
+
+Jetzt rückt der Stand nur bis zum größten **tatsächlich verschickten** `updated` vor.
+Grabsteine zählen dabei nicht mit — sie hängen an `gemeldet`, und ihr Zeitstempel könnte den
+Stand sonst über Fänge schieben, die noch gar nicht dran waren.
+
+⚠️ **Den Fehler zu beheben genügt nicht.** Auf jedem Gerät, das ihn erlebt hat, steht der
+Stand bereits zu hoch: die durchgefallenen Fänge liegen zwar noch im Gerät, ihr `updated` ist
+aber kleiner — sie würden auch mit repariertem Code weiter übersprungen, für immer. Deshalb
+setzt die neue Fassung den Stand **einmalig je Gerät** auf 0 zurück. Der nächste Abgleich
+prüft dann jeden Fang erneut und schickt hoch, was drüben fehlt. Verloren gehen kann dabei
+nichts (`merge-duplicates` trifft dieselbe Zeile); es kostet einmal Datenvolumen für alle Fotos.
+
+⚠️ **Zweiter Fehler in derselben Ecke:** `grabMarkieren` setzte `updated: Date.now()`. Ein
+Grabstein bekam beim Melden einen **jüngeren** Stempel als den, mit dem er hochgeladen wurde —
+und gewänne damit gegen eine echte spätere Wiederherstellung. Der Todeszeitpunkt bleibt jetzt
+stehen; gemeldet wird ein Grabstein, sterben tut er nur einmal.
+
+⚠️ **Gegengeprobt:** der Fehler wurde zur Kontrolle wieder eingebaut — die neuen Prüfungen
+schlagen dann fehl. Eine Prüfung, die den Fehler nicht fängt, ist keine.
+
+### Die Karte
+
+**Wer während des Abgleichs auf der Karte stand, sah die neuen Fänge nicht.** Nach dem
+Herunterladen wurde nur die Liste aufgefrischt — die Karte zeichnet erst beim nächsten
+Ansichtswechsel neu. Jetzt wird aufgefrischt, was gerade zu sehen ist (Karte und Statistiken).
+⚠️ Einen eigenen Abgleich hat die Karte nicht, sie zeigt schlicht `state.catches`. Fehlten dort
+Fänge, war es der Fehler oben — auf der Karte fällt das am stärksten auf, weil alles auf einen
+Blick liegt.
+
+### Einstellungen schließen
+
+**Oben ein Kreuz, und das Blatt lässt sich herunterwischen** (Karls Ansage — beides gebaut).
+Bisher stand der einzige Knopf ganz unten; man musste erst durch alle Einstellungen scrollen.
+Ein **Griff** oben zeigt, dass gewischt werden kann.
+⚠️ Der heikle Teil ist die Abgrenzung zum Scrollen: das Blatt scrollt innen. Ein Wisch nach
+unten zieht deshalb **nur**, wenn der Inhalt bereits ganz oben steht — sonst nähme man beim
+Zurückscrollen versehentlich das ganze Blatt mit. Am Griff gilt das nicht, der ist zum Ziehen da.
+⚠️ Nach oben wird nichts gezogen: ein Blatt, das nach oben geht, verspricht Inhalt, den es
+nicht gibt. Und die Verschiebung wird beim Schließen zurückgesetzt, sonst wäre es beim nächsten
+Öffnen verrutscht.
+
+### Statistiken am Handy
+
+**Auch am Handy stehen jetzt alle gespeicherten Auswertungen da, untereinander.** Das war
+bisher auf den großen Bildschirm beschränkt, mit der Begründung „am Handy wäre alles andere
+Scrollen". Karl hat recht: Scrollen ist am Handy das normale Mittel, und ohne die
+gespeicherten muss man dort jede einzeln laden.
+
+**379 Prüfungen grün** (von 367).
+
 ## 08.08.2026 (2) — Gewässer per Standort, Angelzeit-Fehler, Punkte-Auswahl raus
 
 **🐞 Die Angelzeit kam an keinem zweiten Gerät an — behoben.** Karls Meldung, und es war

@@ -1683,6 +1683,197 @@ TESTS = r"""
     return (ids.length === 2 && ids[0] === 'alt1' && ids[1] === 'alt2') || JSON.stringify(ids);
   });
 
+  /* ==================== Der Datenverlust vom 08.08.2026 ====================
+     Karls Meldung: "mein kollege sagt das 2 seiner fische auf einmal nicht mehr
+     da waren."
+
+     Ursache: der Push-Stand wurde auf `Date.now()` NACH dem Hochladen gesetzt,
+     ausgewaehlt wird aber davor. Dazwischen liegt die Zeit fuers Verkleinern und
+     Verschicken der Fotos -- am Handy im Mobilfunk zehn Sekunden bis eine Minute.
+     Ein Fang aus diesem Fenster war fuer die laufende Runde zu spaet und galt
+     durch den neuen Stand zugleich als erledigt. Er ging nie hoch, bei keinem
+     spaeteren Abgleich, und lag nur noch auf dem einen Geraet.
+
+     ⚠️ Die Pruefung unten stellt genau dieses Fenster nach: waehrend
+     zeilenSchreiben laeuft, kommt ein Fang dazu. */
+  ta('ein Fang aus dem Hochlade-Fenster geht nicht verloren', async () => {
+    sandbox([mkC('erster', 1000)]);
+    localStorage.setItem('angellog-sync-push', '0');
+    let raus = null;
+    zeilenSchreiben = async z => {
+      raus = z;
+      // Genau hier tippt der Kollege den zweiten Fisch ein: das Hochladen des
+      // ersten laeuft noch, sein Foto ist unterwegs.
+      const spaet = mkC('waehrenddessen', Date.now());
+      fakeDB.set(spaet.id, spaet);
+      state.catches = [...fakeDB.values()];
+    };
+    api = async () => ({ ok: true, json: async () => [] });
+    await hochladen();
+    const stand = Number(localStorage.getItem('angellog-sync-push'));
+    const spaet = [...fakeDB.values()].find(c => c.id === 'waehrenddessen');
+    // Der Stand darf den spaeten Fang nicht ueberholt haben, sonst faellt er durch.
+    return stand < spaet.updated
+        || `Stand ${stand} >= Fang ${spaet.updated} — der Fang faellt durch`;
+  });
+  ta('und er geht in der naechsten Runde wirklich hoch', async () => {
+    sandbox([mkC('erster', 1000)]);
+    localStorage.setItem('angellog-sync-push', '0');
+    let raus = null;
+    zeilenSchreiben = async z => { raus = z; };
+    api = async () => ({ ok: true, json: async () => [] });
+    await hochladen();                      // Runde 1: nur 'erster'
+    const spaet = mkC('waehrenddessen', Number(localStorage.getItem('angellog-sync-push')) + 1);
+    fakeDB.set(spaet.id, spaet); state.catches = [...fakeDB.values()];
+    await hochladen();                      // Runde 2: muss den spaeten mitnehmen
+    const ids = (raus || []).map(r => r.id);
+    return ids.includes('waehrenddessen') || JSON.stringify(ids);
+  });
+  ta('der Stand springt nicht auf die Uhr, sondern auf das Verschickte', async () => {
+    sandbox([mkC('a', 5000)]);
+    localStorage.setItem('angellog-sync-push', '0');
+    zeilenSchreiben = async () => {};
+    api = async () => ({ ok: true, json: async () => [] });
+    await hochladen();
+    const stand = Number(localStorage.getItem('angellog-sync-push'));
+    // 5000 ist das groesste verschickte updated. Date.now() waere ~1.7e12.
+    return stand === 5000 || ('Stand ist ' + stand + ' statt 5000');
+  });
+  ta('ein Grabstein schiebt den Stand nicht ueber offene Faenge', async () => {
+    // Grabsteine haengen an `gemeldet`, nicht am Push-Stand. Zaehlten sie mit,
+    // koennte ihr Zeitstempel den Stand ueber Faenge schieben, die noch nicht dran
+    // waren -- derselbe Verlust durch die Hintertuer.
+    sandbox([mkC('a', 5000)], [{ id: 'tot', updated: 9e12, gemeldet: false }]);
+    localStorage.setItem('angellog-sync-push', '0');
+    zeilenSchreiben = async () => {};
+    api = async () => ({ ok: true, json: async () => [] });
+    await hochladen();
+    return Number(localStorage.getItem('angellog-sync-push')) === 5000
+        || ('Stand ist ' + localStorage.getItem('angellog-sync-push'));
+  });
+  t('ein gemeldeter Grabstein behaelt seinen Todeszeitpunkt', () => {
+    /* ⚠️ Hier stand `updated: Date.now()`. Ein Grabstein bekam beim Melden einen
+       juengeren Stempel als den, mit dem er hochgeladen wurde -- und gewaenne damit
+       gegen eine echte spaetere Wiederherstellung, die ihn eigentlich aufheben soll.
+
+       Geprueft am Quelltext: grabMarkieren schreibt in die echte IndexedDB, und die
+       laeuft in diesem Rahmen nicht mit (die Pruefungen ersetzen putCatch). Lieber
+       eine ehrliche Quelltext-Pruefung als eine Verhaltenspruefung, die den Fall
+       gar nicht herstellen kann. */
+    const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
+    const ab = js.indexOf('async function grabMarkieren(');
+    if (ab < 0) return 'grabMarkieren nicht gefunden';
+    const block = js.slice(ab, ab + 700);
+    return (block.includes('alte.get(id)') && !/updated:\s*Date\.now\(\)/.test(block))
+        || 'setzt den Stempel neu: ' + block.slice(0, 400);
+  });
+
+  /* ==================== Einstellungen schliessen ====================
+     Karls Ansage vom 08.08.: "wenn ich auf meinem handy auf einstellungen gehe
+     moechte ich das man entweder oben auf ein kreuz clicken kann oder das menu
+     wieder runterwischen kann." Bis dahin stand der einzige Knopf ganz unten --
+     man musste erst durch alle Einstellungen scrollen, um herauszukommen. */
+  const sheetAuf = () => { document.querySelector('#btn-menu').click(); };
+  const sheetOffen = () => document.querySelector('#sheet').classList.contains('on');
+
+  t('das Kreuz steht oben im Blatt', () => {
+    const k = document.querySelector('#btn-sheet-zu');
+    if (!k) return 'kein Kreuz da';
+    const kopf = k.closest('.kopf');
+    return (kopf && kopf.querySelector('h2')) ? true : 'Kreuz steht nicht in der Kopfzeile';
+  });
+  t('das Kreuz schliesst', () => {
+    sheetAuf();
+    if (!sheetOffen()) return 'liess sich nicht oeffnen';
+    document.querySelector('#btn-sheet-zu').click();
+    return !sheetOffen() || 'blieb offen';
+  });
+  t('der Knopf unten schliesst weiter', () => {
+    sheetAuf(); document.querySelector('#btn-close-sheet').click();
+    return !sheetOffen() || 'blieb offen';
+  });
+  t('ein Griff zeigt, dass man wischen kann', () =>
+    !!document.querySelector('#sheet-griff') || 'kein Griff');
+
+  // Wischen nachstellen. touchstart/-move/-end von Hand, weil headless nicht wischt.
+  const wisch = (vonY, nachY, ziel) => {
+    const el = ziel || document.querySelector('#sheet .inner');
+    const tp = (y) => ({ clientY: y, target: el, identifier: 1 });
+    const ev = (name, y) => {
+      const e = new Event(name, { bubbles: true });
+      e.touches = [tp(y)];
+      Object.defineProperty(e, 'target', { value: el });
+      el.dispatchEvent(e);
+    };
+    ev('touchstart', vonY);
+    ev('touchmove', nachY);
+    const ende = new Event('touchend', { bubbles: true });
+    ende.touches = [];
+    el.dispatchEvent(ende);
+  };
+
+  t('weit runterwischen schliesst', () => {
+    sheetAuf();
+    document.querySelector('#sheet .inner').scrollTop = 0;
+    wisch(100, 260);                        // 160 px, deutlich ueber der Schwelle
+    return !sheetOffen() || 'blieb offen';
+  });
+  t('ein kurzer Wisch schliesst nicht', () => {
+    sheetAuf();
+    document.querySelector('#sheet .inner').scrollTop = 0;
+    wisch(100, 130);                        // 30 px -- ein Verrutschen, kein Schliessen
+    const offen = sheetOffen();
+    document.querySelector('#btn-sheet-zu').click();
+    return offen || 'schon bei 30 px zugegangen';
+  });
+  t('nach oben wischen schliesst nicht', () => {
+    sheetAuf();
+    document.querySelector('#sheet .inner').scrollTop = 0;
+    wisch(260, 100);
+    const offen = sheetOffen();
+    document.querySelector('#btn-sheet-zu').click();
+    return offen || 'nach oben geschlossen';
+  });
+  /* ⚠️ Der heikle Fall: das Blatt scrollt innen. Wer weiter unten steht und zum
+     Anfang zurueckscrollt, darf dabei nicht das ganze Blatt mitnehmen. */
+  t('mitten im Scrollen zieht der Wisch das Blatt nicht mit', () => {
+    sheetAuf();
+    const innen = document.querySelector('#sheet .inner');
+    innen.scrollTop = 120;                  // der Inhalt steht nicht oben
+    wisch(100, 300);
+    const offen = sheetOffen();
+    innen.scrollTop = 0;
+    document.querySelector('#btn-sheet-zu').click();
+    return offen || 'beim Zurueckscrollen zugegangen';
+  });
+  /* Am Griff gilt die Scroll-Regel ausdruecklich nicht -- er ist zum Ziehen da.
+     Geprueft mit dem Griff als Ereignis-Ziel, waehrend der Inhalt nicht oben steht. */
+  t('am Griff zieht es auch mitten im Scrollen', () => {
+    sheetAuf();
+    const innen = document.querySelector('#sheet .inner');
+    const griff = document.querySelector('#sheet-griff');
+    innen.scrollTop = 120;
+    const ev = (name, y) => {
+      const e = new Event(name, { bubbles: true });
+      e.touches = name === 'touchend' ? [] : [{ clientY: y, identifier: 1 }];
+      Object.defineProperty(e, 'target', { value: griff });
+      innen.dispatchEvent(e);
+    };
+    ev('touchstart', 100); ev('touchmove', 300); ev('touchend', 300);
+    const zu = !sheetOffen();
+    innen.scrollTop = 0;
+    if (!zu) document.querySelector('#btn-sheet-zu').click();
+    return zu || 'am Griff nicht geschlossen';
+  });
+  t('nach dem Schliessen ist die Verschiebung zurueckgesetzt', () => {
+    // Bliebe ein translateY stehen, waere das Blatt beim naechsten Oeffnen verrutscht.
+    sheetAuf();
+    document.querySelector('#sheet .inner').scrollTop = 0;
+    wisch(100, 260);
+    const st = document.querySelector('#sheet .inner').style.transform;
+    return st === '' || ('steht auf ' + st);
+  });
+
   // ---- Datenschutz ----
   t('Datenschutz-Knopf da', () => !!document.querySelector('#btn-datenschutz') || 'fehlt');
   t('Datenschutztext ist zuerst zu', () => document.querySelector('#ds-text').hidden === true || 'offen');
@@ -1846,11 +2037,33 @@ TESTS = r"""
       return Math.abs(oben.top - zwei.top) < 2 || 'zweite Karte sitzt darunter';
     });
   });
-  ta('am Handy bleibt es bei einer', async () => {
+  /* ⚠️ Hier stand "am Handy bleibt es bei einer" -- so war es bis zum 08.08.2026
+     gebaut, mit der Begruendung "alles andere waere Scrollen". Karl hat die
+     gespeicherten Auswertungen ausdrucklich auch am Handy verlangt: Scrollen ist
+     dort das normale Mittel, und ohne sie muss man jede einzeln laden. */
+  ta('am Handy stehen sie untereinander, nicht nur eine', async () => {
     return await imRahmen(390, (w, d) => {
       mitDreien(w);
       const n = d.querySelectorAll('#stats-body svg.kurve').length;
-      return n === 1 || ('Diagramme: ' + n);
+      return n > 1 || ('Diagramme: ' + n);
+    });
+  });
+  ta('und sie stehen wirklich untereinander, nicht nebeneinander', async () => {
+    return await imRahmen(390, (w, d) => {
+      mitDreien(w);
+      const karten = [...d.querySelectorAll('#stats-body > .card')]
+        .filter(c => c.querySelector('svg.kurve'));
+      if (karten.length < 2) return 'nur ' + karten.length + ' Karten';
+      const a = karten[0].getBoundingClientRect(), b = karten[1].getBoundingClientRect();
+      // Untereinander heisst: die zweite faengt unterhalb der ersten an.
+      return b.top >= a.bottom - 1 || `zweite beginnt bei ${Math.round(b.top)}, erste endet bei ${Math.round(a.bottom)}`;
+    });
+  });
+  ta('am Handy ragt dabei nichts heraus', async () => {
+    return await imRahmen(390, (w, d) => {
+      mitDreien(w);
+      const ueber = d.documentElement.scrollWidth - w.innerWidth;
+      return ueber <= 1 || (ueber + ' px zu breit');
     });
   });
   ta('die geladene Auswertung steht nicht doppelt da', async () => {
