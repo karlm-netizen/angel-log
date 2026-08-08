@@ -6,6 +6,51 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 08.08.2026 — Ladebildschirm, das Zeichen in der App, `testrun/` raus
+
+**Ein Ladebildschirm beim Start.** Symbol, Name und ein laufender Strich, in den Farben der
+eingestellten Palette. Er deckt die Zeit ab, in der bisher kurz eine leere Fläche stand.
+
+- ⚠️ **Er geht weg, sobald die Oberfläche steht — nicht erst, wenn die Fänge geladen sind.**
+  Zuerst hing er hinter `await reload()`; dann stünde er bei einem vollen Fangbuch so lange
+  wie das Laden dauert, und bei klemmender Datenbank (privates Safari-Fenster) bis zum
+  Notausstieg. Beides hinter einer Fläche, unter der die fertige App längst liegt. Die Liste
+  füllt sich sichtbar nach, sie hat ihren eigenen Leerzustand.
+- ⚠️ **Notausstieg im Kopf der Seite, nicht in `init()`.** Der Schirm deckt die ganze Fläche
+  ab — bliebe er stehen, wäre die App nicht hässlich, sondern unbedienbar. Ein Wecker nimmt
+  ihn nach 4,5 s in jedem Fall weg, auch wenn `init()` nie erreicht wird (Skriptfehler,
+  abgebrochener Download). Genau dieser Fall wird geprüft, mit einer absichtlich kaputten
+  Fassung der App.
+- ⚠️ **Die Palettenfarbe wird vor dem ersten Bild gesetzt.** Wer eine der vier hellen
+  Paletten benutzt, sah bisher beim Start kurz Dunkelblau aufblitzen — die Palette wird erst
+  in `init()` gesetzt. Ein Ladebildschirm in der falschen Farbe wäre genau das Aufblitzen,
+  das er verhindern soll. Ein kleines Skript im Kopf liest dafür ein **Abbild von vier
+  Farben** aus dem Speicher; `PALETTEN` bleibt die einzige Wahrheit, das Abbild schreibt
+  `setPalette` bei jedem Wechsel mit — auch beim Durchtippen ohne Speichern, sonst zeigte
+  der Schirm beim nächsten Start eine Farbe, die nicht mehr an ist.
+- Wer Bewegung abgeschaltet hat (`prefers-reduced-motion`), bekommt einen ruhenden Strich.
+
+**Das Symbol steht jetzt auch in der App**, klein neben „Angel-Log" in der Kopfzeile. Bis
+heute war es nur auf dem Home-Bildschirm und im Browser-Tab zu sehen — in der App selbst
+nirgends. Das war der Grund für den Eindruck, das neue Symbol vom 07.08. sei „gar nicht
+drin": es ist ausgeliefert und richtig verdrahtet, nur an keiner Stelle sichtbar, die man
+beim Benutzen zu Gesicht bekommt.
+
+⚠️ **Am iPhone reicht Neuladen nicht für das Symbol auf dem Home-Bildschirm.** iOS merkt es
+sich beim Anlegen der Verknüpfung. Alte Verknüpfung löschen, Seite in Safari öffnen, Teilen →
+„Zum Home-Bildschirm" neu anlegen.
+
+**`testrun/` ist aus dem Repo raus** — eine 441 KB große Kopie der ganzen App, versehentlich
+eingecheckt, wurde unter `…github.io/angel-log/testrun/` mit ausgeliefert. Wer die Adresse
+erwischte, benutzte eine App von vor Wochen mit eigener Datenbank. Der Prüfrahmen legt seinen
+Arbeitsordner als `.testrun/` an (mit Punkt), der steht in `.gitignore`.
+
+**362 Prüfungen grün** (von 353), neun davon zum Ladebildschirm.
+⚠️ Dabei aufgefallen: **die Prüfungen ersetzen `putCatch`, die echte IndexedDB läuft im
+Rahmen also nie mit.** Deshalb war nicht zu messen, wie lange `reload()` wirklich braucht —
+im Testrahmen löst es unter Chromes virtueller Zeit überhaupt nicht auf. Die Reihenfolge
+„Schirm weg, dann laden" ist deshalb als Quelltext-Prüfung abgesichert, nicht am Verhalten.
+
 ## 07.08.2026 — „Statistiken", und Punkte statt Zeitraum
 
 Der Reiter heißt jetzt **Statistiken** (Karls Ansage) — Leiste und Überschrift.

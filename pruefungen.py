@@ -1975,6 +1975,99 @@ TESTS = r"""
     });
   });
 
+  // ==================== Ladebildschirm ====================
+  // ⚠️ Das eigentliche Risiko hier ist nicht, dass er schlecht aussieht, sondern dass er
+  // stehen bleibt: er deckt die ganze Flaeche ab, also waere die App dann unbedienbar.
+  // Deshalb pruefen die Faelle unten vor allem, dass er WEGGEHT — auch dann, wenn init()
+  // nie durchlaeuft.
+  t('der Ladebildschirm steht vor der Log-Ansicht im Markup', () => {
+    const h = document.documentElement.innerHTML;
+    const s = h.indexOf('id="splash"'), l = h.indexOf('id="v-log"');
+    return (s > -1 && l > -1 && s < l) || ('splash bei ' + s + ', v-log bei ' + l);
+  });
+  t('das Zeichen steht in der Kopfzeile', () => {
+    const img = document.querySelector('#v-log .head h1 img');
+    return (img && /icon-192/.test(img.getAttribute('src'))) || 'kein Bild in der Kopfzeile';
+  });
+  t('setPalette schreibt vier Farben fuers Fruehskript', () => {
+    setPalette('nebel', false);
+    const f = (localStorage.getItem('angellog-splash') || '').split(' ');
+    return (f.length === 4 && f[0] === PALETTEN['nebel'][1].bg && f[3] === PALETTEN['nebel'][1].line)
+        || ('Abbild ist "' + f.join(' ') + '"');
+  });
+  t('das Abbild folgt auch einer Vorschau ohne Speichern', () => {
+    // speichern===false kommt beim Durchtippen der Paletten vor. Wuerde das Abbild dabei
+    // stehen bleiben, zeigte der Schirm beim naechsten Start eine Farbe, die nicht an ist.
+    setPalette('papier', false);
+    const a = localStorage.getItem('angellog-splash');
+    setPalette('mitternacht', false);
+    const anders = a !== localStorage.getItem('angellog-splash');
+    setPalette('tiefes-wasser', false);   // aufraeumen, die iframes unten lesen dasselbe Abbild
+    return anders || 'Abbild hat sich nicht geaendert';
+  });
+
+  // Eigener Rahmen: andere Quelldatei und laengeres Warten als imRahmen.
+  const imRahmenVon = (datei, warten, was) => new Promise((fertig, schief) => {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'width:390px;height:720px;border:0;position:absolute;left:-9999px';
+    f.src = datei;
+    f.onload = () => setTimeout(() => {
+      try { const r = was(f.contentWindow, f.contentDocument); f.remove(); fertig(r); }
+      catch (e){ f.remove(); schief(e); }
+    }, warten);
+    f.onerror = () => { f.remove(); schief(new Error(datei + ' laedt nicht')); };
+    document.body.appendChild(f);
+  });
+
+  ta('nach dem Start ist der Ladebildschirm weg', async () => {
+    return await imRahmenVon('index.html', 400, (w, d) => {
+      const s = d.getElementById('splash');
+      return s.classList.contains('weg') || 'steht noch da';
+    });
+  });
+  t('er wartet nicht auf den Speicher', () => {
+    // ⚠️ Der Fall, der den Umbau ausgeloest hat: hing das Wegnehmen hinter "await reload()",
+    // stand der Schirm, bis die Faenge geladen waren — im Testrahmen bis zum Notausstieg bei
+    // 4500 ms, in einem privaten Safari-Fenster genauso lang, und bei einem vollen Fangbuch
+    // entsprechend der Datenmenge. Geprueft wird die Reihenfolge im Quelltext, weil sich der
+    // Unterschied im Verhalten nur bei klemmender Datenbank zeigt — und die laesst sich hier
+    // nicht herstellen: die Pruefungen ersetzen putCatch, die echte IndexedDB laeuft nie mit.
+    // Nur der init-Block zaehlt — "await reload()" steht auch anderswo im Skript, etwa
+    // nach dem Speichern eines Fangs.
+    const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
+    const ab = js.indexOf('(async function init(){');
+    if (ab < 0) return 'init()-Block nicht gefunden';
+    const block = js.slice(ab);
+    const weg = block.indexOf("$('#splash').classList.add('weg')");
+    const rel = block.indexOf('await reload()');
+    return (weg > -1 && rel > -1 && weg < rel)
+        || ('in init(): Wegnehmen bei ' + weg + ', await reload() bei ' + rel);
+  });
+  ta('und er faengt keine Tipper mehr ab', async () => {
+    return await imRahmenVon('index.html', 700, (w, d) => {
+      const s = d.getElementById('splash');
+      const st = w.getComputedStyle(s);
+      return (st.visibility === 'hidden' && st.pointerEvents === 'none')
+          || ('visibility ' + st.visibility + ', pointer-events ' + st.pointerEvents);
+    });
+  });
+  ta('der Notausstieg greift, wenn init() nie durchlaeuft', async () => {
+    // kaputt.html ist dieselbe App mit absichtlich geworfenem Fehler in init().
+    // Ohne den Wecker im Kopf bliebe der Schirm hier fuer immer stehen.
+    return await imRahmenVon('kaputt.html', 5200, (w, d) => {
+      const s = d.getElementById('splash');
+      return s.classList.contains('weg') || 'Schirm klebt — App waere gesperrt';
+    });
+  });
+  ta('die Fangliste liegt hinter dem Schirm, nicht unter ihm', async () => {
+    return await imRahmenVon('index.html', 700, (w, d) => {
+      const s = d.getElementById('splash');
+      return w.getComputedStyle(s).position === 'fixed'
+          && d.documentElement.scrollWidth - w.innerWidth <= 1
+          || 'Schirm schiebt das Layout';
+    });
+  });
+
   (async function(){
     for (const [name, fn] of asyncTests){
       try { const r = await fn(); if (r === true) { ok++; out.push('OK   ' + name); }
@@ -1992,6 +2085,18 @@ TESTS = r"""
 
 html = (WORK / 'index.html').read_text(encoding='utf-8')
 (WORK / 'test.html').write_text(html + TESTS, encoding='utf-8')
+
+# Dieselbe App, aber init() wirft sofort. Damit laesst sich pruefen, dass der Ladebildschirm
+# auch dann weggeht, wenn er nie regulaer weggenommen wird — sonst waere die App gesperrt.
+# ⚠️ Bricht der Ersatz unten ins Leere (Zeile umbenannt), soll das auffallen, nicht durchrutschen.
+ANKER = '(async function init(){'
+if ANKER not in html:
+    sys.exit(f'init()-Anker nicht gefunden — {ANKER!r} in index.html gesucht. '
+             'Wurde die Zeile umbenannt? Dann hier nachziehen, sonst prueft der '
+             'Notausstieg-Fall nichts mehr.')
+(WORK / 'kaputt.html').write_text(
+    html.replace(ANKER, ANKER + " throw new Error('absichtlich kaputt');", 1),
+    encoding='utf-8')
 
 r = subprocess.run([CHROME, '--headless=new', '--disable-gpu', '--no-sandbox',
                     '--virtual-time-budget=20000', '--allow-file-access-from-files',

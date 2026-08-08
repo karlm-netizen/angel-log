@@ -11,6 +11,36 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Angel-Log">
+
+<!-- ⚠️ Läuft absichtlich hier oben, vor dem ersten Bild. Wer eine der vier hellen Paletten
+     benutzt, sah bisher beim Start kurz Dunkelblau aufblitzen: die Palette wird erst unten
+     in init() gesetzt. Ein Ladebildschirm in der falschen Farbe wäre genau das Aufblitzen,
+     das er verhindern soll. Gelesen wird nur ein Abbild von drei Farben (siehe SPLASH_KEY
+     bei setPalette) — nicht das Palettenverzeichnis, das gibt es hier noch nicht.
+     Fehlt der Eintrag (erster Besuch), bleibt es bei den Vorgaben aus :root. -->
+<script>
+(function(){
+  try {
+    var f = (localStorage.getItem('angellog-splash') || '').split(' ');
+    if (f.length !== 4) return;
+    var s = document.documentElement.style;
+    s.setProperty('--bg', f[0]);  s.setProperty('--txt', f[1]);
+    s.setProperty('--muted', f[2]); s.setProperty('--line', f[3]);
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.content = f[0];
+  } catch (e) {}
+})();
+
+// ⚠️ Notausstieg für den Ladebildschirm. Er liegt über der ganzen App — bliebe er stehen,
+// wäre die App gesperrt, und zwar unbedienbar, nicht nur hässlich. Der Wecker steht
+// absichtlich HIER und nicht in init(): so greift er auch dann, wenn init() nie erreicht
+// wird (Skriptfehler weiter unten, abgebrochener Download). Regulär geht der Schirm viel
+// früher weg, sobald die Fangliste steht.
+setTimeout(function(){
+  var s = document.getElementById('splash');
+  if (s) s.classList.add('weg');
+}, 4500);
+</script>
 <style>
   :root{
     --bg:#0e1418; --card:#161d23; --card2:#1f2830; --line:#2a3540;
@@ -46,6 +76,33 @@
   /* Kopf */
   .head{display:flex; align-items:center; justify-content:space-between; padding:0 var(--sp) 4px}
   .head h1{font-size:22px; letter-spacing:-.4px}
+  /* Das Zeichen neben dem Namen. Bis heute war das Symbol nur auf dem Home-Bildschirm und
+     im Browser-Tab zu sehen — in der App selbst nirgends. */
+  .head h1{display:flex; align-items:center; gap:9px}
+  .head h1 img{width:30px; height:30px; border-radius:8px; flex:0 0 30px}
+
+  /* Ladebildschirm. Deckt die Zeit ab, in der die Oberfläche noch nicht steht.
+     ⚠️ Er liegt über allem — wird er nicht weggenommen, ist die App gesperrt. Deshalb
+     hängt das Wegnehmen an zwei Auslösern, siehe #splash in init(). */
+  #splash{position:fixed; inset:0; z-index:9000; background:var(--bg);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    opacity:1; transition:opacity .26s ease}
+  /* visibility mit Verzögerung statt display:none — so läuft die Blende noch zu Ende und
+     danach ist der Schirm auch für Bedienung und Vorlesehilfen wirklich weg. */
+  #splash{transition:opacity .26s ease, visibility 0s .26s}
+  #splash.weg{opacity:0; visibility:hidden; pointer-events:none}
+  #splash img{width:112px; height:112px; border-radius:26px}
+  #splash .name{font-size:19px; font-weight:600; letter-spacing:-.3px; color:var(--txt)}
+  #splash .balken{width:104px; height:3px; border-radius:2px; overflow:hidden;
+    background:var(--line)}
+  #splash .balken i{display:block; width:40%; height:100%; border-radius:2px;
+    background:var(--muted); animation:splashlauf 1.05s ease-in-out infinite}
+  @keyframes splashlauf{0%{transform:translateX(-105%)} 100%{transform:translateX(360%)}}
+  /* Wer Bewegung abgeschaltet hat, bekommt einen ruhenden Balken statt eines wandernden. */
+  @media (prefers-reduced-motion: reduce){
+    #splash{transition:none}
+    #splash .balken i{animation:none; width:100%}
+  }
   .iconbtn{width:38px; height:38px; flex:0 0 38px; display:grid; place-items:center;
     background:var(--card2); border:1px solid var(--line); border-radius:11px; color:var(--muted)}
 
@@ -277,10 +334,19 @@
 </head>
 <body>
 
+<!-- Ladebildschirm. Steht als erstes im Body, damit er ohne Zutun von JavaScript sichtbar ist —
+     ein Schirm, den erst ein Skript aufbaut, kommt zu spät für seinen eigenen Zweck.
+     Weggenommen wird er unten in init(). -->
+<div id="splash">
+  <img src="icon-192.png" alt="">
+  <div class="name">Angel-Log</div>
+  <div class="balken"><i></i></div>
+</div>
+
 <!-- ======================= LOG ======================= -->
 <section id="v-log">
   <div class="head">
-    <h1>Angel-Log</h1>
+    <h1><img src="icon-192.png" alt="">Angel-Log</h1>
     <button class="iconbtn" id="btn-menu" aria-label="Einstellungen">
       <!-- Zahnrad. Vorher stand hier eine Sonne — die liest sich als Helligkeit
            oder Design, nicht als Einstellungen (Karl, 03.08.). -->
@@ -992,6 +1058,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) rend
 
 /* ---------------------------- Farbpalette ---------------------------- */
 const PAL_KEY = 'angellog-palette';
+const SPLASH_KEY = 'angellog-splash';   // dieselbe Zeichenkette liest das Frühskript im Kopf
 // Welche Palette gerade an ist — die Statistik braucht es, weil die Reihenfarben
 // für helle und dunkle Karten verschiedene Stufen haben.
 let palAktiv = 'tiefes-wasser';
@@ -1007,6 +1074,11 @@ function setPalette(key, speichern){
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = p.bg;       // färbt die Statusleiste am iPhone mit
   if (speichern !== false){ try { localStorage.setItem(PAL_KEY, key); } catch {} }
+  // ⚠️ Abbild der drei Farben, die der Ladebildschirm braucht — er läuft, bevor dieses
+  // Skript geladen ist, und darf PALETTEN deshalb nicht kennen. Immer mitschreiben, auch
+  // bei speichern===false: sonst zeigt der Schirm beim nächsten Start eine Farbe, die
+  // gar nicht mehr an ist. PALETTEN bleibt die einzige Wahrheit, das hier ist nur Kopie.
+  try { localStorage.setItem(SPLASH_KEY, [p.bg, p.txt, p.muted, p.line].join(' ')); } catch {}
   $$('#pal button').forEach(b => b.classList.toggle('on', b.dataset.pal === key));
 }
 function renderPalettes(){
@@ -3388,6 +3460,16 @@ window.addEventListener('unhandledrejection', e =>
   state.auswertungen = auswertungenLesen().liste;
   buildStatics();
   go('log');                       // Oberfläche steht sofort, auch wenn der Speicher klemmt
+
+  // Ladebildschirm weg, sobald die Oberfläche steht — ausdrücklich NICHT erst, wenn die
+  // Fänge geladen sind.
+  // ⚠️ Der Schirm deckt das Aufblitzen beim Start ab, nicht das Laden der Daten. Hing er am
+  // Speicher, stünde er bei einem vollen Fangbuch sekundenlang, und bei klemmender IndexedDB
+  // (privates Safari-Fenster) bis zum Notausstieg — beides hinter einer Fläche, unter der
+  // die bereits fertige App verborgen liegt. Die Liste füllt sich sichtbar nach, sie hat
+  // ihren eigenen Leerzustand.
+  $('#splash').classList.add('weg');
+
   try {
     await reload();
     renderList();
