@@ -129,10 +129,43 @@ TESTS = r"""
   });
   t('Mond wird NICHT gespeichert (kommt aus dem Datum)',
      () => buildRecord(false).mond === undefined || 'doch gespeichert');
+
+  // ---- Koedergewicht (Karls Ansage vom 08.08.) ----
+  t('Koedergewicht laesst sich eintragen', () => {
+    resetForm(null);
+    document.querySelector('#f-koedergewicht').value = '25';
+    return buildRecord(false).koederGewicht === 25 || buildRecord(false).koederGewicht;
+  });
+  t('leeres Koedergewicht bleibt leer, nicht null Gramm', () => {
+    // Eine 0 waere eine Aussage ("wiegt nichts"), eine Luecke ist keine.
+    resetForm(null);
+    return buildRecord(false).koederGewicht === null || buildRecord(false).koederGewicht;
+  });
+  t('Koedergewicht allein zaehlt als Inhalt', () => {
+    resetForm(null);
+    const vorher = formHatInhalt();
+    document.querySelector('#f-koedergewicht').value = '18';
+    const nachher = formHatInhalt();
+    document.querySelector('#f-koedergewicht').value = '';
+    return (vorher === false && nachher === true) || (vorher + '/' + nachher);
+  });
+  t('es steht neben der Koedergroesse, nicht woanders', () => {
+    const g = document.querySelector('#f-koedergroesse');
+    const w = document.querySelector('#f-koedergewicht');
+    return (g && w && g.closest('.card') === w.closest('.card'))
+        || 'steht nicht in derselben Karte';
+  });
+  t('ein bestehender Fang bringt sein Koedergewicht mit', () => {
+    resetForm({ id:'x', when:'2026-08-08T10:00', koederGewicht: 42 });
+    const v = document.querySelector('#f-koedergewicht').value;
+    resetForm(null);
+    return v === '42' || v;
+  });
+
   t('Wetter allein zählt als Inhalt', () => {
     resetForm(null);
     ['#f-art','#f-laenge','#f-gewicht','#f-gewaesser','#f-luft','#f-druck','#f-windstaerke',
-     '#f-wasser','#f-tiefe','#f-bewoelkung','#f-koeder','#f-koedergroesse','#f-notiz']
+     '#f-wasser','#f-tiefe','#f-bewoelkung','#f-koeder','#f-koedergroesse','#f-koedergewicht','#f-notiz']
       .forEach(s => document.querySelector(s).value = '');
     const vorher = formHatInhalt();
     setWetter('gewitter');
@@ -142,7 +175,7 @@ TESTS = r"""
   t('Bewölkung allein zählt als Inhalt', () => {
     resetForm(null);
     ['#f-art','#f-laenge','#f-gewicht','#f-gewaesser','#f-luft','#f-druck','#f-windstaerke',
-     '#f-wasser','#f-tiefe','#f-bewoelkung','#f-koeder','#f-koedergroesse','#f-notiz']
+     '#f-wasser','#f-tiefe','#f-bewoelkung','#f-koeder','#f-koedergroesse','#f-koedergewicht','#f-notiz']
       .forEach(s => document.querySelector(s).value = '');
     setWetter('');
     document.querySelector('#f-bewoelkung').value = '40';
@@ -399,7 +432,7 @@ TESTS = r"""
   t('Trübung allein zählt als Inhalt', () => {
     resetForm(null);
     ['#f-art','#f-laenge','#f-gewicht','#f-gewaesser','#f-luft','#f-druck','#f-windstaerke',
-     '#f-wasser','#f-tiefe','#f-bewoelkung','#f-koeder','#f-koedergroesse','#f-notiz']
+     '#f-wasser','#f-tiefe','#f-bewoelkung','#f-koeder','#f-koedergroesse','#f-koedergewicht','#f-notiz']
       .forEach(s => document.querySelector(s).value = '');
     const vorher = formHatInhalt();
     setTrueb('klar');
@@ -968,6 +1001,32 @@ TESTS = r"""
     t('die X-Achse ist waehlbar und vollstaendig', () => {
       const n = document.querySelectorAll('#st-x option').length;
       return n === ACHSEN.length || n;
+    });
+    // ---- Koedergewicht als Auswertung (Karls Ansage vom 08.08.) ----
+    t('Koedergewicht steht als Achse zur Wahl', () => {
+      const o = [...document.querySelectorAll('#st-x option')].find(x => x.value === 'koedergewicht');
+      return (o && /Ködergewicht/.test(o.textContent)) || (o ? o.textContent : 'nicht in der Liste');
+    });
+    t('Koedergewicht steht bei den geordneten Achsen', () => {
+      // Gramm haben eine natuerliche Reihenfolge — 20 g liegt zwischen 15 und 25.
+      // Landete es bei "nach Haeufigkeit", stuende die Achse in falscher Ordnung da.
+      const a = achseVon('koedergewicht');
+      return hatOrdnung(a) === true || 'gilt als ungeordnet';
+    });
+    t('Koedergewicht wird in 5-g-Stufen gezeichnet', () => {
+      setzeFaenge([mk({ koederGewicht: 12 }), mk({ koederGewicht: 14 }), mk({ koederGewicht: 27 })]);
+      alleFilterAus('koedergewicht');
+      const d = reihenBauen(statsRows(), achseVon('koedergewicht'), '');
+      // 12 und 14 fallen in dieselbe Stufe, 27 liegt drei Stufen weiter.
+      const summe = d.reihen[0].werte.reduce((a, b) => a + b, 0);
+      return (summe === 3 && d.stufen.length >= 4)
+          || `Summe ${summe}, Stufen ${JSON.stringify(d.stufen.map(s => s.x))}`;
+    });
+    t('die Achse traegt die Einheit Gramm', () => {
+      setzeFaenge([mk({ koederGewicht: 20 })]);
+      alleFilterAus('koedergewicht');
+      const d = reihenBauen(statsRows(), achseVon('koedergewicht'), '');
+      return /g/.test(d.xTitel) || d.xTitel;
     });
     // Die Gruppen sagen nicht mehr "Kurve oder Balken" — es ist alles eine
     // Kurve —, sondern ob die Reihenfolge der X-Achse etwas bedeutet.

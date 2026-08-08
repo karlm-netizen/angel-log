@@ -6,6 +6,26 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 08.08.2026 (4) — Ködergewicht
+
+**Neues Feld „Ködergewicht (g)"** beim Erfassen, direkt neben der Ködergröße — bei Kunstködern
+stehen beide Angaben zusammen auf der Packung (12 cm / 25 g) und werden zusammen eingetippt.
+Es steht in der Detailansicht und **als eigene Auswertung** zur Wahl.
+
+- Die Achse läuft in **5-g-Stufen**: bei 1 g wäre sie ein Kamm aus lauter Einzelfängen, bei
+  10 g fielen 20er und 25er in einen Topf.
+- Sie zählt zu den **geordneten** Achsen — 20 g liegt zwischen 15 und 25, die Reihenfolge
+  trägt hier eine Aussage.
+- Ein leeres Feld bleibt leer und wird **nicht** zu 0 g. Eine Null wäre eine Aussage („wiegt
+  nichts"), eine Lücke ist keine — dieselbe Regel wie bei allen anderen Messwerten.
+
+⚠️ **Zur Frage, ob gespeicherte Auswertungen abgeglichen werden: ja.** Sie hängen seit dem
+07.08. im selben Mechanismus wie die Angelzeit (Tabelle `angel_werte`, Schlüssel
+`auswertungen`) — und sie hatten damit auch denselben Fehler, der heute behoben wurde: ohne
+Zeitstempel gingen sie nie hoch.
+
+**388 Prüfungen grün** (von 379).
+
 ## 08.08.2026 (3) — 🚨 Datenverlust behoben, Karte, Einstellungen, Statistiken am Handy
 
 ### 🚨 Zwei Fänge des Kollegen waren weg — Ursache gefunden und behoben

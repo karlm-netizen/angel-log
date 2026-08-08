@@ -562,9 +562,17 @@ setTimeout(function(){
         <input class="in" id="f-koeder" list="dl-koeder" placeholder="z. B. Gummifisch" autocomplete="off">
         <datalist id="dl-koeder"></datalist>
       </div>
-      <div class="fld">
-        <label class="f" for="f-koedergroesse">Ködergröße (cm)</label>
-        <input class="in" id="f-koedergroesse" type="number" inputmode="decimal" step="0.5" placeholder="12">
+      <!-- Größe und Gewicht nebeneinander: bei Kunstködern stehen sie meist zusammen
+           auf der Packung (12 cm / 25 g) und werden zusammen eingetippt. -->
+      <div class="g2 fld">
+        <div>
+          <label class="f" for="f-koedergroesse">Ködergröße (cm)</label>
+          <input class="in" id="f-koedergroesse" type="number" inputmode="decimal" step="0.5" placeholder="12">
+        </div>
+        <div>
+          <label class="f" for="f-koedergewicht">Ködergewicht (g)</label>
+          <input class="in" id="f-koedergewicht" type="number" inputmode="decimal" step="0.5" placeholder="25">
+        </div>
       </div>
       <div class="fld">
         <label class="f">Köderfarbe <span class="muted" style="font-weight:500">— mehrere möglich</span></label>
@@ -1880,6 +1888,7 @@ function resetForm(rec){
   v('#f-bewoelkung',   rec && rec.bewoelkung);
   v('#f-koeder',       rec && rec.koeder);
   v('#f-koedergroesse',rec && rec.koederGroesse);
+  v('#f-koedergewicht',rec && rec.koederGewicht);
   v('#f-notiz',        rec && rec.notiz);
 
   $$('#ch-phase .chip').forEach(c => c.classList.remove('on'));
@@ -1944,6 +1953,7 @@ function buildRecord(entwurf){
     regen24:       state.form.regen24,
     koeder:        $('#f-koeder').value.trim(),
     koederGroesse: num($('#f-koedergroesse').value),
+    koederGewicht: num($('#f-koedergewicht').value),
     farben:        state.form.farben.slice(),
     notiz:         $('#f-notiz').value.trim(),
     photos:        state.form.photos
@@ -1957,7 +1967,7 @@ let draftTimer = null;
 function formHatInhalt(){
   const felder = ['#f-art','#f-laenge','#f-gewicht','#f-gewaesser','#f-luft','#f-druck',
                   '#f-windstaerke','#f-wasser','#f-tiefe','#f-bewoelkung','#f-koeder',
-                  '#f-koedergroesse','#f-notiz'];
+                  '#f-koedergroesse','#f-koedergewicht','#f-notiz'];
   return felder.some(s => $(s).value.trim() !== '')
       || state.form.photos.length > 0 || state.form.lat != null
       || !!state.form.phase || !!state.form.wetter || !!state.form.truebung
@@ -2143,6 +2153,7 @@ function renderDetail(){
       <h2>Köder</h2>
       ${kv('Köder', c.koeder)}
       ${kv('Größe', c.koederGroesse != null && dec(c.koederGroesse) + ' cm')}
+      ${kv('Gewicht', c.koederGewicht != null && dec(c.koederGewicht) + ' g')}
       ${kv(farbenVon(c).length > 1 ? 'Farben' : 'Farbe', farbenVon(c).join(', '))}
     </div>
     ${c.notiz ? `<div class="card"><h2>Notiz</h2><div style="font-size:14px; line-height:1.55">${
@@ -3153,6 +3164,10 @@ const ACHSEN = [
   { key:'regen',  kurz:'Regen davor',      einheit:'mm/24 h',  stufe:2, hol: c => c.regen24 },
   { key:'laenge', kurz:'Fischlänge',       einheit:'cm',       stufe:5, hol: c => c.laenge },
   { key:'koedergroesse', kurz:'Ködergröße', einheit:'cm',      stufe:2, hol: c => c.koederGroesse },
+  /* Stufe 5 g: Kunstköder gehen von wenigen Gramm bis über hundert, und 5 g ist der
+     Sprung, in dem man sie tatsächlich unterscheidet — bei 1 g wäre die Achse ein
+     Kamm aus lauter Einzelfängen, bei 10 g fielen 20er und 25er in einen Topf. */
+  { key:'koedergewicht', kurz:'Ködergewicht', einheit:'g',     stufe:5, hol: c => c.koederGewicht },
   { key:'stunde', kurz:'Uhrzeit', einheit:'Uhr',
     reihe: () => Array.from({ length: 24 }, (_, i) => String(i)),
     schluessel: c => { const d = new Date(c.when); return isNaN(d) ? null : String(d.getHours()); } },
