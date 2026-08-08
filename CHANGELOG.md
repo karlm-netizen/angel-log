@@ -6,6 +6,53 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 08.08.2026 (6) — Angelfotos als Ladebildschirm
+
+**Karls sechs eigene Angelfotos füllen jetzt den Ladebildschirm**, bei jedem Öffnen ein
+anderes. Zeichen und Name stehen darauf.
+
+**Was mit den Bildern passiert ist:** sie kamen als PNG mit zusammen **14,8 MB** und im
+Verhältnis 0,78 (fast quadratisch). Daraus wurden **987 KB** — sieben Prozent:
+
+- **Zugeschnitten auf 9:19,5**, also randloses Handy-Hochformat, mittig. Bei allen sechs
+  sitzt das Motiv in der Mitte (Fische, Angler, Köder, Steg). ⚠️ Dabei fällt rund die Hälfte
+  der Breite weg — der Preis für vollflächig.
+- **JPEG statt PNG.** Fotos, keine Grafik; PNG speichert hier jedes Rauschkorn verlustfrei mit.
+- **Nicht hochgerechnet.** Der Ausschnitt behält seine echte Auflösung; ihn auf volle
+  iPhone-Höhe zu blasen würde Schärfe erfinden und die Datei aufblähen. Das Hochskalieren
+  macht der Browser, und bei einem Foto für eine Sekunde sieht man es kaum.
+- Progressiv gespeichert: zeigt sich grob vorab statt zeilenweise einzulaufen.
+
+⚠️ **Der Schirm wartet nie auf das Bild.** Er ist ab der ersten Zeile sichtbar — Palettenfarbe,
+Zeichen, Name —, und das Foto blendet sich ein, sobald es geladen ist. Andersherum gebaut wäre
+ein Ladebildschirm mit Foto **langsamer als gar keiner**, und beim allerersten Start ohne Cache
+stünde die App sekundenlang hinter einer leeren Fläche. Kommt das Bild nicht, bleibt der Schirm
+in Palettenfarbe: schlichter, aber nie leer.
+
+⚠️ **Reihum, nicht zufällig.** Ein Zähler im Speicher geht bei jedem Start eins weiter. Bei
+sechs Bildern fiele Zufall auf — dreimal dasselbe hintereinander wirkt kaputt, nicht
+abwechslungsreich.
+
+⚠️ **Ein Schleier liegt zwischen Foto und Beschriftung** (oben und unten dunkel, in der Mitte
+durchsichtig). Ohne ihn ist der Name auf hellem Himmel oder auf Wasser unlesbar. Auf einem Foto
+wird die Schrift zusätzlich hell gesetzt — auf den vier hellen Paletten ist `--txt` fast
+schwarz und verschwände sonst.
+
+⚠️ **Die Fotos liegen im Service-Worker-Cache.** Ohne das stünde am Wasser ohne Netz ein
+Ladebildschirm ohne Bild — und genau dort wird die App benutzt. Knapp 1 MB einmalig; je Start
+wird nur eines gezeigt.
+
+⚠️ **Eine Prüfung hält die Zahl der Bilder an drei Stellen zusammen** (die Zahl im Skript, die
+Liste im Service Worker, die Dateien auf der Platte). Laufen sie auseinander, zeigt die App
+eine 404 statt eines Bildes — und zwar nur bei jedem n-ten Start, was beim Ausprobieren fast
+sicher durchrutscht.
+
+⚠️ **Am Prüfrahmen nachgebessert:** der Fehler-Melder von vorhin stand im selben `<script>` wie
+die Prüfungen — ein Syntaxfehler dort hätte ihn gar nicht erst registriert, und genau dann
+braucht man ihn. Er steht jetzt in einem eigenen Block.
+
+**404 Prüfungen grün** (von 396).
+
 ## 08.08.2026 (5) — Bedienung an der Statistik statt in einer Liste
 
 **Die Liste „Meine Auswertungen" über dem Baukasten ist weg** (Karls Ansage). Bearbeitet,

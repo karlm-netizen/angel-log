@@ -2,10 +2,15 @@
 // Eigene Dateien: Netz zuerst, damit Updates sofort ankommen — Cache nur als Offline-Rückfall.
 // Kartenkacheln und Leaflet: Cache zuerst, denn am Wasser ist oft kein Netz und einmal
 // angeschaute Gewässer sollen offline noch da sein. Wetter-API: nie cachen.
-const CACHE  = 'angellog-v18';
+const CACHE  = 'angellog-v19';
 const TILES  = 'angellog-tiles';
+/* ⚠️ Die sechs Ladebildschirm-Fotos gehören hier hinein. Ohne sie im Cache stünde am
+   Wasser ohne Netz ein Ladebildschirm ohne Bild — und genau dort wird die App benutzt.
+   Zusammen knapp 1 MB, einmal beim Einrichten geholt; je Start wird nur eins gezeigt. */
+const SPLASH = ['./splash-1.jpg', './splash-2.jpg', './splash-3.jpg',
+                './splash-4.jpg', './splash-5.jpg', './splash-6.jpg'];
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png',
-  './apple-touch-icon.png',
+  './apple-touch-icon.png', ...SPLASH,
   './leaflet/leaflet.js', './leaflet/leaflet.css',
   './leaflet/images/marker-icon.png', './leaflet/images/marker-icon-2x.png',
   './leaflet/images/marker-shadow.png', './leaflet/images/layers.png', './leaflet/images/layers-2x.png'];

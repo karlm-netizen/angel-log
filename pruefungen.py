@@ -30,10 +30,9 @@ shutil.copytree(SRC, WORK, dirs_exist_ok=True,
 
 TESTS = r"""
 <script>
-/* ⚠️ Bricht der Durchlauf durch eine Ausnahme AUSSERHALB eines t()-Blocks ab, gab es
-   bisher nur "Kein Ergebnis" und einen Quelltext-Dump -- eine Meldung, die nichts sagt
-   und in der Fehlersuche mehrere Runden kostet. Dieser Melder schreibt stattdessen die
-   Ausnahme mitsamt Zeile ins Ergebnis. */
+/* ⚠️ Der Melder steht in einem EIGENEN script-Block. Stuende er im selben wie die
+   Pruefungen, wuerde ihn ein Syntaxfehler dort gar nicht erst registrieren -- und genau
+   dann braucht man ihn. Das hat einmal eine Runde gekostet. */
 window.addEventListener('error', e => {
   if (document.getElementById('testout')) return;
   const pre = document.createElement('pre');
@@ -42,6 +41,8 @@ window.addEventListener('error', e => {
     + ' (Zeile ' + e.lineno + ')\n=== 0 ok, 1 fehlgeschlagen ===';
   document.body.appendChild(pre);
 });
+</script>
+<script>
 (function(){
   const out = [];
   let ok = 0, bad = 0;
@@ -2361,6 +2362,54 @@ window.addEventListener('error', e => {
     return (l && l.getAttribute('sizes') === '180x180') || (l ? l.getAttribute('sizes') : '—');
   });
 
+  // ==================== Das Foto im Ladebildschirm ====================
+  // Karls Ansage vom 08.08.: vollflaechige Angelfotos, bei jedem Oeffnen ein anderes.
+  t('der Ladebildschirm hat ein Foto', () => {
+    const f = document.querySelector('#splash .foto');
+    return (f && /^splash-[1-6]\.jpg$/.test(f.getAttribute('src') || ''))
+        || (f ? ('src ist "' + f.getAttribute('src') + '"') : 'kein Foto-Element');
+  });
+  t('das Foto liegt hinter der Beschriftung', () => {
+    // Laege es davor, waere der Name verdeckt -- und zwar je nach Bild unterschiedlich.
+    const foto  = getComputedStyle(document.querySelector('#splash .foto')).zIndex;
+    const mitte = getComputedStyle(document.querySelector('#splash .mitte')).zIndex;
+    return Number(mitte) > Number(foto) || (`Foto ${foto}, Mitte ${mitte}`);
+  });
+  t('es deckt die ganze Flaeche', () => {
+    const st = getComputedStyle(document.querySelector('#splash .foto'));
+    return (st.objectFit === 'cover' && st.position === 'absolute')
+        || (st.objectFit + ' / ' + st.position);
+  });
+  /* ⚠️ Der Punkt, an dem ein Ladebildschirm mit Foto schlechter wird als einer ohne:
+     wartet er auf das Bild, steht er beim ersten Start ohne Cache sekundenlang leer.
+     Deshalb faengt das Foto unsichtbar an und blendet sich per onload ein. */
+  t('das Foto faengt unsichtbar an', () => {
+    const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
+    const hatOnload = /el\.onload\s*=/.test(js) && /classList\.add\('da'\)/.test(js);
+    return hatOnload || 'kein Einblenden per onload -- der Schirm wartet womoeglich';
+  });
+  t('die Rotation zaehlt reihum, nicht zufaellig', () => {
+    // Bei sechs Bildern faellt Zufall auf: dreimal dasselbe wirkt kaputt, nicht abwechslungsreich.
+    const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
+    const ab = js.indexOf('angellog-splash-nr');
+    if (ab < 0) return 'kein Zaehler im Speicher';
+    return (!/Math\.random/.test(js.slice(Math.max(0, ab - 500), ab + 500)))
+        || 'zaehlt zufaellig statt reihum';
+  });
+  t('der Zaehler bleibt im Bereich der sechs Bilder', () => {
+    const n = Number(localStorage.getItem('angellog-splash-nr'));
+    return (n >= 0 && n <= 5) || ('Zaehler steht auf ' + n);
+  });
+  t('auf einem Foto wird die Schrift hell gesetzt', () => {
+    // Auf den vier hellen Paletten ist --txt fast schwarz und verschwaende auf dem Bild.
+    const css = Array.from(document.styleSheets)
+      .flatMap(sh => { try { return Array.from(sh.cssRules); } catch (e) { return []; } })
+      .map(r => r.cssText).join(' ');
+    return /#splash\.mitFoto \.name/.test(css) || 'keine eigene Schriftfarbe fuer Fotos';
+  });
+  t('ein Schleier sorgt fuer Lesbarkeit', () =>
+    !!document.querySelector('#splash .schleier') || 'kein Schleier');
+
   t('der Ladebildschirm steht vor der Log-Ansicht im Markup', () => {
     const h = document.documentElement.innerHTML;
     const s = h.indexOf('id="splash"'), l = h.indexOf('id="v-log"');
@@ -2463,6 +2512,25 @@ window.addEventListener('error', e => {
 })();
 </script>
 """
+
+# ⚠️ Die Zahl der Ladebildschirm-Fotos steht an drei Stellen: als ANZAHL im Skript,
+# als Liste im Service Worker und als Dateien auf der Platte. Laufen sie auseinander,
+# zeigt die App eine 404 statt eines Bildes -- und zwar nur bei jedem n-ten Start,
+# was beim Ausprobieren fast sicher durchrutscht.
+splash_dateien = sorted(SRC.glob('splash-*.jpg'))
+html_roh = (SRC / 'index.html').read_text(encoding='utf-8')
+sw_roh   = (SRC / 'sw.js').read_text(encoding='utf-8')
+m = re.search(r'var ANZAHL = (\d+);', html_roh)
+if not m:
+    sys.exit('ANZAHL der Splash-Fotos nicht im Quelltext gefunden.')
+if int(m.group(1)) != len(splash_dateien):
+    sys.exit(f'Splash-Fotos: ANZAHL sagt {m.group(1)}, auf der Platte liegen '
+             f'{len(splash_dateien)}.')
+fehlend = [f'./{d.name}' for d in splash_dateien if f"'./{d.name}'" not in sw_roh]
+if fehlend:
+    sys.exit(f'Diese Splash-Fotos fehlen im Service Worker: {fehlend} — '
+             'ohne sie steht am Wasser ohne Netz ein Schirm ohne Bild.')
+print(f'Splash-Fotos: {len(splash_dateien)} Dateien, ANZAHL und Service Worker stimmen ueberein.')
 
 html = (WORK / 'index.html').read_text(encoding='utf-8')
 (WORK / 'test.html').write_text(html + TESTS, encoding='utf-8')

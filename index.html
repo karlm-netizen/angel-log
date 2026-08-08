@@ -98,17 +98,43 @@ setTimeout(function(){
      danach ist der Schirm auch für Bedienung und Vorlesehilfen wirklich weg. */
   #splash{transition:opacity .26s ease, visibility 0s .26s}
   #splash.weg{opacity:0; visibility:hidden; pointer-events:none}
-  #splash img{width:112px; height:112px; border-radius:26px}
+
+  /* ---- Das Foto (Karls Ansage vom 08.08.: vollflächig, bei jedem Öffnen ein anderes) ----
+     ⚠️ Es liegt HINTER allem und startet unsichtbar. Der Schirm zeigt sofort Palettenfarbe,
+     Zeichen und Namen; das Foto blendet sich ein, sobald es da ist. Andersherum — erst auf
+     das Bild warten — wäre der Ladebildschirm langsamer als gar keiner, und beim allerersten
+     Start ohne Cache stünde die App sekundenlang hinter einer leeren Fläche. */
+  #splash .foto{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+    opacity:0; transition:opacity .45s ease; border-radius:0; z-index:0}
+  #splash .foto.da{opacity:1}
+  /* ⚠️ Ohne Abdunklung ist der Name auf einem hellen Himmel oder auf Wasser unlesbar.
+     Der Verlauf liegt zwischen Foto und Beschriftung: oben und unten dunkel, in der Mitte
+     durchsichtig, damit vom Bild so viel wie möglich zu sehen bleibt. */
+  #splash .schleier{position:absolute; inset:0; z-index:1; opacity:0;
+    transition:opacity .45s ease;
+    background:linear-gradient(to bottom, rgba(0,0,0,.55) 0%, rgba(0,0,0,.15) 38%,
+                                          rgba(0,0,0,.25) 62%, rgba(0,0,0,.7) 100%)}
+  #splash .schleier.da{opacity:1}
+  #splash .mitte{position:relative; z-index:2; display:flex; flex-direction:column;
+    align-items:center; gap:18px}
+  #splash img.zeichen{width:112px; height:112px; border-radius:26px}
   #splash .name{font-size:19px; font-weight:600; letter-spacing:-.3px; color:var(--txt)}
   #splash .balken{width:104px; height:3px; border-radius:2px; overflow:hidden;
     background:var(--line)}
   #splash .balken i{display:block; width:40%; height:100%; border-radius:2px;
     background:var(--muted); animation:splashlauf 1.05s ease-in-out infinite}
+  /* Sobald ein Foto liegt, muss die Schrift hell sein — auch auf den vier hellen
+     Paletten, wo --txt fast schwarz ist und auf dem abgedunkelten Bild verschwände. */
+  #splash.mitFoto .name{color:#fff; text-shadow:0 1px 12px rgba(0,0,0,.55)}
+  #splash.mitFoto .balken{background:rgba(255,255,255,.28)}
+  #splash.mitFoto .balken i{background:rgba(255,255,255,.85)}
   @keyframes splashlauf{0%{transform:translateX(-105%)} 100%{transform:translateX(360%)}}
-  /* Wer Bewegung abgeschaltet hat, bekommt einen ruhenden Balken statt eines wandernden. */
+  /* Wer Bewegung abgeschaltet hat, bekommt einen ruhenden Balken statt eines wandernden
+     und das Foto ohne Einblenden. */
   @media (prefers-reduced-motion: reduce){
     #splash{transition:none}
     #splash .balken i{animation:none; width:100%}
+    #splash .foto, #splash .schleier{transition:none}
   }
   .iconbtn{width:38px; height:38px; flex:0 0 38px; display:grid; place-items:center;
     background:var(--card2); border:1px solid var(--line); border-radius:11px; color:var(--muted)}
@@ -349,10 +375,52 @@ setTimeout(function(){
      ein Schirm, den erst ein Skript aufbaut, kommt zu spät für seinen eigenen Zweck.
      Weggenommen wird er unten in init(). -->
 <div id="splash">
-  <img src="icon-192.png" alt="">
-  <div class="name">Angel-Log</div>
-  <div class="balken"><i></i></div>
+  <!-- Das Foto bekommt seine Quelle vom Skript direkt unter diesem Block: welches an der
+       Reihe ist, steht im Speicher, ein fest verdrahtetes src zeigte immer dasselbe. -->
+  <img class="foto" alt="" aria-hidden="true">
+  <div class="schleier"></div>
+  <div class="mitte">
+    <img class="zeichen" src="icon-192.png" alt="">
+    <div class="name">Angel-Log</div>
+    <div class="balken"><i></i></div>
+  </div>
 </div>
+<script>
+/* ---- Das Foto des Ladebildschirms (Karls Ansage vom 08.08.) ----
+   Sechs Angelfotos, bei jedem Öffnen das nächste.
+
+   ⚠️ **Reihum, nicht zufällig.** Der Zähler steht im Speicher und zählt eins hoch. Bei
+   Zufall sähe man dasselbe Bild leicht dreimal hintereinander und zwei nie — bei nur
+   sechs Bildern fällt genau das auf und wirkt kaputt, nicht abwechslungsreich.
+
+   ⚠️ Das steht **direkt hinter dem Schirm** und nicht im Kopf: dort gibt es `#splash` noch
+   nicht, und ein Skript im Kopf fände nur `null`. Hier ist es so früh wie möglich und das
+   Element existiert schon.
+
+   ⚠️ Der Schirm wartet nie auf das Bild. Er ist ab der ersten Zeile sichtbar; das Foto
+   blendet sich ein, sobald es geladen ist. Kommt es gar nicht, bleibt der Schirm in
+   Palettenfarbe — schlichter, aber nie leer und nie langsamer. Andersherum gebaut wäre ein
+   Ladebildschirm mit Foto langsamer als gar keiner. */
+(function(){
+  var ANZAHL = 6;
+  var el = document.querySelector('#splash .foto');
+  if (!el) return;
+  var n = 0;
+  try {
+    n = (parseInt(localStorage.getItem('angellog-splash-nr'), 10) || 0) % ANZAHL;
+    localStorage.setItem('angellog-splash-nr', String((n + 1) % ANZAHL));
+  } catch (e) {}
+  el.onload = function(){
+    el.classList.add('da');
+    var schleier = document.querySelector('#splash .schleier');
+    if (schleier) schleier.classList.add('da');
+    var s = document.getElementById('splash');
+    if (s) s.classList.add('mitFoto');
+  };
+  // Fehlt das Bild, passiert schlicht nichts — kein onerror nötig, der Schirm steht schon.
+  el.src = 'splash-' + (n + 1) + '.jpg';
+})();
+</script>
 
 <!-- ======================= LOG ======================= -->
 <section id="v-log">
