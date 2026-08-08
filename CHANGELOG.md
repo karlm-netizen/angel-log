@@ -6,6 +6,61 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 08.08.2026 (2) — Gewässer per Standort, Angelzeit-Fehler, Punkte-Auswahl raus
+
+**🐞 Die Angelzeit kam an keinem zweiten Gerät an — behoben.** Karls Meldung, und es war
+weder das Netz noch die Tabelle, sondern eine Bedingung im Abgleich: ein Wert mit
+`updated: 0` galt als „nichts zu melden" und ging **nie** hoch.
+
+- ⚠️ Genau das trifft auf **jede Angelzeit zu, die vor dem 07.08. entstanden ist**: sie lag
+  im `localStorage`, lange bevor es ein `updated` gab. Das Gerät mit der Zeit lud sie nie
+  hoch, das andere sah nie etwas. Sie wäre erst mitgekommen, wenn Karl sie von Hand geändert
+  hätte. **„Kein Stempel" heißt nicht „nichts da"** — steht hier etwas und drüben nichts,
+  bekommt es jetzt einen Stempel und geht hoch, auch lokal.
+- ⚠️ **Der Wächter `hier.updated &&` musste trotzdem bleiben.** Beim ersten Anlauf hatte ich
+  ihn mit entfernt; dadurch galt eine Null-Zeit als „jünger als nichts" und ging mit
+  `updated: 0` hoch, womit sie drüben sofort wieder als älteste galt. Eine bestehende
+  Prüfung hat das gefangen.
+- ⚠️ **Und der Grund, warum es niemandem auffiel:** jeder selbsttätige Abgleich läuft still.
+  Der Werte-Abgleich hat jetzt einen eigenen Fang-Block, und ein Fehler dort wird gemeldet —
+  einmal je Sitzung. Vorher zogen die Fänge munter weiter durch und alles sah heil aus.
+
+**Das Gewässer kommt automatisch aus dem Standort** und steht dafür **unten bei den anderen
+geholten Werten** statt oben beim Fisch (beides Karls Ansage). Quelle ist OpenStreetMap über
+Overpass — dieselbe Datenbasis wie die Karte. Wer laut Standort nicht am Wasser ist, bekommt
+das nächstgelegene.
+
+- ⚠️ **`around` allein findet den See nicht, in dem man steht.** Es misst zur Uferlinie:
+  mitten auf dem Steinhuder Meer ist das Ufer über 1,5 km weg, die Umkreissuche kam leer
+  zurück — ausgerechnet im Normalfall „ich bin am Wasser". Deshalb steht `is_in` davor.
+  Das muss **vor** der Union stehen, sonst kommen Land, Bundesland und Gemeinde mit.
+- ⚠️ **Das nächste ist nicht das richtige.** An der Elbe bei Hamburg gewinnt nach reiner
+  Entfernung „Guanofleet" (213 m) gegen die Norderelbe (217 m). Deshalb ein Aufschlag je
+  Art: ein Fluss oder See in 400 m ist wahrscheinlicher gemeint als ein Graben in 200 m.
+  Damit gewinnt die Norderelbe. Weil es ein Ratespiel bleibt, stehen **die übrigen Funde als
+  Knöpfe darunter** — eintippen muss man auch dann nichts, wenn der erste danebenliegt.
+- Erst 1,5 km, nur bei leerem Ergebnis 20 km; zwei Server nacheinander. Overpass antwortet
+  gelegentlich mit 429 oder 504 — das läuft nebenher und zieht die Luftwerte nicht mit runter.
+- Die **Datenschutzerklärung** nennt Overpass jetzt als Empfänger der Koordinaten.
+
+**Die Punkte-Auswahl in den Statistiken ist wieder raus** (Karls Ansage) — die Achse zeigt
+immer alle Punkte. Sie stand genau einen Tag.
+⚠️ Auswertungen, die am 07./08.08. mit einer Punkte-Liste gespeichert wurden, tragen das Feld
+noch; es fällt beim ersten Anfassen weg. Bliebe es stehen, schnitte eine alte Auswertung
+unsichtbar Werte ab, ohne dass es dafür noch eine Bedienung gäbe.
+Mit ihr sind rund fünfzehn Prüfungen gegangen — was es nicht gibt, wird nicht geprüft.
+
+**Das Symbol auf dem Home-Bildschirm:** eigenes `apple-touch-icon.png` in **180×180**, der
+Größe, die iOS dafür tatsächlich anlegt. Vorher stand dort die 192er, die iOS zwar nimmt und
+herunterrechnet — geraten wird an der einzigen Stelle, an der ein falsches Symbol auffällt,
+aber nicht.
+⚠️ **Am iPhone reicht Neuladen weiterhin nicht.** iOS merkt sich das Symbol beim **Anlegen**
+der Verknüpfung: alte löschen, Seite in Safari öffnen, Teilen → „Zum Home-Bildschirm".
+
+**362 Prüfungen grün**, darunter neue zum Angelzeit-Fall (Wert ohne Stempel, Stempel lokal,
+kein Hochstempeln wenn drüben etwas liegt), zur Gewässer-Auswertung (Guanofleet-Fall,
+mittendrin, Verwaltungsgrenzen, ein Fluss in vielen Abschnitten) und zum Symbol.
+
 ## 08.08.2026 — Ladebildschirm, das Zeichen in der App, `testrun/` raus
 
 **Ein Ladebildschirm beim Start.** Symbol, Name und ein laufender Strich, in den Farben der

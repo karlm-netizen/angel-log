@@ -455,7 +455,7 @@ TESTS = r"""
     const setzeFaenge = arr => { state.catches = arr; };
     const alleFilterAus = (x) => { state.stats = { gewaesser: '', art: '',
                                                    x: x || 'wasser', teilen: '',
-                                                   punkte: null, aktiv: null }; };
+                                                   aktiv: null }; };
     const R = arr => arr.map(v => ({ w: v }));
     // Eine Achse zum Durchreichen an reihenBauen, ohne den Umweg ueber die App.
     const wAchse = (stufe) => ({ key:'w', kurz:'W', stufe: stufe, hol: c => c.w });
@@ -935,125 +935,35 @@ TESTS = r"""
     });
 
     // ---- Der Baukasten ----
-    // ---- Punkte der X-Achse auswaehlen ----
-    // Karls Ansage vom 07.08.: "statt zeitraum brauche ich eine moeglichkeit
-    // alle die punkte auszuwaehlen."
+    // ---- Die Punkte-Auswahl gibt es nicht mehr ----
+    // Sie stand vom 07. bis 08.08.2026 im Baukasten; Karl hat sie wieder
+    // abbestellt: es sollen immer alle Punkte im Bild stehen. Die rund fuenfzehn
+    // Pruefungen dazu sind mit ihr entfernt worden -- was es nicht gibt, wird
+    // nicht geprueft. Was bleibt, steht unten: die Achse zeigt vollstaendig.
     const dreiArten = () => {
       setzeFaenge([mk({ art:'Hecht' }), mk({ art:'Hecht' }), mk({ art:'Barsch' }), mk({ art:'Zander' })]);
       alleFilterAus('art'); renderStats();
     };
-    t('fuer jeden Punkt der Achse ein Kaestchen', () => {
+    t('die Achse zeigt alle Punkte, ohne Auswahl', () => {
       dreiArten();
-      return document.querySelectorAll('#st-punkte .chip').length === 3
-          || document.querySelectorAll('#st-punkte .chip').length;
+      const d = reihenBauen(statsRows(), achseVon('art'), '');
+      return (d.stufen.length === 3) || ('Stufen: ' + JSON.stringify(d.stufen.map(s => s.x)));
     });
-    t('am Anfang sind alle angekreuzt', () => {
+    t('es gibt keine Bedienung mehr, die Punkte abwaehlt', () => {
       dreiArten();
-      const an = [...document.querySelectorAll('#st-punkte .chip')].filter(c => c.classList.contains('on'));
-      return an.length === 3 || an.length;
+      const reste = ['#st-punkte', '#st-punkte-titel', '#st-alle', '#st-keine']
+        .filter(sel => document.querySelector(sel));
+      return reste.length === 0 || ('noch da: ' + reste.join(', '));
     });
-    t('die Ueberschrift nennt die Achse', () => {
-      dreiArten();
-      return document.querySelector('#st-punkte-titel').textContent.includes('Fischart')
-          || document.querySelector('#st-punkte-titel').textContent;
+    // ⚠️ Auswertungen, die am 07./08.08. mit einer Punkte-Liste gespeichert wurden,
+    // tragen das Feld noch. Bliebe es stehen, schnitte eine alte Auswertung
+    // unsichtbar Werte ab -- ohne dass es dafuer noch eine Bedienung gaebe.
+    t('eine alte Punkte-Liste faellt beim Anfassen weg', () => {
+      const a = auswNehmen({ art:'Hecht', x:'tiefe', teilen:'', gewaesser:'',
+                             punkte:['Hecht','Barsch'] });
+      return a.punkte === undefined || JSON.stringify(a);
     });
-    t('einen abwaehlen nimmt ihn aus dem Bild', () => {
-      dreiArten();
-      document.querySelector('[data-punkt="Zander"]').click();
-      const h = document.querySelector('#stats-body').innerHTML;
-      const svg = h.slice(h.indexOf('<svg'), h.indexOf('</svg>'));
-      return (!svg.includes('>Zander<') && svg.includes('>Hecht<')) || 'Zander steht noch da';
-    });
-    // ⚠️ Der abgewaehlte Punkt muss in der LISTE bleiben, sonst kaeme man nie
-    // wieder an ihn heran.
-    t('der abgewaehlte Punkt bleibt zum Wiederanhaken stehen', () => {
-      const c = document.querySelector('[data-punkt="Zander"]');
-      return (c && !c.classList.contains('on')) || 'aus der Liste verschwunden';
-    });
-    t('nochmal antippen holt ihn zurueck', () => {
-      document.querySelector('[data-punkt="Zander"]').click();
-      return (state.stats.punkte === null
-              && document.querySelector('[data-punkt="Zander"]').classList.contains('on'))
-          || JSON.stringify(state.stats.punkte);
-    });
-    // Sind wieder alle drin, steht null statt einer vollen Liste -- nur so nimmt
-    // eine gespeicherte Auswertung spaeter dazugekommene Werte von selbst mit.
-    t('alle angekreuzt heisst null, nicht eine volle Liste', () => {
-      dreiArten();
-      document.querySelector('[data-punkt="Barsch"]').click();
-      document.querySelector('[data-punkt="Barsch"]').click();
-      return state.stats.punkte === null || JSON.stringify(state.stats.punkte);
-    });
-    t('"Keine" waehlt alles ab', () => {
-      dreiArten();
-      document.querySelector('#st-keine').click();
-      return (Array.isArray(state.stats.punkte) && state.stats.punkte.length === 0)
-          || JSON.stringify(state.stats.punkte);
-    });
-    t('ohne Punkt sagt das Bild, wie es zurueckgeht', () => {
-      const h = document.querySelector('#stats-body').innerHTML;
-      return h.includes('kein Punkt ausgewählt') || 'kein Hinweis';
-    });
-    t('"Alle" holt alles zurueck', () => {
-      document.querySelector('#st-alle').click();
-      return state.stats.punkte === null || JSON.stringify(state.stats.punkte);
-    });
-    t('die Auswahl bleibt in der Reihenfolge der Achse', () => {
-      setzeFaenge([mk({ tiefe:1 }), mk({ tiefe:2 }), mk({ tiefe:3 }), mk({ tiefe:4 }), mk({ tiefe:5 })]);
-      alleFilterAus('tiefe'); renderStats();
-      document.querySelector('[data-punkt="5"]').click();
-      document.querySelector('[data-punkt="1"]').click();
-      return state.stats.punkte.join(',') === '2,3,4' || state.stats.punkte.join(',');
-    });
-    // Am Rand kuerzen ist harmlos, mittendrin eine Luecke lassen nicht.
-    t('am Rand kuerzen bringt keinen Luecken-Hinweis', () => {
-      const h = document.querySelector('#stats-body').innerHTML;
-      return !h.includes('über die Lücke') || 'Hinweis steht faelschlich da';
-    });
-    t('eine Luecke mittendrin wird benannt', () => {
-      setzeFaenge([mk({ tiefe:1 }), mk({ tiefe:2 }), mk({ tiefe:3 }), mk({ tiefe:4 }), mk({ tiefe:5 })]);
-      alleFilterAus('tiefe'); renderStats();
-      document.querySelector('[data-punkt="3"]').click();
-      return document.querySelector('#stats-body').innerHTML.includes('über die Lücke')
-          || 'kein Hinweis auf die Luecke';
-    });
-    // Bei einer Achse ohne Reihenfolge gibt es keine Luecke -- da steht ohnehin
-    // schon, dass der Verlauf nichts bedeutet.
-    t('bei ungeordneten Achsen kein Luecken-Hinweis', () => {
-      dreiArten();
-      document.querySelector('[data-punkt="Hecht"]').click();
-      return !document.querySelector('#stats-body').innerHTML.includes('über die Lücke')
-          || 'Hinweis bei einer Achse ohne Reihenfolge';
-    });
-    // Die alte Auswahl auf einer neuen Achse waere sinnlos und liesse das Bild
-    // kommentarlos leer.
-    t('ein Achsenwechsel setzt die Auswahl zurueck', () => {
-      dreiArten();
-      document.querySelector('[data-punkt="Zander"]').click();
-      const sel = document.querySelector('#st-x');
-      sel.value = 'tiefe'; sel.dispatchEvent(new Event('change'));
-      return state.stats.punkte === null || JSON.stringify(state.stats.punkte);
-    });
-    t('die Auswahl wandert in die gespeicherte Auswertung', () => {
-      state.auswertungen = []; localStorage.removeItem('angellog-auswertungen');
-      dreiArten();
-      document.querySelector('[data-punkt="Zander"]').click();
-      const merk = window.prompt; window.prompt = () => 'Ohne Zander';
-      auswertungSpeichern(); window.prompt = merk;
-      const a = state.auswertungen[0];
-      return (a.punkte && a.punkte.join(',') === 'Hecht,Barsch') || JSON.stringify(a.punkte);
-    });
-    t('die Beschreibung nennt die Zahl der Punkte', () =>
-      document.querySelector('#stats-gespeichert').textContent.includes('2 Punkte')
-        || document.querySelector('#stats-gespeichert').textContent);
-    // ⚠️ Kopie, nicht Verweis: sonst aendert ein Klick im Baukasten still die
-    // gespeicherte Auswertung mit.
-    t('die gespeicherte Auswahl ist eine Kopie', () => {
-      const vorher = state.auswertungen[0].punkte.join(',');
-      document.querySelector('[data-punkt="Barsch"]').click();
-      return state.auswertungen[0].punkte.join(',') === vorher
-          || `war ${vorher}, ist ${state.auswertungen[0].punkte.join(',')}`;
-    });
+
     state.auswertungen = []; localStorage.removeItem('angellog-auswertungen');
     t('die X-Achse ist waehlbar und vollstaendig', () => {
       const n = document.querySelectorAll('#st-x option').length;
@@ -1114,7 +1024,7 @@ TESTS = r"""
     t('die gespeicherte merkt sich alle fuenf Angaben', () => {
       const a = state.auswertungen[0];
       return (a.art === 'Hecht' && a.x === 'tiefe' && a.teilen === 'farbe'
-              && a.gewaesser === '' && a.punkte === null) || JSON.stringify(a);
+              && a.gewaesser === '') || JSON.stringify(a);
     });
     t('sie steht danach in der Liste', () =>
       document.querySelector('#stats-gespeichert').textContent.includes('Hecht tief') || 'nicht in der Liste');
@@ -1525,6 +1435,45 @@ TESTS = r"""
     await werteAbgleichen();
     return n.geschrieben === null || JSON.stringify(n.geschrieben);
   });
+  /* ⚠️ Karls Meldung vom 08.08.: "angelzeit gesamt ist nicht syncronisiert auf
+     meinen geraeten". Ursache war nicht das Netz und nicht die Tabelle, sondern
+     die Bedingung hier: ein Wert mit `updated: 0` galt als "nichts zu melden" und
+     ging nie hoch. Genau das trifft aber auf jede Angelzeit zu, die vor dem
+     07.08. entstanden ist -- sie lag im localStorage, lange bevor es ein
+     `updated` gab. Das Geraet mit der Zeit lud sie nie hoch, das andere sah nie
+     etwas, und weil jeder selbsttaetige Abgleich still laeuft, meldete niemand
+     einen Fehler. */
+  ta('eine Angelzeit ohne Stempel geht trotzdem hoch', async () => {
+    zeitSetzen(7200000, 0);          // zwei Stunden, nie "geaendert" worden
+    localStorage.removeItem('angellog-auswertungen'); state.auswertungen = [];
+    const n = werteNetz([]);
+    await werteAbgleichen();
+    const z = (n.geschrieben || []).find(r => r.schluessel === 'zeit');
+    return (z && z.wert.gesamt === 7200000) || JSON.stringify(n.geschrieben);
+  });
+  ta('und sie bekommt dabei einen echten Stempel', async () => {
+    zeitSetzen(7200000, 0);
+    const n = werteNetz([]);
+    await werteAbgleichen();
+    const z = (n.geschrieben || []).find(r => r.schluessel === 'zeit');
+    // Ohne Stempel gaelte sie drueben sofort wieder als aelteste und der naechste
+    // Abgleich wuerde sie mit irgendetwas ueberschreiben.
+    return (z && z.updated > 1.7e12) || JSON.stringify(z);
+  });
+  ta('der Stempel steht danach auch lokal', async () => {
+    zeitSetzen(7200000, 0);
+    werteNetz([]);
+    await werteAbgleichen();
+    // Bliebe lokal die 0 stehen, liefe beim naechsten Durchgang dasselbe nochmal.
+    return zeitLesen().updated > 1.7e12 || zeitLesen().updated;
+  });
+  ta('liegt drueben schon etwas, wird nichts gestempelt', async () => {
+    zeitSetzen(7200000, 0);
+    werteNetz([{ schluessel: 'zeit', updated: 9000, wert: { gesamt: 3600000 } }]);
+    await werteAbgleichen();
+    // Drueben ist etwas -> der Server gewinnt, hier wird nicht heimlich hochgestempelt.
+    return zeitLesen().gesamt === 3600000 || zeitLesen().gesamt;
+  });
   ta('juengere Angelzeit vom Server gewinnt', async () => {
     zeitSetzen(3600000, 5000);
     werteNetz([{ schluessel: 'zeit', updated: 9000, wert: { gesamt: 7200000 } }]);
@@ -1835,7 +1784,7 @@ TESTS = r"""
   ta('der Baukasten steht auf 320 px vollstaendig da', async () => {
     return await imRahmen(320, (w, d) => {
       w.go('stats');
-      const fehlt = ['#st-art', '#st-x', '#st-teilen', '#st-gewaesser', '#st-punkte', '#st-speichern']
+      const fehlt = ['#st-art', '#st-x', '#st-teilen', '#st-gewaesser', '#st-speichern']
         .filter(s => { const el = d.querySelector(s); return !el || el.getBoundingClientRect().width < 1; });
       return fehlt.length === 0 || ('nicht sichtbar: ' + fehlt.join(', '));
     });
@@ -1980,6 +1929,91 @@ TESTS = r"""
   // stehen bleibt: er deckt die ganze Flaeche ab, also waere die App dann unbedienbar.
   // Deshalb pruefen die Faelle unten vor allem, dass er WEGGEHT — auch dann, wenn init()
   // nie durchlaeuft.
+  // ==================== Gewaesser aus dem Standort ====================
+  // Karls Ansage vom 08.08. Geprueft wird die Auswertung der Antwort, nicht der
+  // Netzaufruf -- Overpass ist ein Spendendienst und gehoert nicht in eine
+  // Pruefung, die bei jedem Durchlauf mitlaeuft.
+  const ovEl = (name, tags, geom) => ({ tags: Object.assign({ name }, tags), geometry: geom });
+  const beiHH = (dlat) => [{ lat: 53.5411 + dlat, lon: 9.9737 }];
+
+  t('das naechste benannte Gewaesser gewinnt', () => {
+    const j = { elements: [ovEl('Ferner Bach', { waterway:'stream' }, beiHH(0.02)),
+                           ovEl('Naher Fluss', { waterway:'river' },  beiHH(0.002))] };
+    const r = gewaesserAuswerten(j, 53.5411, 9.9737);
+    return r[0].name === 'Naher Fluss' || JSON.stringify(r.map(x => x.name));
+  });
+  /* ⚠️ Der Fall, der die Gewichtung ausgeloest hat: an der Elbe bei Hamburg liegt
+     das Fleet "Guanofleet" naeher als die Norderelbe. Nach reiner Entfernung
+     gewaenne der Graben -- gemeint ist aber der Fluss. */
+  t('ein Fluss sticht einen naeheren Graben', () => {
+    const j = { elements: [ovEl('Guanofleet', { waterway:'ditch' }, beiHH(0.0019)),
+                           ovEl('Norderelbe', { waterway:'river' }, beiHH(0.0021))] };
+    const r = gewaesserAuswerten(j, 53.5411, 9.9737);
+    return r[0].name === 'Norderelbe' || JSON.stringify(r.map(x => `${x.name}/${Math.round(x.rang)}`));
+  });
+  /* ⚠️ Der Fall, an dem der erste Entwurf gescheitert ist: mitten auf dem
+     Steinhuder Meer findet around den See nicht, weil es zur Uferlinie misst.
+     Objekte aus is_in kommen ohne Geometrie -- das heisst "ich stehe drin". */
+  t('mittendrin schlaegt jede Entfernung', () => {
+    const j = { elements: [ovEl('Kleiner Graben', { waterway:'ditch' }, beiHH(0.0001)),
+                           ovEl('Steinhuder Meer', { natural:'water' }, null)] };
+    const r = gewaesserAuswerten(j, 52.46, 9.33);
+    return (r[0].name === 'Steinhuder Meer' && r[0].drin && r[0].m === 0)
+        || JSON.stringify(r.map(x => `${x.name}/drin=${x.drin}`));
+  });
+  t('Verwaltungsgrenzen fallen raus', () => {
+    // is_in liefert auch Land, Bundesland und Gemeinde. Ohne diesen Filter stuende
+    // "Deutschland" als Gewaesser im Formular.
+    const j = { elements: [ovEl('Deutschland', { 'admin_level':'2' }, null),
+                           ovEl('Niedersachsen', { boundary:'administrative' }, null),
+                           ovEl('Steinhuder Meer', { natural:'water' }, null)] };
+    const r = gewaesserAuswerten(j, 52.46, 9.33);
+    return (r.length === 1 && r[0].name === 'Steinhuder Meer')
+        || JSON.stringify(r.map(x => x.name));
+  });
+  t('ein Fluss in vielen Abschnitten steht nur einmal da', () => {
+    const j = { elements: [ovEl('Weser', { waterway:'river' }, beiHH(0.01)),
+                           ovEl('Weser', { waterway:'river' }, beiHH(0.002)),
+                           ovEl('Weser', { waterway:'river' }, beiHH(0.03))] };
+    const r = gewaesserAuswerten(j, 53.5411, 9.9737);
+    return (r.length === 1 && Math.round(r[0].m) < 250)
+        || JSON.stringify(r.map(x => `${x.name}/${Math.round(x.m)}m`));
+  });
+  t('Namenloses zaehlt nicht', () => {
+    const j = { elements: [{ tags: { waterway:'river' }, geometry: beiHH(0.0001) },
+                           ovEl('Mit Namen', { waterway:'river' }, beiHH(0.01))] };
+    const r = gewaesserAuswerten(j, 53.5411, 9.9737);
+    return (r.length === 1 && r[0].name === 'Mit Namen') || JSON.stringify(r.map(x => x.name));
+  });
+  t('hoechstens sechs Vorschlaege', () => {
+    const j = { elements: Array.from({ length: 12 },
+      (_, i) => ovEl('Gewaesser ' + i, { waterway:'river' }, beiHH(0.001 * (i + 1)))) };
+    return gewaesserAuswerten(j, 53.5411, 9.9737).length === 6
+        || gewaesserAuswerten(j, 53.5411, 9.9737).length;
+  });
+  t('das Gewaesser steht unten bei den geholten Werten', () => {
+    // Karls Ansage: "das muss auch runter zu den anderen sachen".
+    const feld = document.querySelector('#f-gewaesser');
+    return (feld && feld.closest('.card') === document.querySelector('#wx-info').closest('.card'))
+        || 'steht nicht in der Bedingungen-Karte';
+  });
+  t('Entfernungen lesen sich rund', () => {
+    const f = [gwEntfernung(213), gwEntfernung(940), gwEntfernung(1113), gwEntfernung(2990)];
+    return JSON.stringify(f) === JSON.stringify(['210 m', '940 m', '1,1 km', '3,0 km'])
+        || JSON.stringify(f);
+  });
+
+  // ==================== Symbol auf dem Home-Bildschirm ====================
+  t('apple-touch-icon ist eigens angegeben', () => {
+    const l = document.querySelector('link[rel="apple-touch-icon"]');
+    return (l && /apple-touch-icon\.png/.test(l.getAttribute('href')))
+        || (l ? l.getAttribute('href') : 'keine Zeile da');
+  });
+  t('und in 180x180, der Groesse die iOS anlegt', () => {
+    const l = document.querySelector('link[rel="apple-touch-icon"]');
+    return (l && l.getAttribute('sizes') === '180x180') || (l ? l.getAttribute('sizes') : '—');
+  });
+
   t('der Ladebildschirm steht vor der Log-Ansicht im Markup', () => {
     const h = document.documentElement.innerHTML;
     const s = h.indexOf('id="splash"'), l = h.indexOf('id="v-log"');

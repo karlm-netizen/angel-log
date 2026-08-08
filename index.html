@@ -7,7 +7,14 @@
 <title>Angel-Log</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png" type="image/png">
-<link rel="apple-touch-icon" href="icon-192.png">
+<!-- ⚠️ 180×180 ist die Größe, die iOS für den Home-Bildschirm tatsächlich anlegt. Vorher
+     stand hier die 192er: iOS nimmt sie zwar und rechnet sie herunter, aber genau diese
+     Stelle ist die einzige, an der ein falsches Symbol auffällt, und geraten wird hier
+     nicht. Ohne Größenangabe im href-Namen, damit ältere Safari-Fassungen sie sicher
+     finden — "apple-touch-icon.png" im Wurzelverzeichnis ist der Name, nach dem iOS
+     notfalls auch ohne link-Zeile sucht.
+     ⚠️ Bewusst ohne Transparenz (RGB): iOS füllt transparente Stellen schwarz auf. -->
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Angel-Log">
@@ -432,11 +439,6 @@ setTimeout(function(){
         <label class="f" for="f-zeit">Datum &amp; Uhrzeit</label>
         <input class="in" id="f-zeit" type="datetime-local">
       </div>
-      <div class="fld">
-        <label class="f" for="f-gewaesser">Gewässer</label>
-        <input class="in" id="f-gewaesser" list="dl-gewaesser" placeholder="z. B. Elbe-Altarm" autocomplete="off">
-        <datalist id="dl-gewaesser"></datalist>
-      </div>
     </div>
 
     <div class="card">
@@ -471,7 +473,17 @@ setTimeout(function(){
         <button class="btn sm" id="btn-wx" style="font-weight:600">Werte holen</button>
       </h2>
       <div class="tiny muted" id="wx-info" style="margin:-4px 0 10px">
-        Standort setzen → Luft- und Wasserwerte kommen automatisch.
+        Standort setzen → Gewässer, Luft- und Wasserwerte kommen automatisch.
+      </div>
+      <!-- Das Gewässer steht seit dem 08.08. hier unten bei den automatisch geholten
+           Werten und nicht mehr oben beim Fisch (Karls Ansage) — es hängt am Standort,
+           nicht am Fang. -->
+      <div class="fld">
+        <label class="f" for="f-gewaesser">Gewässer</label>
+        <input class="in" id="f-gewaesser" list="dl-gewaesser" placeholder="z. B. Elbe-Altarm" autocomplete="off">
+        <datalist id="dl-gewaesser"></datalist>
+        <div class="tiny muted" id="gw-info" style="margin-top:6px"></div>
+        <div class="chips" id="gw-nah" style="margin-top:6px"></div>
       </div>
       <div class="g2 fld">
         <div>
@@ -617,16 +629,10 @@ setTimeout(function(){
         <label class="f" for="st-gewaesser">Gewässer</label>
         <select class="in" id="st-gewaesser"></select>
       </div>
-      <!-- Welche Punkte auf der X-Achse stehen. Die Liste entsteht beim
-           Zeichnen, weil sie an der gewählten Achse und am Bestand hängt. -->
-      <div class="fld">
-        <div class="row" style="margin-bottom:5px">
-          <label class="f" id="st-punkte-titel" style="margin:0; flex:1">Welche Punkte</label>
-          <button class="chip" id="st-alle">Alle</button>
-          <button class="chip" id="st-keine">Keine</button>
-        </div>
-        <div class="chips" id="st-punkte"></div>
-      </div>
+      <!-- ⚠️ Hier stand vom 07. bis 08.08. eine Auswahl, welche Punkte der X-Achse im Bild
+           stehen. Karl hat sie am 08.08. wieder abbestellt: es sollen immer alle sein.
+           Die Achse zeigt jetzt ausnahmslos ihren vollen Umfang. Wer das zurückholen will,
+           findet den Stand im Commit-Verlauf — hier nichts halb Ausgebautes stehen lassen. -->
       <div class="row">
         <button class="btn" id="st-sichern" style="flex:1" hidden>✓ Änderungen sichern</button>
         <button class="btn" id="st-speichern" style="flex:1">✚ Auswertung speichern</button>
@@ -1107,16 +1113,16 @@ const state = {
           regen24: null, regen48: null, pegel: null, wasserAuto: null },
   detailId: null,
   /* Eine Auswertung ist genau diese fünf Angaben: was gezählt wird (`art`),
-     worüber (`x`), ob nach Köder oder Farbe aufgeteilt wird (`teilen`), auf
-     welches Gewässer eingeschränkt, und welche Punkte der X-Achse dabei sind.
-     `aktiv` ist die ID der gespeicherten Auswertung, die gerade geladen ist —
-     null heißt „frei eingestellt, noch nicht gespeichert".
+     worüber (`x`), ob nach Köder oder Farbe aufgeteilt wird (`teilen`) und auf
+     welches Gewässer eingeschränkt. `aktiv` ist die ID der gespeicherten
+     Auswertung, die gerade geladen ist — null heißt „frei eingestellt, noch
+     nicht gespeichert".
 
-     ⚠️ `punkte: null` heißt **alle**, nicht „keine". Der Unterschied ist wichtig:
-     eine gespeicherte Auswertung mit `null` nimmt später dazugekommene Werte
-     von selbst mit (eine neu gefangene Fischart taucht auf), eine mit einer
-     ausdrücklichen Liste bleibt bei genau dem, was Karl gewählt hat. */
-  stats: { gewaesser: '', art: '', x: 'wasser', teilen: '', punkte: null, aktiv: null },
+     ⚠️ Eine Auswahl, welche Punkte der X-Achse im Bild stehen, gab es vom 07. bis
+     08.08.; Karl hat sie wieder abbestellt. **Die Achse zeigt immer alle Punkte.**
+     Gespeicherte Auswertungen aus dem einen Tag können noch eine Punkte-Liste
+     enthalten — die wird beim Lesen weggeworfen, siehe auswNehmen(). */
+  stats: { gewaesser: '', art: '', x: 'wasser', teilen: '', aktiv: null },
   auswertungen: [],  // gespeicherte Auswertungen, hängen am Konto
   urls: []          // ObjectURLs, die beim Ansichtswechsel wieder freigegeben werden
 };
@@ -1385,6 +1391,109 @@ async function pegelNear(lat, lon){
   return null;
 }
 
+/* ---------- Gewässer aus dem Standort ----------
+   Karls Ansage vom 08.08.: beim Erfassen soll das Gewässer automatisch kommen, und
+   wer laut Standort gerade nicht am Wasser ist, bekommt das nächstgelegene.
+
+   Quelle ist OpenStreetMap über Overpass — dieselbe Datenbasis, aus der schon die
+   Karte kommt. Zwei Fälle, und der zweite hat den ersten Entwurf gekippt:
+
+   ⚠️ **`around` allein findet den See nicht, in dem man steht.** Es misst zur
+   Uferlinie: mitten auf dem Steinhuder Meer ist das Ufer über 1,5 km weg, die
+   Umkreissuche kam leer zurück — ausgerechnet im Normalfall „ich bin am Wasser".
+   Deshalb steht `is_in` davor, das alle Flächen liefert, die den Punkt enthalten.
+   ⚠️ `is_in` muss **vor** die Union, nicht hinein: sonst landen auch Land, Bundesland
+   und Gemeinde im Ergebnis. Das zweite Netz dagegen ist der Filter auf `art` unten.
+
+   ⚠️ **Das nächste ist nicht das richtige.** An der Elbe bei Hamburg gewinnt nach
+   reiner Entfernung „Guanofleet" (ein Fleet in 213 m) gegen die Norderelbe. Deshalb
+   ein Aufschlag je Art: ein Fluss oder See in 400 m ist wahrscheinlicher gemeint als
+   ein Graben in 200 m. Mit dem Aufschlag gewinnt die Norderelbe.
+   Weil das trotzdem ein Ratespiel bleibt, stehen die übrigen Funde als Knöpfe
+   darunter — eintippen muss Karl deshalb nichts, auch wenn der erste danebenliegt. */
+const OVERPASS = ['https://overpass-api.de/api/interpreter',
+                  'https://overpass.kumi.systems/api/interpreter'];
+// Aufschlag in Metern. 0 = zählt mit seiner echten Entfernung.
+const GW_AUFSCHLAG = { river: 0, water: 0, canal: 250, stream: 400, ditch: 900, drain: 900 };
+
+async function gewaesserNear(lat, lon){
+  const bau = radius => `[out:json][timeout:25];is_in(${lat},${lon})->.hier;(`
+    + `way.hier["natural"="water"]["name"];`
+    + `relation.hier["natural"="water"]["name"];`
+    + `way(around:${radius},${lat},${lon})["natural"="water"]["name"];`
+    + `relation(around:${radius},${lat},${lon})["natural"="water"]["name"];`
+    + `way(around:${radius},${lat},${lon})["waterway"~"^(river|stream|canal)$"]["name"];`
+    + `);out tags geom 200;`;
+
+  // Erst eng — die Abfrage ist klein und deckt den Normalfall ab. Erst wenn gar
+  // nichts kommt, weiter aufmachen; Overpass ist ein Spendendienst, keine Auskunft
+  // zum Dauergebrauch.
+  for (const radius of [1500, 20000]){
+    for (const server of OVERPASS){
+      try {
+        const r = await fetch(server, { method: 'POST', body: 'data=' + encodeURIComponent(bau(radius)),
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+        if (!r.ok) continue;                       // 429/504 kommen vor, dann der nächste
+        const treffer = gewaesserAuswerten(await r.json(), lat, lon);
+        if (treffer.length) return treffer;
+        break;                                     // Server hat geantwortet, nur nichts gefunden
+      } catch {}
+    }
+  }
+  return [];
+}
+
+function gewaesserAuswerten(j, lat, lon){
+  const beste = new Map();
+  for (const el of (j && j.elements) || []){
+    const t = el.tags || {};
+    if (!t.name) continue;
+    const art = t.waterway || (t.natural === 'water' ? 'water' : null);
+    if (!art) continue;               // zweites Netz gegen Grenzen und anderes Beiwerk
+    const geo = el.geometry || [];
+    /* Ohne Geometrie kommt das Objekt aus is_in — dann steht man mittendrin, und
+       „drin" schlägt jede Entfernung. */
+    const drin = !geo.length;
+    let m = Infinity;
+    for (const p of geo) if (p && p.lat != null) m = Math.min(m, distKm(lat, lon, p.lat, p.lon) * 1000);
+    if (!drin && !isFinite(m)) continue;
+    const eintrag = { name: t.name, art, m: drin ? 0 : m, drin,
+                      rang: drin ? 0 : m + (GW_AUFSCHLAG[art] != null ? GW_AUFSCHLAG[art] : 500) };
+    // Ein Fluss liegt in vielen Abschnitten vor — je Name nur der nächste.
+    const da = beste.get(t.name);
+    if (!da || eintrag.rang < da.rang) beste.set(t.name, eintrag);
+  }
+  return [...beste.values()].sort((a, b) => a.rang - b.rang).slice(0, 6);
+}
+
+async function loadGewaesser(lat, lon, force){
+  const feld = $('#f-gewaesser');
+  // Ohne "force" nur ein leeres Feld füllen — von Hand Eingetragenes hat Vorrang,
+  // genau wie bei Luft und Wasser.
+  if (!force && feld.value !== ''){ $('#gw-info').textContent = ''; $('#gw-nah').innerHTML = ''; return; }
+  $('#gw-info').innerHTML = '<span class="spin"></span>Gewässer wird gesucht …';
+  $('#gw-nah').innerHTML = '';
+  const treffer = await gewaesserNear(lat, lon);
+  if (!treffer.length){
+    $('#gw-info').textContent = 'Kein benanntes Gewässer gefunden — bitte selbst eintragen.';
+    return;
+  }
+  const erste = treffer[0];
+  feld.value = erste.name;
+  $('#gw-info').textContent = erste.drin
+    ? 'Laut Standort mittendrin.'
+    : `Nächstes Gewässer, ${gwEntfernung(erste.m)} entfernt.`;
+  // Die übrigen zum Antippen — das erste ist begründet geraten, nicht gewusst.
+  const rest = treffer.slice(1);
+  $('#gw-nah').innerHTML = rest.length
+    ? '<span class="tiny muted" style="align-self:center">Stattdessen:</span>'
+      + rest.map(g => `<button type="button" class="chip" data-gw="${esc(g.name)}">`
+                    + `${esc(g.name)} · ${gwEntfernung(g.m)}</button>`).join('')
+    : '';
+}
+const gwEntfernung = m => m < 950 ? Math.round(m / 10) * 10 + ' m'
+                                  : (Math.round(m / 100) / 10).toFixed(1).replace('.', ',') + ' km';
+
 async function waterTemp(lat, lon, when){
   const t = new Date(when).getTime();
 
@@ -1434,6 +1543,11 @@ async function loadWeather(force){
   if (!when){ toast('Erst Datum & Uhrzeit setzen'); return; }
 
   loadWater(lat, lon, when, force);
+  // Läuft nebenher wie die Wassertemperatur: Overpass ist gelegentlich überlastet,
+  // und ein Fehlschlag dort darf die Luftwerte nicht mit runterziehen.
+  loadGewaesser(lat, lon, force).catch(() => {
+    $('#gw-info').textContent = 'Gewässer-Suche gerade nicht erreichbar — bitte selbst eintragen.';
+  });
   $('#wx-info').innerHTML = '<span class="spin"></span>Wetter wird geholt …';
   const url = 'https://api.open-meteo.com/v1/forecast'
     + `?latitude=${lat}&longitude=${lon}`
@@ -1554,6 +1668,15 @@ async function loadWater(lat, lon, when, force){
 }
 $('#btn-wx').onclick = () => loadWeather(true);
 
+/* Ein Vorschlag aus der Nachbarschaft. Er ersetzt nur den Namen — Hinweiszeile und
+   die übrigen Vorschläge bleiben stehen, damit ein Fehlgriff in beide Richtungen
+   zurückgenommen werden kann. */
+$('#gw-nah').onclick = e => {
+  const b = e.target.closest('[data-gw]'); if (!b) return;
+  $('#f-gewaesser').value = b.dataset.gw;
+  $('#f-gewaesser').dispatchEvent(new Event('input'));
+};
+
 /* ---------------------------- Formular ---------------------------- */
 // Vorschläge erst ab dem ersten Buchstaben — eine Liste mit 24 Arten beim
 // Antippen des leeren Feldes verdeckt nur die halbe Maske.
@@ -1594,30 +1717,8 @@ function buildStatics(){
                        + achsGruppe('Nach Häufigkeit sortiert', ACHSEN.filter(a => !hatOrdnung(a)));
   $('#st-x').onchange = e => {
     state.stats.x = e.target.value;
-    /* ⚠️ Die Punkte-Auswahl gilt für die alte Achse und ergibt für die neue
-       keinen Sinn — „Hecht, Barsch" auf einer Tiefenachse hieße: nichts ist
-       ausgewählt, und das Bild bliebe kommentarlos leer. */
-    state.stats.punkte = null;
     renderStats();
   };
-
-  /* Welche Punkte auf der X-Achse stehen — Karls Ansage vom 07.08.: statt eines
-     Zeitraums lieber die Werte selbst auswählen können. */
-  $('#st-punkte').onclick = e => {
-    const b = e.target.closest('[data-punkt]'); if (!b) return;
-    const wert = b.dataset.punkt;
-    const alle = stufenBauen(statsRows(), achseVon(state.stats.x)).map(s => s.x);
-    // Aus „alle" wird beim ersten Abwählen eine ausdrückliche Liste.
-    const jetzt = state.stats.punkte == null ? alle.slice() : state.stats.punkte.slice();
-    const i = jetzt.indexOf(wert);
-    if (i >= 0) jetzt.splice(i, 1); else jetzt.push(wert);
-    // Sind wieder alle drin, zurück auf null — dann wachsen neue Werte mit.
-    state.stats.punkte = jetzt.length === alle.length ? null
-      : alle.filter(x => jetzt.includes(x));      // in der Reihenfolge der Achse
-    renderStats();
-  };
-  $('#st-alle').onclick  = () => { state.stats.punkte = null; renderStats(); };
-  $('#st-keine').onclick = () => { state.stats.punkte = [];   renderStats(); };
 
   /* Aufteilen: zwei Kästchen, aber immer nur eines an. Nach Köder **und** Farbe
      gleichzeitig aufzuteilen ergäbe je Kombination eine Kurve — bei fünf Ködern
@@ -1772,8 +1873,12 @@ function resetForm(rec){
   $('#minimap-hint').hidden = true;
   $('#f-lat').value = $('#f-lon').value = '';
   $('#gps-info').textContent = 'Noch kein Standort gesetzt.';
-  $('#wx-info').textContent  = 'Standort setzen → Luft- und Wasserwerte kommen automatisch.';
+  $('#wx-info').textContent  = 'Standort setzen → Gewässer, Luft- und Wasserwerte kommen automatisch.';
   $('#wt-info').textContent  = state.form.wasserAuto ? 'Gemessen: ' + state.form.wasserAuto.station : '';
+  // Die Gewässer-Hinweise gehören zum vorigen Fang und müssen mit weg — sonst stünde
+  // beim nächsten "Nächstes Gewässer, 400 m entfernt" über einem ganz anderen Ort.
+  $('#gw-info').textContent  = '';
+  $('#gw-nah').innerHTML     = '';
   if (rec && rec.lat != null) setCoords(rec.lat, rec.lon, null);
 
   renderPhotos();
@@ -2420,6 +2525,8 @@ async function herunterladen(){
    durchsetzen. Deshalb dieselbe Regel wie bei den Fängen. */
 const WERTE_TABELLE = '/rest/v1/angel_werte';
 
+/* `leer` und `stempeln` gehören zum Fall „steht hier seit jeher, war aber nie
+   beim Abgleich dabei" — siehe die Erklärung in werteAbgleichen(). */
 const WERTE = {
   zeit: {
     lies: () => { const z = zeitLesen(); return { wert: { gesamt: z.gesamt }, updated: z.updated }; },
@@ -2427,14 +2534,19 @@ const WERTE = {
       const z = zeitLesen();
       zeitSchreiben({ gesamt: Number(w && w.gesamt) || 0, start: z.start }, updated);
       renderZeit();
-    }
+    },
+    leer: w => !(Number(w && w.gesamt) > 0),
+    stempeln: updated => { const z = zeitLesen();
+                           zeitSchreiben({ gesamt: z.gesamt, start: z.start }, updated); }
   },
   auswertungen: {
     lies: () => { const a = auswertungenLesen(); return { wert: { liste: a.liste }, updated: a.updated }; },
     nimm: (w, updated) => {
       auswertungenSchreiben(Array.isArray(w && w.liste) ? w.liste : [], updated);
       if (state.view === 'stats') renderStats();
-    }
+    },
+    leer: w => !(w && Array.isArray(w.liste) && w.liste.length),
+    stempeln: updated => auswertungenSchreiben(auswertungenLesen().liste, updated)
   }
 };
 
@@ -2451,9 +2563,33 @@ async function werteAbgleichen(){
     const hier = w.lies();
     const dort = drueben.get(schluessel);
     const dortZeit = dort ? (Number(dort.updated) || 0) : -1;
-    if (dortZeit > hier.updated) w.nimm(dort.wert, dortZeit);
-    else if (hier.updated && hier.updated > dortZeit)
+    if (dortZeit > hier.updated){ w.nimm(dort.wert, dortZeit); continue; }
+    /* ⚠️ `hier.updated &&` muss stehen bleiben. Ohne den Wächter ist ein Wert ohne
+       Stempel (0) „jünger" als gar nichts drüben (-1) und ginge mit `updated: 0`
+       hoch — womit er drüben sofort wieder als ältester gälte. Der Fall gehört
+       nach unten, wo geprüft wird, ob überhaupt etwas drinsteht. */
+    if (hier.updated && hier.updated > dortZeit){
       raus.push({ schluessel, updated: hier.updated, wert: hier.wert });
+      continue;
+    }
+
+    /* ⚠️ Der Fall, an dem die Angelzeit bis zum 08.08. hängengeblieben ist.
+       Vorher stand hier `hier.updated && hier.updated > dortZeit` — ein Wert mit
+       `updated: 0` wurde damit **nie** hochgeladen. Genau das trifft aber auf jede
+       Angelzeit zu, die vor dem 07.08. entstanden ist: sie lag im localStorage,
+       lange bevor es ein `updated` gab, und `zeitLesen()` liefert dafür 0.
+       Ergebnis: das Gerät mit der Zeit lud sie nie hoch, das andere sah nie etwas,
+       und weil jeder selbsttätige Abgleich still läuft, meldete niemand einen Fehler.
+       Die Zeit wäre erst mitgekommen, wenn Karl sie von Hand geändert hätte.
+
+       „Kein Stempel" heißt nicht „nichts da". Steht hier etwas und drüben nichts,
+       bekommt es jetzt einen Stempel und geht hoch — auch lokal, sonst stünde beim
+       nächsten Durchgang wieder dieselbe 0. */
+    if (dortZeit < 0 && !w.leer(hier.wert)){
+      const stempel = Date.now();
+      w.stempeln(stempel);
+      raus.push({ schluessel, updated: stempel, wert: hier.wert });
+    }
   }
   if (!raus.length) return 0;
 
@@ -2481,6 +2617,7 @@ function werteAnstossen(){
   werteTimer = setTimeout(() => syncJetzt(true), 4000);
 }
 
+let werteFehlerGemeldet = false;
 async function syncJetzt(still){
   if (!cloudAn() || !konto || syncLaeuft) return;
   if (!navigator.onLine){ if (!still) toast('Kein Netz — wird nachgeholt'); return; }
@@ -2489,7 +2626,22 @@ async function syncJetzt(still){
   try {
     const rauf  = await hochladen();
     const runter = await herunterladen();
-    await werteAbgleichen();
+
+    /* ⚠️ Eigener Fang-Block für die Werte, und ein Fehler wird auch im stillen
+       Durchgang gemeldet. Beides wegen des Falls vom 08.08.: die Angelzeit kam
+       an keinem zweiten Gerät an, und es gab kein einziges Anzeichen dafür.
+       Jeder selbsttätige Abgleich läuft still — was hier schiefgeht, wäre sonst
+       für immer unsichtbar, während die Fänge munter weiter durchgehen und alles
+       nach heiler Welt aussieht. Einmal je Sitzung genügt, um nicht zu nerven. */
+    try {
+      await werteAbgleichen();
+    } catch (e){
+      if (!werteFehlerGemeldet){
+        werteFehlerGemeldet = true;
+        toast('Angelzeit/Auswertungen: ' + (e.message || 'Abgleich fehlgeschlagen'));
+      }
+    }
+
     if (runter) { await reload(); renderList(); }
     try { localStorage.setItem(SYNC_KEY + '-zeit', String(Date.now())); } catch {}
     if (!still) toast(rauf || runter ? `Abgeglichen · ${rauf} hoch, ${runter} runter` : 'Alles schon aktuell');
@@ -2739,6 +2891,9 @@ function datenschutzText(){
           Koordinaten des Fangorts und der Zeitpunkt an open-meteo.com.</li>
       <li><b>Wassertemperatur</b> von PEGELONLINE (Wasserstraßen- und
           Schifffahrtsverwaltung des Bundes): dieselben Koordinaten.</li>
+      <li><b>Name des Gewässers</b> aus OpenStreetMap über einen Overpass-Server
+          (overpass-api.de, ersatzweise overpass.kumi.systems): beim automatischen
+          Ausfüllen gehen die Koordinaten des Fangorts dorthin.</li>
       <li><b>Auslieferung</b> der App über GitHub Pages (GitHub Inc.); dabei fällt
           wie bei jedem Webserver deine IP-Adresse an.</li>
     </ul>
@@ -2940,20 +3095,20 @@ function auswertungenSchreiben(liste, updated){
 
 /* Die Einstellungen, aus denen eine Auswertung besteht — und nur die. `aktiv`
    gehört nicht dazu, das ist die Merkstelle, welche gerade geladen ist.
-   ⚠️ Die Punkte-Liste wird kopiert, nicht verwiesen: sonst änderte ein Klick im
-   Baukasten stillschweigend die gespeicherte Auswertung mit. */
+   ⚠️ `punkte` wird hier bewusst **nicht** übernommen: Auswertungen, die am
+   07./08.08. mit einer Punkte-Auswahl gespeichert wurden, tragen das Feld noch.
+   Da die Achse jetzt immer alle Punkte zeigt, fällt es beim ersten Anfassen
+   weg — stehen bleiben dürfte es nicht, sonst schnitte eine alte Auswertung
+   unsichtbar Werte ab, ohne dass es dafür noch eine Bedienung gäbe. */
 const auswNehmen = s => ({ art: s.art, x: s.x, teilen: s.teilen,
-                           gewaesser: s.gewaesser,
-                           punkte: s.punkte == null ? null : [...s.punkte] });
+                           gewaesser: s.gewaesser });
 const auswGleich = (a, b) => !!a && !!b
-  && ['art','x','teilen','gewaesser'].every(k => (a[k] || '') === (b[k] || ''))
-  && JSON.stringify(a.punkte ?? null) === JSON.stringify(b.punkte ?? null);
+  && ['art','x','teilen','gewaesser'].every(k => (a[k] || '') === (b[k] || ''));
 
 function auswBeschreibung(a){
   const teile = [(a.art || 'Alle Fische') + ' über ' + achseVon(a.x).kurz];
   if (teilerVon(a.teilen)) teile.push('nach ' + teilerVon(a.teilen).kurz);
   if (a.gewaesser) teile.push(a.gewaesser);
-  if (a.punkte) teile.push(a.punkte.length + ' Punkte');
   return teile.join(' · ');
 }
 
@@ -3052,25 +3207,16 @@ function stufenBauen(rows, achse){
   return [...haeufig.entries()].sort((a, b) => b[1] - a[1]).map(([x]) => ({ k: x, x }));
 }
 
-// null heißt „alle" — auch später dazugekommene. Eine Liste heißt „genau diese".
-const punktGewaehlt = (punkte, x) => punkte == null || punkte.includes(x);
-
-function reihenBauen(rows, achse, teilerKey, punkte){
+function reihenBauen(rows, achse, teilerKey){
   const teiler = teilerVon(teilerKey);
 
-  // 1. Die Stufen der X-Achse, danach Karls Auswahl darauf.
-  const alle = stufenBauen(rows, achse);
-  const stufen = alle.filter(s => punktGewaehlt(punkte, s.x));
+  /* 1. Die Stufen der X-Achse — **immer alle** (Karls Ansage vom 08.08.).
+     ⚠️ Damit ist auch der Lücken-Hinweis weg, den es dazu gab: eine Linie kann
+     jetzt keine Lücke mehr überspringen, weil nichts mehr abgewählt werden kann.
+     Leere Stufen stehen weiterhin ausdrücklich mit null drin — das ist etwas
+     anderes und muss bleiben, sonst verbände die Linie 8 °C direkt mit 14 °C. */
+  const stufen = stufenBauen(rows, achse);
   if (!stufen.length) return null;
-  /* ⚠️ Ist mitten aus einer geordneten Achse ein Punkt abgewählt, verbindet die
-     Linie über die Lücke hinweg und behauptet einen Verlauf, den es so nicht
-     gibt — genau der Fall, gegen den sonst die leeren Stufen stehen. Weglassen
-     darf Karl trotzdem; es muss nur unter dem Bild stehen. Am Rand abschneiden
-     ist dagegen harmlos, deshalb wird auf **Zusammenhang** geprüft, nicht auf
-     Vollständigkeit. */
-  const platzInAlle = stufen.map(s => alle.findIndex(a => a.x === s.x));
-  const lueckig = hatOrdnung(achse)
-    && platzInAlle.some((v, i) => i > 0 && v !== platzInAlle[i - 1] + 1);
 
   // 2. Die Reihen. Ohne Aufteilen genau eine; mit Aufteilen die häufigsten,
   //    der Rest zusammengefasst — nie mehr Farben als geprüfte da sind.
@@ -3120,8 +3266,7 @@ function reihenBauen(rows, achse, teilerKey, punkte){
     mehrfach: achse.key === 'farbe' || teilerKey === 'farbe',
     // Ohne feste Reihenfolge trägt nur die Höhe der Punkte eine Aussage,
     // nicht der Verlauf dazwischen. Steht als Hinweis unter dem Bild.
-    ungeordnet: !hatOrdnung(achse),
-    lueckig
+    ungeordnet: !hatOrdnung(achse)
   };
 }
 
@@ -3241,8 +3386,6 @@ function hinweise(d){
   if (d.ungeordnet) t.push('Diese Achse hat keine natürliche Reihenfolge — '
     + 'sie steht nach Häufigkeit. Aussagekräftig ist deshalb die Höhe der Punkte, '
     + 'nicht der Anstieg dazwischen.');
-  if (d.lueckig) t.push('Mittendrin sind Punkte abgewählt — die Linie verbindet '
-    + 'über die Lücke hinweg und zeigt dort einen Verlauf, den es so nicht gibt.');
   if (d.mehrfach) t.push('Ein Fang mit mehreren Köderfarben zählt in jeder mit — '
     + 'die Summe kann deshalb größer sein als die Zahl der Fänge.');
   if (d.reihen.some(r => r.name === UEBRIGE))
@@ -3317,20 +3460,6 @@ function renderStats(){
     c.firstChild.textContent = an ? '☑ ' : '☐ ';
   });
 
-  /* Die Punkte-Auswahl. Die Liste kommt aus dem **ungefilterten** Bestand
-     dieser Auswahl — sonst verschwände ein abgewählter Punkt aus der Liste und
-     ließe sich nie wieder anhaken. */
-  const achseJetzt = achseVon(state.stats.x);
-  const allePunkte = stufenBauen(statsRows(), achseJetzt);
-  $('#st-punkte-titel').textContent = 'Welche Punkte · ' + achseJetzt.kurz;
-  $('#st-punkte').innerHTML = allePunkte.length
-    ? allePunkte.map(s => {
-        const an = punktGewaehlt(state.stats.punkte, s.x);
-        return `<button class="chip${an ? ' on' : ''}" data-punkt="${esc(s.x)}">`
-             + `<span>${an ? '☑' : '☐'} </span>${esc(s.x)}</button>`;
-      }).join('')
-    : '<span class="muted tiny">Für diese Achse hat noch kein Fang einen Wert.</span>';
-
   const geladen = state.auswertungen.find(a => a.id === state.stats.aktiv);
   const geaendert = geladen && !auswGleich(geladen, state.stats);
   $('#st-sichern').hidden = !geaendert;
@@ -3386,13 +3515,10 @@ function renderStats(){
     const achse = achseVon(einst.x);
     const titel = name || ((einst.art || 'Fänge') + ' nach ' + achse.kurz);
     const zeilen = einst === state.stats ? rows : statsRows(einst);
-    const d = zeilen.length && reihenBauen(zeilen, achse, einst.teilen, einst.punkte);
+    const d = zeilen.length && reihenBauen(zeilen, achse, einst.teilen);
     if (!d) return `<div class="card"><h2>${esc(titel)}</h2>
-      <div class="hint" style="margin:0">${
-        einst.punkte && !einst.punkte.length
-          ? 'Es ist kein Punkt ausgewählt — mit „Alle" kommen sie zurück.'
-          : 'Dazu hat in dieser Auswahl noch kein Fang einen Wert. '
-            + (achse.stufe ? 'Bei automatisch geholten Werten heißt das meist: der Fang wurde ohne Netz erfasst.' : '')
+      <div class="hint" style="margin:0">Dazu hat in dieser Auswahl noch kein Fang einen Wert. ${
+        achse.stufe ? 'Bei automatisch geholten Werten heißt das meist: der Fang wurde ohne Netz erfasst.' : ''
       }</div></div>`;
     return diagramm(d, titel);
   };
