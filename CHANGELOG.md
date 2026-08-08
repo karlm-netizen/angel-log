@@ -6,6 +6,42 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 08.08.2026 (5) — Bedienung an der Statistik statt in einer Liste
+
+**Die Liste „Meine Auswertungen" über dem Baukasten ist weg** (Karls Ansage). Bearbeitet,
+umbenannt und gelöscht wird jetzt **unten an der jeweiligen Statistik-Karte** — man sieht das
+Bild, das man meint, statt es in einer Liste wiederzufinden.
+
+- Unter dem Namen jeder gespeicherten Karte steht in einem Satz, **was eingestellt ist**
+  („Hecht über Wassertiefe · nach Köderfarbe"). Bei mehreren Karten untereinander ist genau
+  das die Frage, und der Name allein beantwortet sie nicht.
+- ⚠️ **Die gerade geladene bekommt keinen „Bearbeiten"-Knopf**, sondern den Hinweis „Liegt oben
+  im Baukasten". Ein Knopf, der nichts tut, gehört nicht hin.
+- ⚠️ **„Bearbeiten" scrollt zum Baukasten hoch.** Ohne den Sprung tippt man unten auf einen
+  Knopf und sieht nichts passieren, weil die Wirkung außerhalb des Bildes liegt.
+- **Der Baukasten sagt oben, welche Auswertung offen ist** und ob es ungesicherte Änderungen
+  gibt. Seit die Liste weg ist, ist das die einzige Stelle, an der das steht — sonst käme
+  „Änderungen sichern" aus dem Nichts.
+- Neu: **„Neu anfangen"** löst die Verbindung zur geladenen Auswertung. ⚠️ Nur die Verbindung —
+  die Einstellungen bleiben stehen. Wer eine gespeicherte als Ausgangspunkt für eine neue
+  nimmt, hätte sonst alles von vorn einzustellen. Gelöscht wird dabei nichts.
+
+**Bearbeiten heißt jetzt die ganze Auswertung, nicht nur der Name** (Karls Ansage): über
+„Bearbeiten" landet sie im Baukasten, dort lässt sich jede der vier Angaben ändern, und
+„Änderungen sichern" schreibt sie zurück. Umbenennen gibt es weiterhin eigens.
+
+**„Aufteilen nach Köder" ist raus, die Köderfarbe bleibt** (Karls Ansage). Der Köder steht
+weiterhin als **X-Achse** zur Wahl — weg ist nur das Aufteilen mehrerer Kurven nach ihm.
+⚠️ Gespeicherte Auswertungen mit `teilen: 'koeder'` kann es noch geben; sie zeichnen dann eine
+einzelne Kurve statt einer aufgeteilten. Das ist der richtige Rückfall und kein leeres Bild.
+
+⚠️ **Am Prüfrahmen nachgebessert:** brach ein Durchlauf durch eine Ausnahme **außerhalb** einer
+Prüfung ab, meldete er nur „Kein Ergebnis" und warf den Quelltext aus — eine Meldung, die
+nichts sagt und in der Fehlersuche mehrere Runden gekostet hat. Jetzt steht die Ausnahme
+mitsamt Zeile im Ergebnis.
+
+**396 Prüfungen grün** (von 388).
+
 ## 08.08.2026 (4) — Ködergewicht
 
 **Neues Feld „Ködergewicht (g)"** beim Erfassen, direkt neben der Ködergröße — bei Kunstködern

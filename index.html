@@ -174,17 +174,13 @@ setTimeout(function(){
   .lupe i{width:9px; height:9px; border-radius:99px; display:inline-block;
     vertical-align:0; margin:0 5px 0 10px}
   .lupe i:first-child{margin-left:0}
-  /* Gespeicherte Auswertungen */
-  .ausw{display:flex; align-items:center; gap:8px; padding:9px 11px; border-radius:12px;
-    background:var(--card2); border:1px solid var(--line); margin-bottom:7px}
-  .ausw:last-child{margin-bottom:0}
-  .ausw.on{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent)}
-  .ausw .t{flex:1; min-width:0}
-  .ausw .t b{display:block; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-  .ausw .t span{display:block; font-size:11.5px; color:var(--muted); margin-top:1px;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-  .ausw button{flex:none; background:none; border:0; color:var(--muted); font-size:15px;
-    padding:5px 7px; border-radius:9px}
+  /* Bedienung einer gespeicherten Auswertung — steht seit dem 08.08. unten an ihrer
+     eigenen Karte statt in einer Liste über dem Baukasten.
+     ⚠️ Die Zeile darf umbrechen: „Bearbeiten · Umbenennen · Löschen" passt auf 320 px
+     nicht nebeneinander, und ein abgeschnittener Löschknopf wäre schlimmer als zwei Zeilen. */
+  .ausw-bed{display:flex; flex-wrap:wrap; gap:7px; margin-top:11px; padding-top:11px;
+    border-top:1px solid var(--line)}
+  .ausw-bed .btn{flex:0 1 auto}
 
   /* Fotos */
   .photos{display:flex; flex-wrap:wrap; gap:8px}
@@ -292,7 +288,7 @@ setTimeout(function(){
        untereinander muss man sich das zweite Bild merken.
        Die Bedienelemente darüber wachsen bewusst NICHT mit: ein Auswahlfeld
        über zwei Meter liest sich schlechter, nicht besser. */
-    #stats-gespeichert, #v-stats > .wrap > .card{max-width:760px}
+    #v-stats > .wrap > .card{max-width:760px}
     #stats-body{display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr));
       gap:14px; align-items:start}
     #stats-body > .card{margin:0}
@@ -618,14 +614,22 @@ setTimeout(function(){
 <section id="v-stats" class="hidden">
   <div class="head"><h1>Statistiken</h1><span class="pill" id="stats-pill">—</span></div>
   <div class="wrap">
-    <!-- Gespeicherte Auswertungen. Eine Auswertung ist genau das, was unten
-         eingestellt ist — antippen lädt sie zurück, ✎ benennt um, ✕ löscht. -->
-    <div id="stats-gespeichert"></div>
+    <!-- ⚠️ Hier stand bis zum 08.08. eine Liste „Meine Auswertungen". Karl hat sie
+         abbestellt: bearbeitet und gelöscht wird jetzt **an der Statistik selbst**, unten
+         an der jeweiligen Karte. Das ist der kürzere Weg — man sieht das Bild, das man
+         meint, statt es in einer Liste über dem Baukasten wiederzufinden. -->
 
     <!-- Der Baukasten. Eine Auswertung beantwortet immer dieselbe Form von
          Frage: „wie viele <Fische> über <Größe>". Deshalb steht oben, was
          gezählt wird, darunter, worüber. -->
-    <div class="card">
+    <div class="card" id="st-baukasten">
+      <!-- Sagt, ob hier gerade eine gespeicherte Auswertung offen liegt. Ohne die Liste
+           von früher wäre sonst nicht erkennbar, woran man beim Bearbeiten sitzt. -->
+      <div class="row between" id="st-offen" style="display:none; align-items:center; gap:10px; margin-bottom:12px">
+        <div class="t2" style="flex:1"><b id="st-offen-name"></b>
+          <span class="muted" id="st-offen-stand"></span></div>
+        <button class="btn sm" id="st-neu">Neu anfangen</button>
+      </div>
       <div class="g2 fld">
         <div>
           <label class="f" for="st-art">Zählen</label>
@@ -1752,9 +1756,9 @@ function buildStatics(){
     renderStats();
   };
 
-  /* Aufteilen: zwei Kästchen, aber immer nur eines an. Nach Köder **und** Farbe
-     gleichzeitig aufzuteilen ergäbe je Kombination eine Kurve — bei fünf Ködern
-     und sechs Farben dreißig Stück, und hinter keiner davon genug Fänge. */
+  /* Aufteilen. ⚠️ Seit dem 08.08. steht hier nur noch die Köderfarbe (Karls Ansage) —
+     „Köder" ist raus. Die Bauweise mit Kästchen bleibt, weil sie ein Aus-Zustand
+     zulässt: nichts angekreuzt heißt eine einzelne Kurve, und das ist der Normalfall. */
   $('#st-teilen').innerHTML = TEILER.map(t =>
     `<button class="chip" data-teilen="${t.key}"><span>☐ </span>${t.kurz}</button>`).join('');
   $('#st-teilen').onclick = e => {
@@ -1767,15 +1771,21 @@ function buildStatics(){
 
   $('#st-speichern').onclick = auswertungSpeichern;
   $('#st-sichern').onclick   = auswertungSichern;
-  // Die Zeilen entstehen bei jedem Zeichnen neu — der Griff hängt deshalb am
-  // Rahmen, der stehen bleibt, nicht an den Zeilen selbst.
-  $('#stats-gespeichert').onclick = e => {
+  /* Aus einer geladenen Auswertung wieder heraus. ⚠️ Nur die Verbindung wird gelöst —
+     die Einstellungen bleiben stehen. Sie zurückzusetzen wäre der unangenehmere Weg:
+     wer eine gespeicherte als Ausgangspunkt für eine neue nimmt, hätte sonst alles
+     wieder von vorn einzustellen. Gelöscht wird hier nichts. */
+  $('#st-neu').onclick = () => { state.stats.aktiv = null; renderStats(); };
+  /* Bedient wird seit dem 08.08. an der jeweiligen Statistik-Karte statt in einer Liste
+     darüber. Die Karten entstehen bei jedem Zeichnen neu — der Griff hängt deshalb am
+     Rahmen, der stehen bleibt, nicht an den Karten selbst. */
+  $('#stats-body').onclick = e => {
     const weg = e.target.closest('[data-weg]');
     if (weg) return auswertungLoeschen(weg.dataset.weg);
     const um = e.target.closest('[data-um]');
     if (um) return auswertungUmbenennen(um.dataset.um);
-    const laden = e.target.closest('[data-laden]');
-    if (laden) auswertungLaden(laden.dataset.laden);
+    const bearb = e.target.closest('[data-bearb]');
+    if (bearb) return auswertungLaden(bearb.dataset.bearb);
   };
 }
 function selectPhase(k){
@@ -3201,10 +3211,16 @@ const achseVon = k => ACHSEN.find(a => a.key === k) || ACHSEN[0];
 const hatOrdnung = a => !!(a.stufe || a.reihe);
 
 /* ---- Wonach sich Kurven aufteilen lassen ----
-   Karls Beispiel war „Firetiger gegen Motoröl". Beides sind in dieser App
-   **Köderfarben**, nicht Ködernamen — deshalb stehen beide Wege zur Wahl. */
+   Karls Beispiel war „Firetiger gegen Motoröl" — beides sind in dieser App
+   **Köderfarben**, nicht Ködernamen.
+
+   ⚠️ Deshalb stand hier zunächst auch „Köder" zur Wahl; Karl hat es am 08.08. wieder
+   abbestellt, die Köderfarbe bleibt. Der Köder ist als **X-Achse** weiterhin da — was
+   wegfällt, ist nur das Aufteilen mehrerer Kurven nach ihm.
+   ⚠️ Gespeicherte Auswertungen mit `teilen: 'koeder'` gibt es womöglich noch. `teilerVon`
+   liefert dafür null, also wird eine einzelne Kurve gezeichnet statt aufgeteilter — das
+   ist der richtige Rückfall und nicht etwa ein leeres Bild. */
 const TEILER = [
-  { key:'koeder', kurz:'Köder',      hol: c => alsListe(c.koeder) },
   { key:'farbe',  kurz:'Köderfarbe', hol: c => alsListe(farbenVon(c)) }
 ];
 const teilerVon = k => TEILER.find(t => t.key === k) || null;
@@ -3264,18 +3280,10 @@ function auswBeschreibung(a){
   return teile.join(' · ');
 }
 
-function renderGespeicherte(){
-  const ziel = $('#stats-gespeichert');
-  if (!state.auswertungen.length){ ziel.innerHTML = ''; return; }
-  ziel.innerHTML = `<div class="card"><label class="f">Meine Auswertungen</label>`
-    + state.auswertungen.map(a => `
-      <div class="ausw${a.id === state.stats.aktiv ? ' on' : ''}" data-laden="${a.id}">
-        <div class="t"><b>${esc(a.name)}</b><span>${esc(auswBeschreibung(a))}</span></div>
-        <button data-um="${a.id}" title="Umbenennen" aria-label="Umbenennen">✎</button>
-        <button data-weg="${a.id}" title="Löschen" aria-label="Löschen">✕</button>
-      </div>`).join('')
-    + `</div>`;
-}
+/* ⚠️ Hier stand renderGespeicherte() — die Liste „Meine Auswertungen" über dem Baukasten.
+   Karl hat sie am 08.08. abbestellt; bedient wird an der Karte selbst (siehe bedienung()).
+   `auswBeschreibung()` steht dort weiter unter dem Namen: „Hechte tief" allein sagt nicht,
+   was eingestellt ist, und bei mehreren Karten untereinander ist genau das die Frage. */
 
 function auswertungSpeichern(){
   const name = (prompt('Name für diese Auswertung:',
@@ -3302,6 +3310,12 @@ function auswertungLaden(id){
   if (!a) return;
   Object.assign(state.stats, auswNehmen(a), { aktiv: a.id });
   renderStats();
+  /* ⚠️ Zum Baukasten hochscrollen. „Bearbeiten" wird jetzt unten an einer Karte
+     angetippt, geändert wird aber oben — ohne diesen Sprung tippt man auf einen Knopf
+     und sieht nichts passieren, weil die Wirkung außerhalb des Bildes liegt. */
+  const ziel = $('#st-baukasten');
+  if (ziel && ziel.scrollIntoView) ziel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  else window.scrollTo(0, 0);
 }
 
 function auswertungUmbenennen(id){
@@ -3445,7 +3459,9 @@ let letzteBilder = [];
    ⚠️ Nicht jeder Punkt trägt seine Zahl. Bei sechs Kurven à zwanzig Stufen
    wären das 120 Zahlen übereinander. Beschriftet wird der höchste Punkt je
    Kurve; alles andere liest man an der Y-Achse ab oder tippt es an. */
-function diagramm(d, titel){
+// `gespeichert` ist die gespeicherte Auswertung hinter diesem Bild, falls es eine gibt —
+// nur dann bekommt die Karte unten Bearbeiten/Umbenennen/Löschen.
+function diagramm(d, titel, gespeichert){
   const W = 320, H = 178, pL = 26, pR = 10, pT = 16, pB = 30;
   const n = d.stufen.length;
   const max = Math.max(1, ...d.reihen.flatMap(r => r.werte));
@@ -3521,7 +3537,30 @@ function diagramm(d, titel){
     <div class="achse">${esc(d.xTitel)}</div>
     ${legende(d)}
     <div class="lupe"></div>
-    ${hinweise(d)}</div>`;
+    ${hinweise(d)}${bedienung(gespeichert)}</div>`;
+}
+
+/* ---- Bearbeiten und Löschen, direkt an der Statistik ----
+   Karls Ansage vom 08.08.: die Liste „Meine Auswertungen" über dem Baukasten ist weg,
+   bedient wird an der Karte selbst.
+
+   ⚠️ Zwei Fälle, und sie brauchen verschiedene Knöpfe:
+   - **Die geladene** steht bereits im Baukasten oben. Ein „Bearbeiten" wäre dort ein
+     Knopf, der nichts tut — sie zeigt stattdessen, dass sie offen ist.
+   - **Die übrigen** müssen erst in den Baukasten geholt werden, das ist „Bearbeiten".
+   Die frei eingestellte, noch nicht gespeicherte bekommt gar keine — es gibt nichts
+   zu löschen und nichts umzubenennen. */
+function bedienung(a){
+  if (!a) return '';
+  const offen = a.id === state.stats.aktiv;
+  return `<div class="tiny muted" style="margin-top:8px">${esc(auswBeschreibung(a))}</div>
+  <div class="ausw-bed">
+    ${offen
+      ? '<span class="tiny muted" style="flex:1; align-self:center">Liegt oben im Baukasten</span>'
+      : `<button class="btn sm" data-bearb="${a.id}" style="flex:1">✎ Bearbeiten</button>`}
+    <button class="btn sm" data-um="${a.id}">Umbenennen</button>
+    <button class="btn sm" data-weg="${a.id}">✕ Löschen</button>
+  </div>`;
 }
 
 function legende(d){
@@ -3616,7 +3655,16 @@ function renderStats(){
   const geaendert = geladen && !auswGleich(geladen, state.stats);
   $('#st-sichern').hidden = !geaendert;
   $('#st-speichern').textContent = geladen ? '✚ Als neue speichern' : '✚ Auswertung speichern';
-  renderGespeicherte();
+
+  /* Die Kopfzeile des Baukastens. Seit die Liste „Meine Auswertungen" weg ist, ist das
+     die einzige Stelle, an der steht, woran man gerade sitzt — und ob es ungesicherte
+     Änderungen gibt. Ohne sie sähe eine bearbeitete Auswertung aus wie eine frisch
+     eingestellte, und „Änderungen sichern" käme aus dem Nichts. */
+  $('#st-offen').style.display = geladen ? 'flex' : 'none';
+  if (geladen){
+    $('#st-offen-name').textContent = geladen.name;
+    $('#st-offen-stand').textContent = geaendert ? ' · geändert, noch nicht gesichert' : ' · gespeichert';
+  }
 
   const rows = statsRows();
   $('#stats-pill').textContent = rows.length + (rows.length === 1 ? ' Fang' : ' Fänge');
@@ -3663,20 +3711,24 @@ function renderStats(){
      Auswertung, nicht eine gespeicherte — nur die folgt der Filterzeile.
      Wichtig: eine Auswertung ohne Daten muss das *sagen*. Gäbe sie nur nichts
      zurück, passierte beim Umstellen sichtbar gar nichts und die App wirkt kaputt. */
-  const bild = (einst, name) => {
+  const bild = (einst, gespeichert) => {
     const achse = achseVon(einst.x);
-    const titel = name || ((einst.art || 'Fänge') + ' nach ' + achse.kurz);
+    const titel = (gespeichert && gespeichert.name)
+      || ((einst.art || 'Fänge') + ' nach ' + achse.kurz);
     const zeilen = einst === state.stats ? rows : statsRows(einst);
     const d = zeilen.length && reihenBauen(zeilen, achse, einst.teilen);
     if (!d) return `<div class="card"><h2>${esc(titel)}</h2>
       <div class="hint" style="margin:0">Dazu hat in dieser Auswahl noch kein Fang einen Wert. ${
         achse.stufe ? 'Bei automatisch geholten Werten heißt das meist: der Fang wurde ohne Netz erfasst.' : ''
-      }</div></div>`;
-    return diagramm(d, titel);
+      }</div>${bedienung(gespeichert)}</div>`;
+    return diagramm(d, titel, gespeichert);
   };
 
   letzteBilder = [];
-  let inhalt = bild(state.stats);
+  /* Die oberste Karte ist die eingestellte. Ist gerade eine gespeicherte geladen, gehört
+     die Karte ihr — dann trägt sie deren Namen und ihre Knöpfe. */
+  const geladenJetzt = state.auswertungen.find(a => a.id === state.stats.aktiv) || null;
+  let inhalt = bild(state.stats, geladenJetzt);
   const gezeichnet = () => letzteBilder.length > 0;
 
   /* Die gespeicherten Auswertungen stehen mit da — am großen Bildschirm nebeneinander,
@@ -3689,7 +3741,7 @@ function renderStats(){
      ist mehr Aufwand als ein Wisch. Die gerade geladene kommt nicht doppelt. */
   inhalt += state.auswertungen
     .filter(a => a.id !== state.stats.aktiv)
-    .map(a => bild(a, a.name))
+    .map(a => bild(a, a))
     .join('');
 
   /* Der wichtigste Satz im ganzen Reiter, deshalb einmal darunter statt in

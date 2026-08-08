@@ -30,6 +30,18 @@ shutil.copytree(SRC, WORK, dirs_exist_ok=True,
 
 TESTS = r"""
 <script>
+/* ⚠️ Bricht der Durchlauf durch eine Ausnahme AUSSERHALB eines t()-Blocks ab, gab es
+   bisher nur "Kein Ergebnis" und einen Quelltext-Dump -- eine Meldung, die nichts sagt
+   und in der Fehlersuche mehrere Runden kostet. Dieser Melder schreibt stattdessen die
+   Ausnahme mitsamt Zeile ins Ergebnis. */
+window.addEventListener('error', e => {
+  if (document.getElementById('testout')) return;
+  const pre = document.createElement('pre');
+  pre.id = 'testout';
+  pre.textContent = 'ABBRUCH ausserhalb einer Pruefung: ' + e.message
+    + ' (Zeile ' + e.lineno + ')\n=== 0 ok, 1 fehlgeschlagen ===';
+  document.body.appendChild(pre);
+});
 (function(){
   const out = [];
   let ok = 0, bad = 0;
@@ -544,10 +556,10 @@ TESTS = r"""
       const d = reihenBauen(statsRows(), achseVon('wasser'), '');
       return (d.reihen.length === 1 && d.reihen[0].name === 'Fänge') || d.reihen.map(r => r.name).join();
     });
-    t('mit Aufteilen je Koeder eine Reihe', () => {
-      setzeFaenge([mk({ wasser: 9, koeder:'Wobbler' }), mk({ wasser: 13, koeder:'Gummifisch' })]);
+    t('mit Aufteilen je Koederfarbe eine Reihe', () => {
+      setzeFaenge([mk({ wasser: 9, farben:['Rot'] }), mk({ wasser: 13, farben:['Blau'] })]);
       alleFilterAus('wasser');
-      const d = reihenBauen(statsRows(), achseVon('wasser'), 'koeder');
+      const d = reihenBauen(statsRows(), achseVon('wasser'), 'farbe');
       return d.reihen.length === 2 || d.reihen.map(r => r.name).join();
     });
     // Karls Beispiel: Firetiger gegen Motoroil auf derselben Wassertiefe.
@@ -587,35 +599,35 @@ TESTS = r"""
     });
     // Mehr Farben als geprueft sind, gibt es nicht — die siebte waere geraten.
     t('hoechstens sechs Reihen', () => {
-      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, koeder:k })));
+      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, farben:[k] })));
       alleFilterAus('tiefe');
-      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'koeder');
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'farbe');
       return d.reihen.length <= 6 || ('es sind ' + d.reihen.length);
     });
     t('was nicht in die ersten fuenf passt, wird zusammengefasst', () => {
-      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, koeder:k })));
+      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, farben:[k] })));
       alleFilterAus('tiefe');
-      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'koeder');
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'farbe');
       return d.reihen.some(r => r.name === 'Übrige') || d.reihen.map(r => r.name).join();
     });
     t('nichts geht beim Zusammenfassen verloren', () => {
-      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, koeder:k })));
+      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, farben:[k] })));
       alleFilterAus('tiefe');
-      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'koeder');
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'farbe');
       const summe = d.reihen.reduce((a, r) => a + r.werte.reduce((x,y) => x+y, 0), 0);
       return summe === 10 || ('Summe ' + summe);
     });
-    t('genau sechs Koeder werden noch alle einzeln gezeigt', () => {
-      setzeFaenge('ABCDEF'.split('').map(k => mk({ tiefe:2, koeder:k })));
+    t('genau sechs Farben werden noch alle einzeln gezeigt', () => {
+      setzeFaenge('ABCDEF'.split('').map(k => mk({ tiefe:2, farben:[k] })));
       alleFilterAus('tiefe');
-      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'koeder');
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'farbe');
       return (d.reihen.length === 6 && !d.reihen.some(r => r.name === 'Übrige'))
           || d.reihen.map(r => r.name).join();
     });
     t('keine Reihenfarbe kommt zweimal vor', () => {
-      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, koeder:k })));
+      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, farben:[k] })));
       alleFilterAus('tiefe');
-      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'koeder');
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'farbe');
       const f = d.reihen.map(r => r.farbe);
       return new Set(f).size === f.length || f.join();
     });
@@ -628,10 +640,10 @@ TESTS = r"""
       setPalette(merk, false);
       return hell !== dunkel || 'dieselbe Farbe auf heller und dunkler Karte';
     });
-    t('Aufteilen ohne einen einzigen Koeder gibt nichts zurueck', () => {
+    t('Aufteilen ohne eine einzige Farbe gibt nichts zurueck', () => {
       setzeFaenge([mk({ tiefe:2 })]);
       alleFilterAus('tiefe');
-      return reihenBauen(statsRows(), achseVon('tiefe'), 'koeder') === null || 'nicht null';
+      return reihenBauen(statsRows(), achseVon('tiefe'), 'farbe') === null || 'nicht null';
     });
 
     // ---- Zeichnen: Kurve ----
@@ -699,10 +711,10 @@ TESTS = r"""
       return !einBild().includes('class="leg"') || 'Legende bei einer Reihe';
     });
     t('mehrere Kurven haben immer eine Legende', () => {
-      setzeFaenge([mk({ wasser: 9, koeder:'Wobbler' }), mk({ wasser: 17, koeder:'Gummifisch' })]);
-      alleFilterAus('wasser'); state.stats.teilen = 'koeder';
+      setzeFaenge([mk({ wasser: 9, farben:['Firetiger'] }), mk({ wasser: 17, farben:['Motoroil'] })]);
+      alleFilterAus('wasser'); state.stats.teilen = 'farbe';
       const h = einBild();
-      return (h.includes('class="leg"') && h.includes('Wobbler') && h.includes('Gummifisch'))
+      return (h.includes('class="leg"') && h.includes('Firetiger') && h.includes('Motoroil'))
           || 'Legende fehlt oder unvollstaendig';
     });
     const achsenTexte = () => {
@@ -753,11 +765,11 @@ TESTS = r"""
       return !einBild().includes('keine natürliche Reihenfolge') || 'Hinweis steht faelschlich da';
     });
     t('Kategorien lassen sich aufteilen', () => {
-      setzeFaenge([mk({ art:'Hecht', koeder:'Wobbler' }), mk({ art:'Hecht', koeder:'Gummifisch' }),
-                   mk({ art:'Barsch', koeder:'Wobbler' })]);
-      alleFilterAus('art'); state.stats.teilen = 'koeder';
+      setzeFaenge([mk({ art:'Hecht', farben:['Firetiger'] }), mk({ art:'Hecht', farben:['Motoroil'] }),
+                   mk({ art:'Barsch', farben:['Firetiger'] })]);
+      alleFilterAus('art'); state.stats.teilen = 'farbe';
       const h = einBild();
-      return (h.includes('Wobbler') && h.includes('Gummifisch') && h.includes('class="leg"'))
+      return (h.includes('Firetiger') && h.includes('Motoroil') && h.includes('class="leg"'))
           || 'keine zwei Kurven';
     });
     t('Koederfarbe kommt als Kurve', () => {
@@ -861,7 +873,7 @@ TESTS = r"""
       setzeFaenge([mk({ art:'Hecht', wasser:19.4, tiefe:2.5, koeder:'Wobbler', farben:['Rot'] }),
                    mk({ art:'Barsch', wasser:12.0, tiefe:4.0, koeder:'Spinner', farben:['Gelb'] })]);
       for (const a of ACHSEN){
-        for (const teiler of ['koeder', 'farbe']){
+        for (const teiler of ['farbe']){
           alleFilterAus(a.key); state.stats.teilen = teiler;
           try { renderStats(); } catch (e){ return a.key + '/' + teiler + ': ' + e.message; }
         }
@@ -943,8 +955,8 @@ TESTS = r"""
       return einBild().includes('zählt in jeder mit') || 'Hinweis fehlt';
     });
     t('das Zusammenfassen wird benannt', () => {
-      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, koeder:k })));
-      alleFilterAus('tiefe'); state.stats.teilen = 'koeder';
+      setzeFaenge('ABCDEFGHIJ'.split('').map(k => mk({ tiefe:2, farben:[k] })));
+      alleFilterAus('tiefe'); state.stats.teilen = 'farbe';
       return einBild().includes('häufigsten') || 'kein Hinweis auf Übrige';
     });
     t('Zaehler in der Kopfzeile', () => {
@@ -1048,28 +1060,46 @@ TESTS = r"""
       alleFilterAus('tiefe'); renderStats();
       return document.querySelector('#st-teilen .chip').textContent.startsWith('☐') || 'schon angekreuzt';
     });
+    /* ⚠️ "Aufteilen nach Koeder" hat Karl am 08.08. abbestellt -- es bleibt nur die
+       Koederfarbe. Der Koeder ist als X-Achse weiter da; weg ist nur das Aufteilen. */
+    t('Aufteilen nach Koeder gibt es nicht mehr', () =>
+      !document.querySelector('[data-teilen="koeder"]') || 'Koeder steht noch zur Wahl');
+    t('die Koederfarbe ist die einzige Wahl', () => {
+      const n = document.querySelectorAll('#st-teilen .chip').length;
+      return (n === 1 && !!document.querySelector('[data-teilen="farbe"]')) || ('es sind ' + n);
+    });
     t('Antippen kreuzt an', () => {
-      document.querySelector('[data-teilen="koeder"]').click();
-      return (state.stats.teilen === 'koeder'
-              && document.querySelector('[data-teilen="koeder"]').textContent.startsWith('☑'))
+      document.querySelector('[data-teilen="farbe"]').click();
+      return (state.stats.teilen === 'farbe'
+              && document.querySelector('[data-teilen="farbe"]').textContent.startsWith('☑'))
           || 'nicht angekreuzt';
     });
     t('nochmal antippen nimmt es zurueck', () => {
-      document.querySelector('[data-teilen="koeder"]').click();
+      document.querySelector('[data-teilen="farbe"]').click();
       return state.stats.teilen === '' || state.stats.teilen;
     });
-    t('immer nur eines von beiden angekreuzt', () => {
-      document.querySelector('[data-teilen="koeder"]').click();
-      document.querySelector('[data-teilen="farbe"]').click();
-      const an = [...document.querySelectorAll('#st-teilen .chip')].filter(c => c.textContent.startsWith('☑'));
-      return an.length === 1 || ('angekreuzt: ' + an.length);
+    /* ⚠️ Gespeicherte Auswertungen aus der Zeit davor koennen teilen:'koeder' tragen.
+       teilerVon liefert dafuer null -- gezeichnet wird dann eine einzelne Kurve statt
+       einer aufgeteilten. Das ist der richtige Rueckfall, kein leeres Bild. */
+    t('eine alte Auswertung mit teilen:koeder zeichnet trotzdem', () => {
+      setzeFaenge([mk({ tiefe:2, koeder:'Wobbler' }), mk({ tiefe:5, koeder:'Spinner' })]);
+      alleFilterAus('tiefe');
+      const d = reihenBauen(statsRows(), achseVon('tiefe'), 'koeder');
+      return (d && d.reihen.length === 1) || (d ? ('Reihen: ' + d.reihen.length) : 'nichts gezeichnet');
     });
 
     // ---- Gespeicherte Auswertungen ----
     const ohneAuswertungen = () => { state.auswertungen = []; localStorage.removeItem('angellog-auswertungen'); };
-    t('am Anfang steht keine Liste da', () => {
+    /* ⚠️ Bis zum 08.08. gab es ueber dem Baukasten eine Liste "Meine Auswertungen".
+       Karl hat sie abbestellt: bedient wird an der jeweiligen Statistik-Karte.
+       Die Pruefungen unten fassen deshalb die Knoepfe an der Karte an, nicht die Liste. */
+    t('die Liste ueber dem Baukasten gibt es nicht mehr', () => {
       ohneAuswertungen(); setzeFaenge([mk({ tiefe:2 })]); alleFilterAus('tiefe'); renderStats();
-      return document.querySelector('#stats-gespeichert').innerHTML === '' || 'Liste trotz nichts drin';
+      return !document.querySelector('#stats-gespeichert') || 'Liste steht noch da';
+    });
+    t('ohne gespeicherte gibt es an der Karte nichts zu bedienen', () => {
+      ohneAuswertungen(); setzeFaenge([mk({ tiefe:2 })]); alleFilterAus('tiefe'); renderStats();
+      return !document.querySelector('#stats-body .ausw-bed') || 'Knoepfe ohne gespeicherte Auswertung';
     });
     t('speichern legt eine an', () => {
       ohneAuswertungen();
@@ -1085,11 +1115,16 @@ TESTS = r"""
       return (a.art === 'Hecht' && a.x === 'tiefe' && a.teilen === 'farbe'
               && a.gewaesser === '') || JSON.stringify(a);
     });
-    t('sie steht danach in der Liste', () =>
-      document.querySelector('#stats-gespeichert').textContent.includes('Hecht tief') || 'nicht in der Liste');
-    t('die Liste sagt in einem Satz, was drinsteht', () =>
-      document.querySelector('#stats-gespeichert').textContent.includes('Hecht über Wassertiefe')
-        || document.querySelector('#stats-gespeichert').textContent);
+    t('ihr Name steht als Titel ueber ihrer Karte', () => {
+      renderStats();
+      const titel = [...document.querySelectorAll('#stats-body h2')].map(h => h.textContent);
+      return titel.includes('Hecht tief') || titel.join(' | ');
+    });
+    t('unter dem Namen steht in einem Satz, was drinsteckt', () => {
+      renderStats();
+      return document.querySelector('#stats-body').textContent.includes('Hecht über Wassertiefe')
+          || 'Beschreibung fehlt an der Karte';
+    });
     t('sie liegt im Speicher, nicht nur im Arbeitsspeicher', () => {
       const j = JSON.parse(localStorage.getItem('angellog-auswertungen') || '{}');
       return (j.liste && j.liste.length === 1 && j.updated > 0) || 'nicht gesichert';
@@ -1100,13 +1135,52 @@ TESTS = r"""
       const s = state.stats;
       return (s.art === 'Hecht' && s.x === 'tiefe' && s.teilen === 'farbe') || JSON.stringify(s);
     });
-    t('die geladene ist in der Liste markiert', () =>
-      !!document.querySelector('#stats-gespeichert .ausw.on') || 'nichts markiert');
-    t('Antippen laedt sie', () => {
-      alleFilterAus('wasser'); renderStats();
-      document.querySelector('[data-laden]').click();
+    t('die geladene sagt an ihrer Karte, dass sie oben liegt', () => {
+      renderStats();
+      return document.querySelector('#stats-body').textContent.includes('Liegt oben im Baukasten')
+          || 'kein Hinweis an der geladenen Karte';
+    });
+    t('die geladene hat keinen Bearbeiten-Knopf', () => {
+      // Sie liegt bereits im Baukasten -- ein Knopf, der nichts tut, gehoert nicht hin.
+      renderStats();
+      const b = [...document.querySelectorAll('#stats-body [data-bearb]')]
+        .map(x => x.dataset.bearb);
+      return !b.includes(state.stats.aktiv) || 'Bearbeiten an der bereits offenen';
+    });
+    t('der Baukasten sagt oben, welche offen ist', () => {
+      renderStats();
+      const kopf = document.querySelector('#st-offen');
+      return (kopf.style.display !== 'none'
+              && document.querySelector('#st-offen-name').textContent === 'Hecht tief')
+          || ('Kopf: ' + kopf.style.display + ' / ' + document.querySelector('#st-offen-name').textContent);
+    });
+    t('Bearbeiten an einer anderen Karte laedt sie', () => {
+      alleFilterAus('wasser'); state.stats.aktiv = null; renderStats();
+      const b = document.querySelector('#stats-body [data-bearb]');
+      if (!b) return 'kein Bearbeiten-Knopf da';
+      b.click();
       return state.stats.x === 'tiefe' || state.stats.x;
     });
+    t('"Neu anfangen" loest die Verbindung, ohne zu loeschen', () => {
+      renderStats();
+      const vorher = state.auswertungen.length;
+      document.querySelector('#st-neu').click();
+      return (state.stats.aktiv === null && state.auswertungen.length === vorher)
+          || `aktiv=${state.stats.aktiv}, ${state.auswertungen.length} statt ${vorher}`;
+    });
+    t('dabei bleiben die Einstellungen stehen', () => {
+      // Wer eine gespeicherte als Ausgangspunkt nimmt, will nicht alles neu einstellen.
+      return state.stats.x === 'tiefe' || state.stats.x;
+    });
+    t('danach steht der Kopf des Baukastens wieder auf zu', () => {
+      renderStats();
+      return document.querySelector('#st-offen').style.display === 'none'
+          || 'Kopf steht noch offen';
+    });
+    /* Fuer die folgenden Pruefungen wieder eine geladene herstellen.
+       ⚠️ Abgesichert: eine Ausnahme AUSSERHALB eines t()-Blocks bricht den ganzen
+       Durchlauf ab, und dann meldet der Rahmen nur "kein Ergebnis" statt eines Fehlers. */
+    if (state.auswertungen[0]) auswertungLaden(state.auswertungen[0].id);
     t('"Aendern sichern" erscheint erst nach einer Aenderung', () => {
       const vorher = document.querySelector('#st-sichern').hidden;
       state.stats.x = 'wasser'; renderStats();
@@ -1157,15 +1231,16 @@ TESTS = r"""
       const merk = window.prompt; window.prompt = () => 'Der "gute" Platz';
       setzeFaenge([mk({ tiefe:2 })]); alleFilterAus('tiefe');
       auswertungSpeichern(); window.prompt = merk;
-      const el = document.querySelector('#stats-gespeichert .ausw .t b');
-      return (el && el.textContent === 'Der "gute" Platz') || (el ? el.textContent : 'nichts gezeichnet');
+      renderStats();
+      const titel = [...document.querySelectorAll('#stats-body h2')].map(h => h.textContent);
+      return titel.includes('Der "gute" Platz') || titel.join(' | ');
     });
     t('ein Koedername mit spitzen Klammern zerreisst nichts', () => {
-      // Zwei Koeder, damit es die Legende ueberhaupt gibt — bei einer einzelnen
+      // Zwei Farben, damit es die Legende ueberhaupt gibt — bei einer einzelnen
       // Reihe steht der Name nirgends im Bild.
       ohneAuswertungen();
-      setzeFaenge([mk({ tiefe:2, koeder:'<b>Wobbler</b>' }), mk({ tiefe:5, koeder:'Spinner' })]);
-      alleFilterAus('tiefe'); state.stats.teilen = 'koeder';
+      setzeFaenge([mk({ tiefe:2, farben:['<b>Wobbler</b>'] }), mk({ tiefe:5, farben:['Spinner'] })]);
+      alleFilterAus('tiefe'); state.stats.teilen = 'farbe';
       const h = einBild();
       return (!h.includes('<b>Wobbler</b>') && h.includes('&lt;b&gt;Wobbler')) || 'ungefiltert eingebaut';
     });
@@ -2066,14 +2141,14 @@ TESTS = r"""
   // Code dagegen im globalen Bereich des iframes und sieht die Bindung.
   const SEED = `
     state.catches = [
-      { id:'a', entwurf:false, art:'Hecht',  when:'2026-07-15T06:30', ts:Date.now(), tiefe:2, wasser:12, koeder:'Wobbler', photos:[] },
-      { id:'b', entwurf:false, art:'Barsch', when:'2026-07-16T18:30', ts:Date.now(), tiefe:4, wasser:18, koeder:'Spinner', photos:[] },
-      { id:'c', entwurf:false, art:'Hecht',  when:'2026-07-17T09:30', ts:Date.now(), tiefe:3, wasser:15, koeder:'Wobbler', photos:[] }
+      { id:'a', entwurf:false, art:'Hecht',  when:'2026-07-15T06:30', ts:Date.now(), tiefe:2, wasser:12, koeder:'Wobbler', farben:['Firetiger'], photos:[] },
+      { id:'b', entwurf:false, art:'Barsch', when:'2026-07-16T18:30', ts:Date.now(), tiefe:4, wasser:18, koeder:'Spinner', farben:['Motoroil'], photos:[] },
+      { id:'c', entwurf:false, art:'Hecht',  when:'2026-07-17T09:30', ts:Date.now(), tiefe:3, wasser:15, koeder:'Wobbler', farben:['Firetiger'], photos:[] }
     ];
     state.auswertungen = [
       { id:'s1', name:'Nach Tiefe',  art:'', x:'tiefe',  teilen:'',       gewaesser:'', zeit:'alles' },
       { id:'s2', name:'Nach Waerme', art:'', x:'wasser', teilen:'',       gewaesser:'', zeit:'alles' },
-      { id:'s3', name:'Nach Koeder', art:'', x:'art',    teilen:'koeder', gewaesser:'', zeit:'alles' }
+      { id:'s3', name:'Nach Farbe',  art:'', x:'art',    teilen:'farbe',  gewaesser:'', zeit:'alles' }
     ];
     state.stats = { gewaesser:'', art:'', zeit:'alles', x:'stunde', teilen:'', aktiv:null };
     go('stats'); renderStats();
@@ -2144,7 +2219,7 @@ TESTS = r"""
   ta('eine gespeicherte Auswertung bringt ihre eigenen Filter mit', async () => {
     return await imRahmen(1200, (w, d) => {
       mitDreien(w);
-      // s3 teilt nach Koeder auf -- nur dieses eine Bild darf eine Legende haben,
+      // s3 teilt nach Koederfarbe auf -- nur dieses eine Bild darf eine Legende haben,
       // die eingestellte und die beiden anderen nicht.
       const mitLeg = [...d.querySelectorAll('#stats-body > .card')]
         .filter(c => c.querySelector('.leg')).length;
