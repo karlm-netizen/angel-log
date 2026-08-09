@@ -362,6 +362,24 @@ setTimeout(function(){
     width:100%; text-align:center; margin-top:14px; padding:8px}
   .gate .fuss{margin-top:22px; text-align:center; line-height:1.6}
 
+  /* Kurze Einführung nach dem Registrieren. Karls Ansage vom 09.08.2026.
+     Liegt über dem Anmelde-Schirm, weil sie direkt danach kommt. */
+  .tour{position:fixed; inset:0; z-index:3200; background:var(--bg); display:none;
+    overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding:calc(env(safe-area-inset-top) + 30px) var(--sp)
+            calc(env(safe-area-inset-bottom) + 24px)}
+  .tour.on{display:block}
+  .tour .inner{max-width:420px; margin:0 auto; min-height:100%; display:flex; flex-direction:column}
+  .tour .bild{font-size:44px; text-align:center; margin-bottom:14px; line-height:1}
+  .tour h2{font-size:23px; font-weight:800; letter-spacing:-.4px; text-align:center; margin-bottom:10px}
+  .tour p{font-size:15px; line-height:1.6; color:var(--muted); text-align:center; margin:0 auto; max-width:330px}
+  .tour .mitte{flex:1; display:flex; flex-direction:column; justify-content:center; padding:10px 0 24px}
+  .tour .punkte{display:flex; gap:7px; justify-content:center; margin-bottom:18px}
+  .tour .punkte i{width:7px; height:7px; border-radius:99px; background:var(--line)}
+  .tour .punkte i.da{background:var(--accent)}
+  .tour .weg{background:none; border:0; color:var(--muted); font-size:13px;
+    width:100%; text-align:center; margin-top:12px; padding:8px}
+
   .sheet{position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:1000; display:none;
     align-items:flex-end}
   .sheet.on{display:flex}
@@ -845,6 +863,24 @@ function splashWeg(){
     <label class="f">Farbpalette</label>
     <div class="pal" id="pal"></div>
     <div id="konto" hidden></div>
+    <!-- Karls Ansage vom 09.08.2026: „support für bugs". Siehe meldungAnlegen(). -->
+    <label class="f">Hilfe & Fehler melden</label>
+    <p class="tiny muted" style="margin:0 0 8px; line-height:1.5">
+      Etwas geht nicht oder sieht falsch aus? Schreib es auf — auch ohne Netz.
+      Die Meldung wartet dann im Gerät und geht beim nächsten Abgleich raus.
+    </p>
+    <button class="btn" id="btn-hilfe" style="margin-bottom:8px">Kurze Einführung ansehen</button>
+    <button class="btn" id="btn-bug" style="margin-bottom:8px">🐞 Fehler melden</button>
+    <div id="bug-form" hidden style="margin-bottom:12px">
+      <label class="f" for="bug-text">Was ist passiert?</label>
+      <textarea class="in" id="bug-text" rows="4"
+        placeholder="Was wolltest du tun, und was ist stattdessen passiert?"></textarea>
+      <p class="tiny muted" style="margin:8px 0 6px">Das geht automatisch mit:</p>
+      <pre id="bug-umfeld" class="tiny muted" style="margin:0 0 10px; white-space:pre-wrap;
+        word-break:break-word; background:var(--card2); border-radius:10px; padding:9px 10px"></pre>
+      <button class="btn" id="btn-bug-ab">Abschicken</button>
+      <p class="tiny muted" id="bug-warten" style="margin:8px 0 0" hidden></p>
+    </div>
     <label class="f">Datenschutz</label>
     <p class="tiny muted" style="margin:0 0 12px" id="sicherung-text"></p>
     <button class="btn" id="btn-datenschutz" style="margin-bottom:8px">Datenschutzerklärung</button>
@@ -866,6 +902,9 @@ function splashWeg(){
 
 <!-- ======================= ANMELDEN ======================= -->
 <div class="gate" id="gate"><div class="inner" id="gate-inner"></div></div>
+
+<!-- Kurze Einführung. Siehe tourZeigen(). -->
+<div class="tour" id="tour"><div class="inner" id="tour-inner"></div></div>
 
 <div class="viewer" id="viewer"><img id="viewer-img" alt=""></div>
 <div class="toast" id="toast"></div>
@@ -2568,6 +2607,12 @@ $('#btn-export').onclick = async () => {
 const SUPA_URL = 'https://vxyvkyhbomdpdyqtbeza.supabase.co';
 const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
 
+/* Fassung der App. Steht in einer Fehlermeldung mit drin — ohne sie ist „geht
+   nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
+   zeigen kann (siehe der Fall vom 08.08.).
+   ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
+const FASSUNG = 'v24';
+
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
 let konto = null;          // { access_token, refresh_token, email, seit }
@@ -2957,6 +3002,76 @@ async function werteAbgleichen(){
   return raus.length;
 }
 
+/* =================== Fehler melden ===================
+   Karls Ansage vom 09.08.2026: „support für bugs".
+
+   ⚠️ Der Kern ist nicht das Formular, sondern dass eine Meldung **ohne Netz
+   nicht verlorengeht**. Kaputtes fällt beim Benutzen auf, und benutzt wird die
+   App am Wasser — also dort, wo oft kein Empfang ist. Eine Meldung, die nur bei
+   bestehender Verbindung abzuschicken geht, erreicht genau die Fälle nicht, für
+   die sie gebaut ist. Sie liegt deshalb erst im Gerät und geht mit dem nächsten
+   Abgleich hinaus, wie ein Fang.
+
+   ⚠️ Und sie schickt ein Umfeld mit. Ohne das steht in der Tabelle „geht nicht"
+   und niemand kann etwas damit anfangen — bei einer PWA erst recht nicht, die
+   am iPhone wochenlang eine alte Fassung zeigen kann. Was mitgeht, wird vor dem
+   Abschicken angezeigt; nichts davon wird heimlich erhoben. */
+const MELD_TABELLE = '/rest/v1/angel_meldungen';
+const MELD_KEY = 'angellog-meldungen';
+
+function umfeldSammeln(){
+  const u = { fassung: FASSUNG };
+  try { u.geraet = navigator.userAgent; } catch {}
+  try { u.bildschirm = window.innerWidth + '×' + window.innerHeight; } catch {}
+  try { u.netz = navigator.onLine ? 'online' : 'offline'; } catch {}
+  try { u.sprache = navigator.language; } catch {}
+  try {
+    // Vom Home-Bildschirm gestartet oder im Browser? Das erklärt einen Teil der
+    // Meldungen von selbst — etwa alles rund um Aktualisierungen.
+    u.installiert = !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+                 || !!navigator.standalone;
+  } catch {}
+  try { u.faenge = state.catches.filter(c => !c.entwurf).length; } catch {}
+  try { u.ungesichert = nichtGesichert().length; } catch {}
+  try {
+    const t = Number(localStorage.getItem(SYNC_KEY + '-zeit') || 0);
+    u.letzterAbgleich = t ? new Date(t).toISOString() : 'nie';
+  } catch {}
+  return u;
+}
+
+function meldungenLesen(){
+  try { return JSON.parse(localStorage.getItem(MELD_KEY) || '[]'); } catch { return []; }
+}
+function meldungenSchreiben(l){
+  try { localStorage.setItem(MELD_KEY, JSON.stringify(l)); } catch {}
+}
+
+/* Legt die Meldung ins Gerät. Das Verschicken ist ein zweiter, eigener Schritt —
+   damit „abgeschickt" nie eine Behauptung ist, die am Netz hängt. */
+function meldungAnlegen(text){
+  const l = meldungenLesen();
+  l.push({ id: uid(), text: String(text).slice(0, 4000), umfeld: umfeldSammeln(),
+           erstellt: new Date().toISOString() });
+  meldungenSchreiben(l);
+  return l.length;
+}
+
+async function meldungenNachreichen(){
+  if (!cloudAn() || !konto) return 0;
+  const l = meldungenLesen();
+  if (!l.length) return 0;
+  const r = await api(MELD_TABELLE, { method: 'POST',
+    headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify(l.map(m => ({ id: m.id, text: m.text, umfeld: m.umfeld }))) });
+  if (!r.ok) throw new Error('Melden fehlgeschlagen (' + r.status + ')');
+  /* Erst nach dem OK leeren. Bricht es vorher ab, liegt die Meldung noch da und
+     geht beim nächsten Mal mit — dieselbe Regel wie beim Push-Stand der Fänge:
+     nie einen Stand behaupten, für den nichts verschickt wurde. */
+  meldungenSchreiben([]);
+  return l.length;
+}
+
 /* Angelzeit und Auswertungen ändern sich beim Tippen, nicht beim Speichern
    eines Fangs — ein eigener, träger Anstoß, damit nicht jeder Tastendruck
    eine Anfrage auslöst. */
@@ -2990,6 +3105,12 @@ async function syncJetzt(still){
         toast('Angelzeit/Auswertungen: ' + (e.message || 'Abgleich fehlgeschlagen'));
       }
     }
+
+    /* Wartende Fehlermeldungen mitnehmen. Eigener Fang-Block: eine Meldung, die
+       nicht durchkommt, darf den Abgleich der Fänge nicht anhalten — sie bleibt
+       liegen und geht beim nächsten Mal mit. Still, weil das niemanden mitten
+       beim Angeln interessiert. */
+    try { await meldungenNachreichen(); } catch {}
 
     /* ⚠️ Hier stand nur `renderList()`. Wer gerade auf der **Karte** stand, während
        der Abgleich lief, sah die neuen Fänge nicht: die Liste wurde aufgefrischt, die
@@ -3123,6 +3244,10 @@ async function gateLos(){
     else               await registrieren(kennung, pw, name);
     gateVerbergen();
     await ersterAbgleich();
+    /* ⚠️ Nur nach dem Registrieren, nicht nach jedem Anmelden. Wer sich
+       anmeldet, hat die App schon — dem die Einführung noch einmal vorzusetzen,
+       wäre eine Belästigung. Über die Einstellungen ist sie jederzeit da. */
+    if (!anmeldenModus) tourZeigen();
   } catch (e){
     renderGate(e.message || 'Hat nicht geklappt.');
   }
@@ -3288,6 +3413,107 @@ function datenschutzText(){
     als Datei, ohne Umweg über eine Anfrage.</p>
     <p class="tiny muted">Stand: August 2026</p>`;
 }
+
+/* =================== Kurze Einführung ===================
+   Karls Ansage vom 09.08.2026: „tutorial für die app, kleine vorstellung wofür
+   nutzt du die app, um die leute neugierig zu machen, nach dem registrieren."
+
+   ⚠️ Deshalb ist das keine Bedienungsanleitung. Wer gerade ein Konto angelegt
+   hat, weiß noch nicht, warum sich das lohnt — er weiß nur, dass er Fische
+   fängt. Die vier Karten sagen jeweils, **was die App für ihn tut**, nicht wo
+   welcher Knopf sitzt. Knöpfe findet man; einen Grund nicht.
+
+   ⚠️ Überspringbar an jeder Stelle, und über die Einstellungen jederzeit wieder
+   da. Eine Einführung, die man nicht wegklicken kann, macht niemanden neugierig,
+   sondern ungeduldig. */
+const TOUR_KEY = 'angellog-tour';
+const TOUR = [
+  { bild: '🎣', titel: 'Dein Fangbuch',
+    text: 'Jeder Fisch mit Foto, Länge, Gewicht und Köder — an einem Ort statt in der Kamerarolle. '
+        + 'Nach ein paar Wochen steht da eine Saison, die du wirklich nachlesen kannst.' },
+  { bild: '🌦️', titel: 'Das Drumherum kommt von allein',
+    text: 'Wetter, Luftdruck, Mondphase, Wasserstand und sogar das Gewässer holt die App aus '
+        + 'Zeit und Standort. Du tippst den Fisch ein — der Rest steht schon da.' },
+  { bild: '📈', titel: 'Und dann wird es interessant',
+    text: 'Beißt der Hecht wirklich bei fallendem Luftdruck? Welche Köderfarbe bringt bei dir '
+        + 'mehr? Genau solche Fragen stellst du dir selbst zusammen — aus deinen eigenen Fängen.' },
+  { bild: '📍', titel: 'Alles bleibt deins',
+    text: 'Jeder Fang liegt auf der Karte, wo er gebissen hat. Alles ist in deinem Konto '
+        + 'gesichert und auf jedem Gerät da — und du kannst es jederzeit als Datei mitnehmen.' }
+];
+let tourNr = 0;
+
+function tourZeigen(){
+  tourNr = 0;
+  $('#tour').classList.add('on');
+  tourRendern();
+}
+function tourSchliessen(){
+  $('#tour').classList.remove('on');
+  try { localStorage.setItem(TOUR_KEY, String(Date.now())); } catch {}
+}
+function tourRendern(){
+  const k = TOUR[tourNr];
+  const letzte = tourNr === TOUR.length - 1;
+  $('#tour-inner').innerHTML = `
+    <div class="mitte">
+      <div class="bild" aria-hidden="true">${k.bild}</div>
+      <h2>${k.titel}</h2>
+      <p>${k.text}</p>
+    </div>
+    <div class="punkte" aria-hidden="true">
+      ${TOUR.map((_, i) => `<i class="${i === tourNr ? 'da' : ''}"></i>`).join('')}
+    </div>
+    <button class="btn primary" id="tour-weiter">${letzte ? 'Los geht’s' : 'Weiter'}</button>
+    <button class="weg" id="tour-weg">${letzte ? '' : 'Überspringen'}</button>`;
+  $('#tour-weiter').onclick = () => {
+    if (letzte) return tourSchliessen();
+    tourNr++; tourRendern();
+    $('#tour').scrollTop = 0;
+  };
+  const weg = $('#tour-weg');
+  if (letzte) weg.hidden = true; else weg.onclick = tourSchliessen;
+}
+
+/* ---------- Fehler melden ---------- */
+function bugWartendZeigen(){
+  const n = meldungenLesen().length;
+  const p = $('#bug-warten');
+  p.hidden = !n;
+  if (n) p.textContent = n === 1
+    ? 'Eine Meldung wartet noch auf Netz und geht beim nächsten Abgleich raus.'
+    : n + ' Meldungen warten noch auf Netz und gehen beim nächsten Abgleich raus.';
+}
+
+$('#btn-hilfe').onclick = () => { sheetZu(); tourZeigen(); };
+
+$('#btn-bug').onclick = () => {
+  const box = $('#bug-form');
+  box.hidden = !box.hidden;
+  if (box.hidden) return;
+  /* Erst beim Aufklappen füllen — das Umfeld soll den Stand von jetzt zeigen
+     und nicht den vom Start der App. */
+  const u = umfeldSammeln();
+  $('#bug-umfeld').textContent = Object.entries(u)
+    .map(([k, v]) => k + ': ' + v).join('\n');
+  bugWartendZeigen();
+  $('#bug-text').focus();
+};
+
+$('#btn-bug-ab').onclick = async () => {
+  const feld = $('#bug-text');
+  const text = feld.value.trim();
+  if (text.length < 5) return toast('Bitte kurz beschreiben, was passiert ist');
+  meldungAnlegen(text);
+  feld.value = '';
+  $('#bug-form').hidden = true;
+  /* ⚠️ Die Rückmeldung sagt bewusst „ist notiert" und nicht „ist abgeschickt".
+     Ohne Netz stimmt „abgeschickt" nicht, und eine App, die das behauptet, ist
+     genau das Problem, das am 08.08. zwei Fänge gekostet hat. */
+  toast('Danke — ist notiert und geht mit dem nächsten Abgleich raus');
+  try { await meldungenNachreichen(); } catch {}
+  bugWartendZeigen();
+};
 
 $('#btn-datenschutz').onclick = () => {
   const box = $('#ds-text');

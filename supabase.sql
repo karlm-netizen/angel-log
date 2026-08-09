@@ -131,6 +131,51 @@ create policy "eigene werte loeschen" on public.angel_werte
   for delete using (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------
+--  3c. Fehlermeldungen aus der App
+--
+--  Karls Ansage vom 09.08.2026: „support für bugs". Wer beim Angeln etwas
+--  Kaputtes findet, soll es aus der App heraus melden können — nicht über
+--  einen Umweg per WhatsApp, der bis zum Abend vergessen ist.
+--
+--  ⚠️ Warum eine eigene Tabelle und nicht eine E-Mail: eine Meldung am Wasser
+--  entsteht typischerweise ohne Empfang. Eine Mail-App aufzurufen heißt, die
+--  Angel-App zu verlassen; kommt danach kein Netz, ist der Text weg. Diese
+--  Tabelle wird wie die Fänge behandelt — die Meldung liegt erst im Gerät und
+--  geht mit dem nächsten Abgleich hinaus.
+--
+--  ⚠️ Absichtlich KEIN Leserecht für den Melder auf fremde Zeilen und keine
+--  Änderung/Löschung: eine abgeschickte Meldung soll nicht nachträglich
+--  verschwinden können. Karl liest sie im Supabase-Dashboard (dort gilt RLS
+--  nicht), der Melder sieht nur seine eigenen.
+--
+--  `umfeld` enthält, was eine Meldung erst brauchbar macht: Fassung der App,
+--  Gerät, Bildschirm, Netz, Anzahl Fänge, ungesicherte Fänge, letzter Abgleich.
+--  Ohne das steht dort „geht nicht" und niemand kann etwas damit anfangen.
+--  Was drinsteht, wird dem Melder vor dem Abschicken gezeigt.
+-- ---------------------------------------------------------------------
+create table if not exists public.angel_meldungen (
+  id       text        primary key,
+  user_id  uuid        not null default auth.uid()
+                       references auth.users(id) on delete cascade,
+  erstellt timestamptz not null default now(),
+  text     text        not null,
+  umfeld   jsonb
+);
+
+create index if not exists angel_meldungen_zeit_idx
+  on public.angel_meldungen (erstellt desc);
+
+alter table public.angel_meldungen enable row level security;
+
+drop policy if exists "eigene meldungen lesen"   on public.angel_meldungen;
+drop policy if exists "eigene meldungen anlegen" on public.angel_meldungen;
+
+create policy "eigene meldungen lesen"   on public.angel_meldungen
+  for select using (auth.uid() = user_id);
+create policy "eigene meldungen anlegen" on public.angel_meldungen
+  for insert with check (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------
 --  4. Konto löschen
 --
 --  Muss es geben, sobald fremde Daten im Spiel sind: Art. 17 DSGVO gibt

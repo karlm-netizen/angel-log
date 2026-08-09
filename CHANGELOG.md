@@ -6,6 +6,50 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 09.08.2026 (2) — Fehler melden und eine kurze Einführung
+
+Zwei Ansagen von Karl: *„support für bugs"* und *„tutorial für die app, kleine vorstellung
+wofür nutzt du die app, um die leute neugierig zu machen, nach dem registrieren."*
+
+**Fehler melden** — in den Einstellungen unter „Hilfe & Fehler melden".
+
+⚠️ **Der Kern ist nicht das Formular, sondern dass eine Meldung ohne Netz nicht
+verlorengeht.** Kaputtes fällt beim Benutzen auf, und benutzt wird die App am Wasser — also
+dort, wo oft kein Empfang ist. Eine Meldung, die nur mit Verbindung abzuschicken geht,
+erreicht genau die Fälle nicht, für die sie gebaut ist. Sie liegt deshalb erst im Gerät und
+geht mit dem nächsten Abgleich hinaus, wie ein Fang.
+
+- Die Rückmeldung sagt **„ist notiert"**, nicht „ist abgeschickt". Ohne Netz wäre das zweite
+  gelogen — und eine App, die so etwas behauptet, ist genau das Problem vom 08.08.
+- **Ein Umfeld geht mit:** Fassung, Gerät, Bildschirm, Netz, ob vom Home-Bildschirm
+  gestartet, Anzahl Fänge, ungesicherte Fänge, letzter Abgleich. Ohne das steht dort „geht
+  nicht" und niemand kann etwas damit anfangen. **Was mitgeht, steht vor dem Abschicken
+  sichtbar da** — nichts wird heimlich erhoben.
+- Schlägt das Verschicken fehl, **bleibt die Meldung liegen** und geht beim nächsten Mal mit.
+  Dieselbe Regel wie beim Push-Stand: nie einen Stand behaupten, für den nichts rausging.
+- Neue Tabelle `angel_meldungen` in `supabase.sql`. **Absichtlich ohne Änderungs- und
+  Löschrecht** — eine abgeschickte Meldung soll nicht nachträglich verschwinden können.
+
+⚠️ **Neu: `FASSUNG` in `index.html`**, gekoppelt an den Cache-Namen in `sw.js`, eine Prüfung
+wacht darüber. Eine Meldung mit falscher Fassungsangabe ist schlimmer als keine — bei einer
+PWA läuft am iPhone wochenlang eine alte Seite weiter, das ist der Normalfall.
+
+**Kurze Einführung** — vier Karten nach dem Registrieren, jederzeit wieder über die
+Einstellungen.
+
+⚠️ **Das ist bewusst keine Bedienungsanleitung.** Wer gerade ein Konto angelegt hat, weiß
+noch nicht, warum sich das lohnt — er weiß nur, dass er Fische fängt. Jede Karte sagt, *was
+die App für ihn tut*, nicht wo welcher Knopf sitzt. Knöpfe findet man; einen Grund nicht.
+
+⚠️ **Nur nach dem Registrieren, nicht bei jedem Anmelden**, und an jeder Stelle
+überspringbar. Eine Einführung, die man nicht wegklicken kann, macht niemanden neugierig,
+sondern ungeduldig.
+
+**449 Prüfungen grün** (von 434).
+
+➡️ **Karl muss einmal `supabase.sql` erneut ausführen**, sonst laufen die Meldungen ins
+Leere. Der Block ist gefahrlos wiederholbar.
+
 ## 09.08.2026 (1) — Sichtbar, was noch nicht in der Cloud liegt
 
 Der Vorschlag vom 08.08., jetzt freigegeben. **Er behebt keinen Fehler — er behebt eine

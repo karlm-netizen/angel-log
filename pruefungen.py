@@ -1990,6 +1990,127 @@ window.addEventListener('error', e => {
     return rl > zu || 'renderList() steht im runter-Zweig — Hinweis bleibt stehen';
   });
 
+  /* ==================== Fehler melden (09.08.2026) ====================
+     Karls Ansage: "support für bugs". Der Kern ist nicht das Formular, sondern
+     dass eine Meldung ohne Netz nicht verlorengeht -- Kaputtes faellt beim
+     Benutzen auf, und benutzt wird die App am Wasser. */
+  t('eine Meldung landet zuerst im Geraet', () => {
+    localStorage.removeItem('angellog-meldungen');
+    meldungAnlegen('Die Karte bleibt weiss');
+    const l = meldungenLesen();
+    return (l.length === 1 && l[0].text === 'Die Karte bleibt weiss')
+        || JSON.stringify(l);
+  });
+  t('die Meldung bringt ihr Umfeld mit', () => {
+    /* Ohne das steht in der Tabelle "geht nicht" und niemand kann etwas damit
+       anfangen. Die Fassung ist der wichtigste Teil: eine PWA am iPhone zeigt
+       wochenlang eine alte Seite. */
+    localStorage.removeItem('angellog-meldungen');
+    meldungAnlegen('irgendwas');
+    const u = meldungenLesen()[0].umfeld;
+    return (u.fassung && u.geraet && u.netz && typeof u.ungesichert === 'number')
+        || JSON.stringify(u);
+  });
+  t('die Fassung in der Meldung ist die echte', () =>
+    (typeof FASSUNG === 'string' && /^v\d+$/.test(FASSUNG)) || String(FASSUNG));
+  t('sehr langer Text wird gekuerzt, nicht abgelehnt', () => {
+    // Lieber gekuerzt ankommen als an einer Laengenbegrenzung scheitern.
+    localStorage.removeItem('angellog-meldungen');
+    meldungAnlegen('x'.repeat(9000));
+    return meldungenLesen()[0].text.length === 4000 || meldungenLesen()[0].text.length;
+  });
+  ta('eine wartende Meldung geht beim naechsten Abgleich raus', async () => {
+    localStorage.removeItem('angellog-meldungen');
+    meldungAnlegen('Fehler A'); meldungAnlegen('Fehler B');
+    let geschickt = null;
+    api = async (pfad, opt) => { geschickt = JSON.parse(opt.body); return { ok: true }; };
+    konto = { access_token: 'tok' };
+    const n = await meldungenNachreichen();
+    konto = null;
+    return (n === 2 && geschickt.length === 2 && meldungenLesen().length === 0)
+        || `verschickt ${n}, Rest ${meldungenLesen().length}`;
+  });
+  ta('schlaegt das Verschicken fehl, bleibt die Meldung liegen', async () => {
+    /* ⚠️ Dieselbe Regel wie beim Push-Stand der Faenge: nie einen Stand
+       behaupten, fuer den nichts verschickt wurde. Wuerde hier vorab geleert,
+       waere die Meldung bei jedem Serverfehler still weg -- und der Melder
+       glaubt, sie sei angekommen. */
+    localStorage.removeItem('angellog-meldungen');
+    meldungAnlegen('Fehler A');
+    api = async () => ({ ok: false, status: 500 });
+    konto = { access_token: 'tok' };
+    let geflogen = false;
+    try { await meldungenNachreichen(); } catch { geflogen = true; }
+    konto = null;
+    return (geflogen && meldungenLesen().length === 1)
+        || `geflogen ${geflogen}, Rest ${meldungenLesen().length}`;
+  });
+  ta('ohne Konto wird nichts verschickt und nichts verworfen', async () => {
+    localStorage.removeItem('angellog-meldungen');
+    meldungAnlegen('Fehler A');
+    konto = null;
+    const n = await meldungenNachreichen();
+    return (n === 0 && meldungenLesen().length === 1)
+        || `verschickt ${n}, Rest ${meldungenLesen().length}`;
+  });
+  t('ein Fehler beim Melden haelt den Abgleich nicht an', () => {
+    /* Quelltext-Pruefung: der Aufruf muss in einem eigenen try stehen. Ohne das
+       wuerde eine kaputte Meldung den Abgleich der FAENGE mitreissen -- das
+       Wichtige haengt dann am Unwichtigen. */
+    const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
+    const a = js.indexOf('async function syncJetzt(');
+    const b = js.indexOf('meldungenNachreichen()', a);
+    if (a < 0 || b < 0) return 'Stelle nicht gefunden';
+    return /try \{ await meldungenNachreichen\(\); \} catch \{\}/.test(js.slice(a, b + 60))
+        || 'steht nicht in einem eigenen try';
+  });
+
+  /* ==================== Kurze Einfuehrung (09.08.2026) ====================
+     Karls Ansage: "tutorial für die app, kleine vorstellung wofür nutzt du die
+     app, um die leute neugierig zu machen, nach dem registrieren." */
+  t('die Einfuehrung hat mehrere Karten', () =>
+    (Array.isArray(TOUR) && TOUR.length >= 3 && TOUR.every(k => k.titel && k.text))
+    || 'TOUR ist nicht vollstaendig');
+  t('sie laesst sich oeffnen und steht dann da', () => {
+    tourZeigen();
+    const auf = document.querySelector('#tour').classList.contains('on');
+    const txt = document.querySelector('#tour-inner').textContent;
+    return (auf && txt.indexOf(TOUR[0].titel) >= 0) || ('auf=' + auf);
+  });
+  t('sie laesst sich ueberspringen', () => {
+    /* ⚠️ Der wichtigere Teil. Eine Einfuehrung, die man nicht wegklicken kann,
+       macht niemanden neugierig, sondern ungeduldig. */
+    tourZeigen();
+    document.querySelector('#tour-weg').click();
+    return document.querySelector('#tour').classList.contains('on') === false
+        || 'bleibt stehen';
+  });
+  t('durchklicken fuehrt bis zur letzten Karte und schliesst', () => {
+    tourZeigen();
+    for (let i = 0; i < TOUR.length; i++) document.querySelector('#tour-weiter').click();
+    return document.querySelector('#tour').classList.contains('on') === false
+        || 'bleibt nach der letzten Karte stehen';
+  });
+  t('auf der letzten Karte steht kein Ueberspringen mehr', () => {
+    tourZeigen();
+    for (let i = 0; i < TOUR.length - 1; i++) document.querySelector('#tour-weiter').click();
+    const weg = document.querySelector('#tour-weg');
+    return weg.hidden === true || 'Ueberspringen steht noch da';
+  });
+  t('die Einfuehrung kommt nur nach dem Registrieren', () => {
+    /* Wer sich anmeldet, hat die App schon -- ihm die Einfuehrung noch einmal
+       vorzusetzen waere eine Belaestigung. Quelltext-Pruefung, weil der Fall
+       einen echten Anmeldevorgang braeuchte. */
+    const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
+    const a = js.indexOf('async function gateLos(');
+    const b = js.indexOf('tourZeigen()', a);
+    if (a < 0 || b < 0) return 'Stelle nicht gefunden';
+    return /if \(!anmeldenModus\) tourZeigen\(\);/.test(js.slice(a, b + 40))
+        || 'kommt auch beim Anmelden';
+  });
+  t('sie ist aus den Einstellungen erreichbar', () =>
+    !!document.querySelector('#btn-hilfe') || 'kein Knopf in den Einstellungen');
+
   t('ein gemeldeter Grabstein behaelt seinen Todeszeitpunkt', () => {
     /* ⚠️ Hier stand `updated: Date.now()`. Ein Grabstein bekam beim Melden einen
        juengeren Stempel als den, mit dem er hochgeladen wurde -- und gewaenne damit
@@ -2783,6 +2904,19 @@ if fehlend:
     sys.exit(f'Diese Splash-Fotos fehlen im Service Worker: {fehlend} — '
              'ohne sie steht am Wasser ohne Netz ein Schirm ohne Bild.')
 print(f'Splash-Fotos: {len(splash_dateien)} Dateien, ANZAHL und Service Worker stimmen ueberein.')
+
+# ⚠️ Die Fassung steht in jeder Fehlermeldung mit drin. Zeigt sie eine andere als die
+# tatsaechlich ausgelieferte, ist eine Meldung schlimmer als keine: sie schickt die
+# Fehlersuche auf die falsche Fassung. Bei einer PWA ist das der Normalfall und nicht
+# die Ausnahme -- am iPhone laeuft eine wochenalte Seite weiter (siehe 08.08.2026).
+mf = re.search(r"const FASSUNG = '([^']+)';", html_roh)
+mc = re.search(r"const CACHE\s*=\s*'angellog-([^']+)';", sw_roh)
+if not mf or not mc:
+    sys.exit('FASSUNG in index.html oder CACHE in sw.js nicht gefunden.')
+if mf.group(1) != mc.group(1):
+    sys.exit(f'FASSUNG sagt {mf.group(1)}, der Service-Worker-Cache heisst '
+             f'angellog-{mc.group(1)} — eine Fehlermeldung nennte dann die falsche Fassung.')
+print(f'Fassung: index.html und Service Worker stehen beide auf {mf.group(1)}.')
 
 html = (WORK / 'index.html').read_text(encoding='utf-8')
 (WORK / 'test.html').write_text(html + TESTS, encoding='utf-8')
