@@ -1990,6 +1990,108 @@ window.addEventListener('error', e => {
     return rl > zu || 'renderList() steht im runter-Zweig — Hinweis bleibt stehen';
   });
 
+  /* ==================== Sprache (09.08.2026) ====================
+     Karls Ansage: "sprach einstllung deutsch +englisch".
+
+     ⚠️ Am Ende dieses Blocks muss wieder Deutsch stehen -- alle folgenden
+     Pruefungen vergleichen deutsche Texte. */
+  t('Umschalten uebersetzt die feste Oberflaeche', () => {
+    spracheSetzen('en');
+    const txt = document.querySelector('#v-log .head h1').textContent.trim();
+    const zeit = document.querySelector('#zeit-karte .f').textContent.trim();
+    return (zeit === 'Total fishing time') || ('Kopfzeile: ' + txt + ' / ' + zeit);
+  });
+  t('und Zurueckschalten stellt Deutsch wieder her', () => {
+    /* ⚠️ Das geht nur, weil der deutsche Urtext beim ersten Rundgang aufgehoben
+       wurde. Ohne ihn gaebe es nach dem Umschalten nichts mehr, wonach man
+       nachschlagen koennte -- die App waere englisch und bliebe es. */
+    spracheSetzen('en');
+    spracheSetzen('de');
+    return document.querySelector('#zeit-karte .f').textContent.trim() === 'Angelzeit gesamt'
+        || document.querySelector('#zeit-karte .f').textContent.trim();
+  });
+  t('gespeicherte Fangdaten werden NICHT uebersetzt', () => {
+    /* ⚠️ Die wichtigste Pruefung des ganzen Blocks. "Hecht" steht als Vorschlag
+       im Woerterbuch. Wuerde der Rundgang auch die Liste anfassen, wuerde aus
+       einem eingetippten "Hecht" beim Umschalten ein "Pike" -- ein Wert, den
+       niemand je erfasst hat. Uebersetzt wird die Oberflaeche, nicht die Daten. */
+    state.catches = [mkC('a', 1000, { art: 'Hecht', when: '2026-07-15T06:30', gewaesser: 'Elbe' })];
+    spracheSetzen('en');
+    const txt = document.querySelector('#list .item .t1').textContent;
+    spracheSetzen('de');
+    state.catches = [];
+    return (txt.indexOf('Hecht') >= 0 && txt.indexOf('Pike') < 0) || txt;
+  });
+  t('die Vorschlagsliste dagegen schon', () => {
+    // Die Liste fuellt sich erst beim Tippen -- ohne Eingabe steht sie leer da.
+    spracheSetzen('en');
+    const feld = document.querySelector('#f-art');
+    feld.value = 'pik';
+    feld.dispatchEvent(new Event('input'));
+    const opts = [...document.querySelectorAll('#dl-art option')].map(o => o.value);
+    feld.value = '';
+    feld.dispatchEvent(new Event('input'));
+    spracheSetzen('de');
+    return opts.includes('Pike') || ('[' + opts.join(',') + ']');
+  });
+  t('feste Achsen: Reihenfolge und Schluessel sprechen dieselbe Sprache', () => {
+    /* ⚠️ Der Fall, der ohne Pruefung stumm durchginge: die Stufen einer festen
+       Achse werden ueber den ANGEZEIGTEN Text zugeordnet. Stuende links
+       "Bewoelkt" und der Fang lieferte "Cloudy", fiele er aus seiner Stufe --
+       die Kurve laege flach auf null, ohne Fehlermeldung, und saehe aus wie
+       "keine Faenge". */
+    spracheSetzen('en');
+    const fehler = [];
+    for (const key of ['wetter', 'tageszeit', 'mond', 'trueb']){
+      const a = achseVon(key);
+      const stufen = new Set(a.reihe());
+      const probe = { wetter: { wetter: 'bewoelkt' },
+                      tageszeit: { phase: 'morgen' },
+                      mond: { when: '2026-07-15T06:30' },
+                      trueb: { truebung: 'leicht' } }[key];
+      const s = a.schluessel(probe);
+      if (!s || !stufen.has(s)) fehler.push(key + ' -> ' + s);
+    }
+    spracheSetzen('de');
+    return fehler.length === 0 || fehler.join(' | ');
+  });
+  t('ein fehlender Schluessel faellt auf Deutsch zurueck', () => {
+    // Nicht auf ein Kuerzel und nicht auf leer -- unuebersetzt ist besser als kaputt.
+    spracheSetzen('en');
+    const r = T('Diesen Satz gibt es im Woerterbuch nicht');
+    spracheSetzen('de');
+    return r === 'Diesen Satz gibt es im Woerterbuch nicht' || r;
+  });
+  t('die Sprachnamen selbst bleiben stehen', () => {
+    /* „Deutsch" heisst auf Englisch „German" -- wer aber kein Deutsch kann und
+       die App auf Deutsch vorfindet, sucht nach „English". Sprachnamen stehen
+       ueberall in ihrer eigenen Sprache. */
+    spracheSetzen('en');
+    const o = [...document.querySelectorAll('#sprache option')].map(x => x.textContent);
+    spracheSetzen('de');
+    return (o.join(',') === 'Deutsch,English') || o.join(',');
+  });
+  t('die Wahl wird gemerkt', () => {
+    spracheSetzen('en');
+    const g = localStorage.getItem('angellog-sprache');
+    spracheSetzen('de');
+    return g === 'en' || String(g);
+  });
+  t('ohne Wahl entscheidet die Sprache des Geraets', () => {
+    localStorage.removeItem('angellog-sprache');
+    return (spracheLesen() === spracheStandard()) || spracheLesen();
+  });
+  t('die Datenschutzerklaerung kommt ganz, nicht halb uebersetzt', () => {
+    /* Ein Rechtstext darf nicht aus einzeln nachgeschlagenen Saetzen bestehen --
+       bei einer Luecke stuende dort halb Deutsch, halb Englisch. */
+    spracheSetzen('en');
+    const txt = datenschutzText();
+    spracheSetzen('de');
+    return (/Privacy/.test(txt) && !/[äöüßÄÖÜ]/.test(txt.replace(/Fänge|Gewässer/g, '')))
+        || txt.slice(0, 160);
+  });
+  t('am Ende steht wieder Deutsch', () => SPRACHE === 'de' || SPRACHE);
+
   /* ==================== Fehler melden (09.08.2026) ====================
      Karls Ansage: "support für bugs". Der Kern ist nicht das Formular, sondern
      dass eine Meldung ohne Netz nicht verlorengeht -- Kaputtes faellt beim
@@ -2917,6 +3019,36 @@ if mf.group(1) != mc.group(1):
     sys.exit(f'FASSUNG sagt {mf.group(1)}, der Service-Worker-Cache heisst '
              f'angellog-{mc.group(1)} — eine Fehlermeldung nennte dann die falsche Fassung.')
 print(f'Fassung: index.html und Service Worker stehen beide auf {mf.group(1)}.')
+
+# ⚠️ Jeder T()-Aufruf braucht einen Eintrag im Woerterbuch. Fehlt einer, faellt das
+# NICHT als Fehler auf: T() gibt dann den deutschen Text zurueck, und die englische
+# App zeigt an der Stelle stillschweigend Deutsch. Genau solche Luecken sind die,
+# die niemand meldet -- sie sehen nach Absicht aus. Deshalb hier hart geprueft.
+# Vorlagen mit ${...} und aus Variablen gebaute Aufrufe (T(k.titel), T(name)) kann
+# man von aussen nicht aufloesen; geprueft werden die festen Zeichenketten.
+en_block = re.search(r'const EN = \{(.*?)\n\};', html_roh, re.S)
+if not en_block:
+    sys.exit('Das Woerterbuch EN wurde nicht gefunden.')
+en_keys = set()
+for km in re.finditer(r"^  '((?:[^'\\]|\\.)*)':", en_block.group(1), re.M):
+    en_keys.add(km.group(1).replace("\\'", "'").replace('\\\\', '\\'))
+
+benutzt = set()
+# T('a'), T("a"), T('a' + 'b'), T(bed ? 'a' : 'b')
+for tm in re.finditer(r"T\(\s*((?:'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\")"
+                      r"(?:\s*\+\s*(?:'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\"))*)\s*\)", html_roh):
+    teile = re.findall(r"'((?:[^'\\]|\\.)*)'|\"((?:[^\"\\]|\\.)*)\"", tm.group(1))
+    benutzt.add(''.join(a or b for a, b in teile).replace("\\'", "'"))
+for tm in re.finditer(r"T\([^)']*\?\s*('(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\")\s*:\s*"
+                      r"('(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\")\s*\)", html_roh):
+    for g in tm.groups():
+        benutzt.add(g[1:-1].replace("\\'", "'"))
+
+fehlen = sorted(k for k in benutzt if k and k not in en_keys)
+if fehlen:
+    sys.exit('Diese T()-Schluessel haben keine englische Fassung — die App zeigt dort '
+             'still Deutsch:\n  ' + '\n  '.join(repr(f) for f in fehlen))
+print(f'Woerterbuch: {len(en_keys)} Eintraege, alle {len(benutzt)} festen T()-Schluessel gedeckt.')
 
 html = (WORK / 'index.html').read_text(encoding='utf-8')
 (WORK / 'test.html').write_text(html + TESTS, encoding='utf-8')

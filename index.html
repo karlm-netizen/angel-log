@@ -699,9 +699,10 @@ function splashWeg(){
       <div class="fld">
         <label class="f">Wassertrübung</label>
         <div class="chips" id="ch-trueb"></div>
-        <div class="tiny muted" id="trueb-info" style="margin-top:7px">
-          Trübung misst niemand für dich — tipp an, was du siehst.
-        </div>
+        <!-- ⚠️ Bewusst leer. Der Satz kommt aus renderTruebHint(), weil dieser
+             Behälter dynamisch ist und vom Sprach-Rundgang nicht angefasst wird —
+             stünde er hier fest, bliebe er auf Englisch deutsch stehen. -->
+        <div class="tiny muted" id="trueb-info" style="margin-top:7px"></div>
       </div>
       <div class="g2 fld">
         <div>
@@ -860,6 +861,12 @@ function splashWeg(){
         </svg>
       </button>
     </div>
+    <!-- Karls Ansage vom 09.08.2026: „sprach einstellung deutsch + englisch". -->
+    <label class="f" for="sprache">Sprache</label>
+    <select class="in" id="sprache" style="margin-bottom:14px">
+      <option value="de">Deutsch</option>
+      <option value="en">English</option>
+    </select>
     <label class="f">Farbpalette</label>
     <div class="pal" id="pal"></div>
     <div id="konto" hidden></div>
@@ -947,6 +954,538 @@ function splashWeg(){
    verlässt kein Fang das Gerät.
    ======================================================================= */
 
+/* ======================= Sprache =======================
+   Karls Ansage vom 09.08.2026: „sprach einstellung deutsch + englisch."
+
+   ⚠️ Der Schlüssel ist der **deutsche Satz selbst**, nicht ein Kürzel wie
+   `log.empty`. Zwei Gründe, und beide zählen bei einer App, die eine Person
+   pflegt:
+
+   1. **Der Quelltext bleibt lesbar.** Ein Aufruf mit dem Satz darin sagt beim
+      Lesen, was dort steht. Mit einem Kürzel wie log-punkt-leer müsste man jedes
+      Mal in einer Tabelle nachschlagen — das pflegt irgendwann niemand mehr.
+   2. **Eine fehlende Übersetzung fällt weich.** Was nicht in EN steht, kommt
+      auf Deutsch heraus. Ein Kürzel-System zeigte an derselben Stelle das Kürzel
+      selbst — also kaputt statt bloß unübersetzt.
+
+   ⚠️ Übersetzt wird die **Oberfläche**, nicht die Daten. Ein Fang, den jemand
+   als „Hecht" eingetragen hat, heißt „Hecht" — auch auf Englisch. Alles andere
+   wäre gelogen: die App wüsste nicht, ob wirklich ein Hecht gemeint war, und
+   ein einmal übersetzter Eintrag ließe sich nicht mehr zurückrechnen. Die
+   Vorschlagslisten (Fischarten, Köder) sind Vorschläge und werden übersetzt;
+   was eingetippt und gespeichert ist, bleibt stehen. */
+const SPRACH_KEY = 'angellog-sprache';
+const SPRACHEN = { de: 'Deutsch', en: 'English' };
+
+function spracheStandard(){
+  try {
+    return String(navigator.language || 'de').toLowerCase().startsWith('de') ? 'de' : 'en';
+  } catch { return 'de'; }
+}
+function spracheLesen(){
+  try { const s = localStorage.getItem(SPRACH_KEY); if (SPRACHEN[s]) return s; } catch {}
+  return spracheStandard();
+}
+let SPRACHE = spracheLesen();
+
+/* Deutsch → Englisch. Was hier fehlt, bleibt deutsch stehen (siehe oben).
+   ⚠️ Der Schlüssel ist der deutsche Text **genau so, wie er angezeigt wird**.
+   Ein Tippfehler im Schlüssel fällt nicht als Fehler auf — es kommt dann still
+   Deutsch heraus, und das sieht aus wie eine vergessene Übersetzung statt wie
+   ein Fehler. Eine Prüfung wacht deshalb darüber, dass jeder T()-Aufruf im
+   Quelltext hier auch einen Eintrag hat. */
+const EN = {
+  'Pegel': 'Gauge',
+  'steigend': 'rising',
+  'fallend': 'falling',
+  'gleichbleibend': 'steady',
+  'Hecht': 'Pike',
+  'Zander': 'Zander',
+  'Barsch': 'Perch',
+  'Wels': 'Catfish',
+  'Aal': 'Eel',
+  'Karpfen': 'Carp',
+  'Schleie': 'Tench',
+  'Brasse': 'Bream',
+  'Rotauge': 'Roach',
+  'Rotfeder': 'Rudd',
+  'Döbel': 'Chub',
+  'Rapfen': 'Asp',
+  'Bachforelle': 'Brown trout',
+  'Regenbogenforelle': 'Rainbow trout',
+  'Seeforelle': 'Lake trout',
+  'Saibling': 'Char',
+  'Äsche': 'Grayling',
+  'Karausche': 'Crucian carp',
+  'Güster': 'Silver bream',
+  'Quappe': 'Burbot',
+  'Hasel': 'Dace',
+  'Nase': 'Nase',
+  'Graskarpfen': 'Grass carp',
+  'Stör': 'Sturgeon',
+  'Gummifisch': 'Soft plastic',
+  'Wobbler': 'Hardbait',
+  'Blinker': 'Spoon',
+  'Spinner': 'Spinner',
+  'Jerkbait': 'Jerkbait',
+  'Crankbait': 'Crankbait',
+  'Spinnerbait': 'Spinnerbait',
+  'Chatterbait': 'Chatterbait',
+  'Dropshot-Gummi': 'Dropshot soft bait',
+  'Creature Bait': 'Creature bait',
+  'Fliege': 'Fly',
+  'Streamer': 'Streamer',
+  'Tauwurm': 'Lobworm',
+  'Made': 'Maggot',
+  'Mais': 'Sweetcorn',
+  'Boilie': 'Boilie',
+  'Pellet': 'Pellet',
+  'Köderfisch': 'Livebait',
+  'Teig': 'Paste',
+  'Kirschmade': 'Pinkie',
+  'Weiß': 'White',
+  'Schwarz': 'Black',
+  'Rot': 'Red',
+  'Orange': 'Orange',
+  'Gelb': 'Yellow',
+  'Grün': 'Green',
+  'Blau': 'Blue',
+  'Silber': 'Silver',
+  'Gold': 'Gold',
+  'Braun': 'Brown',
+  'Motoroil': 'Motoroil',
+  'Pink/UV': 'Pink/UV',
+  'Perlmutt': 'Pearl',
+  'Naturdekor': 'Natural',
+  'Firetiger': 'Firetiger',
+  'Morgendämmerung': 'Dawn',
+  'Tag': 'Day',
+  'Abenddämmerung': 'Dusk',
+  'Nacht': 'Night',
+  'Klar': 'Clear',
+  'Heiter': 'Fair',
+  'Bewölkt': 'Cloudy',
+  'Bedeckt': 'Overcast',
+  'Nebel': 'Fog',
+  'Nieselregen': 'Drizzle',
+  'Regen': 'Rain',
+  'Schauer': 'Showers',
+  'Gewitter': 'Thunderstorm',
+  'Schnee': 'Snow',
+  'Leicht trüb': 'Slightly turbid',
+  'Trüb': 'Turbid',
+  'Sehr trüb': 'Very turbid',
+  'Neumond': 'New moon',
+  'Zunehmende Sichel': 'Waxing crescent',
+  'Erstes Viertel': 'First quarter',
+  'Zunehmender Mond': 'Waxing gibbous',
+  'Vollmond': 'Full moon',
+  'Abnehmender Mond': 'Waning gibbous',
+  'Letztes Viertel': 'Last quarter',
+  'Abnehmende Sichel': 'Waning crescent',
+  'Jan': 'Jan',
+  'Feb': 'Feb',
+  'Mär': 'Mar',
+  'Apr': 'Apr',
+  'Mai': 'May',
+  'Jun': 'Jun',
+  'Jul': 'Jul',
+  'Aug': 'Aug',
+  'Sep': 'Sep',
+  'Okt': 'Oct',
+  'Nov': 'Nov',
+  'Dez': 'Dec',
+  'Tiefes Wasser': 'Deep water',
+  'Mitternacht': 'Midnight',
+  'Waldsee': 'Forest lake',
+  'Dämmerung': 'Dusk light',
+  'Kohle': 'Charcoal',
+  'Bernstein': 'Amber',
+  'Nordlicht': 'Northern lights',
+  'Rost': 'Rust',
+  'Papier': 'Paper',
+  'Tageslicht': 'Daylight',
+  'Sand': 'Sand',
+  'Log': 'Log',
+  'Neuer Fang': 'New catch',
+  'Karte': 'Map',
+  'Statistiken': 'Charts',
+  'Fisch': 'Fish',
+  'Bedingungen': 'Conditions',
+  'Köder': 'Bait',
+  'Fotos': 'Photos',
+  'Notiz': 'Note',
+  'Standort': 'Location',
+  'Einstellungen': 'Settings',
+  'Fang': 'Catch',
+  'Fänge': 'Catches',
+  'Angelzeit gesamt': 'Total fishing time',
+  '▶︎ Start': '▶︎ Start',
+  '■ Stopp': '■ Stop',
+  'Läuft seit': 'Running for',
+  'Zeit korrigieren': 'Correct time',
+  'Ansitz beenden um': 'End session at',
+  'Gestartet:': 'Started:',
+  'Mit dieser Uhrzeit stoppen': 'Stop with this time',
+  'Gesamtzeit direkt setzen': 'Set total time directly',
+  'Stunden': 'Hours',
+  'Minuten': 'Minutes',
+  'Gesamtzeit übernehmen': 'Apply total time',
+  'Der Timer läuft seit': 'The timer has been running for',
+  'vergessen zu stoppen?': 'forgot to stop it?',
+  'Unter „Zeit korrigieren" kannst du die Uhrzeit nachtragen.': 'Under „Correct time" you can enter the right time afterwards.',
+  'Angelzeit läuft': 'Fishing time running',
+  'Ansitz eingetragen:': 'Session recorded:',
+  'Gesamtzeit gesetzt': 'Total time set',
+  'Das Ende liegt vor dem Start': 'The end is before the start',
+  'Bitte eine Uhrzeit eintragen': 'Please enter a time',
+  '0 Fänge': '0 catches',
+  '0 Gewässer': '0 waters',
+  '0 min': '0 min',
+  'Gewässer': 'Water',
+  'Gewässer (eins)': 'water',
+  'Gewässer (mehrere)': 'waters',
+  'Größter:': 'Biggest:',
+  'Noch kein Maß': 'No length yet',
+  'Suchen: Art, Gewässer, Köder …': 'Search: species, water, bait …',
+  'Noch kein Fang drin.': 'No catch in here yet.',
+  'Tipp unten auf': 'Tap',
+  'sobald der Erste im Kescher liegt.': 'below as soon as the first one is in the net.',
+  'Nichts gefunden.': 'Nothing found.',
+  'Entwurf': 'Draft',
+  'Wind': 'Wind',
+  'nur auf diesem Gerät': 'on this device only',
+  'nur auf diesem Gerät.': 'on this device only.',
+  'Noch nicht im Konto gesichert — tippen, um jetzt abzugleichen': 'Not backed up to your account yet — tap to sync now',
+  'Fischart': 'Species',
+  'Länge (cm)': 'Length (cm)',
+  'Gewicht (kg)': 'Weight (kg)',
+  'Datum & Uhrzeit': 'Date & time',
+  '📍 Standort holen': '📍 Get location',
+  'Löschen': 'Clear',
+  'Noch kein Standort gesetzt.': 'No location set yet.',
+  'Breitengrad': 'Latitude',
+  'Längengrad': 'Longitude',
+  'Von Hand eintippen geht auch — Punkt als Dezimaltrennzeichen.': 'You can also type it in — use a dot as the decimal mark.',
+  'Pin antippen & ziehen oder auf die Karte tippen, um die Stelle zu korrigieren.': 'Tap and drag the pin, or tap the map, to correct the spot.',
+  'Werte holen': 'Fetch values',
+  'Standort setzen → Gewässer, Luft- und Wasserwerte kommen automatisch.': 'Set a location → water name, air and water values come in automatically.',
+  'Lufttemperatur (°C)': 'Air temperature (°C)',
+  'Luftdruck (hPa)': 'Air pressure (hPa)',
+  'Windrichtung': 'Wind direction',
+  'Wind (km/h)': 'Wind (km/h)',
+  'Wassertemperatur (°C)': 'Water temperature (°C)',
+  'Wassertiefe (m)': 'Water depth (m)',
+  'Tageszeit': 'Time of day',
+  'Wetter': 'Weather',
+  'Wassertrübung': 'Water clarity',
+  'Trübung misst niemand für dich — tipp an, was du siehst.': 'Nobody measures clarity for you — tap what you see.',
+  'Bewölkung (%)': 'Cloud cover (%)',
+  'Mondphase': 'Moon phase',
+  'Die Mondphase rechnet sich aus Datum und Uhrzeit — nichts einzutragen, gilt auch für Fänge, die du Wochen später nachträgst.': 'The moon phase is calculated from date and time — nothing to enter, and it also works for catches you add weeks later.',
+  'Ködergröße (cm)': 'Bait size (cm)',
+  'Ködergewicht (g)': 'Bait weight (g)',
+  'Köderfarbe': 'Bait colour',
+  '— mehrere möglich': '— several possible',
+  '📷 Aufnehmen': '📷 Take photo',
+  '🖼 Aus Galerie': '🖼 From gallery',
+  'Noch keine Fotos.': 'No photos yet.',
+  'Fang löschen': 'Delete catch',
+  'z. B. Hecht': 'e.g. pike',
+  'z. B. Elbe-Altarm': 'e.g. Elbe backwater',
+  'z. B. Gummifisch': 'e.g. soft plastic',
+  'Drill, Stelle, Führung, Besonderheiten …': 'Fight, spot, retrieve, anything notable …',
+  'Abbrechen': 'Cancel',
+  'Zurück': 'Back',
+  'Bearbeiten': 'Edit',
+  'Fang speichern': 'Save catch',
+  'Wird geladen': 'Loading',
+  'Datum': 'Date',
+  'Länge': 'Length',
+  'Gewicht': 'Weight',
+  'Wassertemperatur': 'Water temperature',
+  'Herkunft': 'Source',
+  'Messstelle': 'Gauge',
+  'Meeresoberfläche': 'Sea surface',
+  'Meeresoberfläche (Modellwert)': 'Sea surface (model value)',
+  'selbst gemessen': 'measured yourself',
+  'Wassertiefe': 'Water depth',
+  'Lufttemperatur': 'Air temperature',
+  'Luftdruck': 'Air pressure',
+  'Bewölkung': 'Cloud cover',
+  'Regen davor (24 h)': 'Rain before (24 h)',
+  'Größe': 'Size',
+  'Farben': 'Colours',
+  'Farbe': 'Colour',
+  'Koordinaten': 'Coordinates',
+  'In Karten öffnen': 'Open in Maps',
+  'Standort wird gesucht …': 'Looking for your location …',
+  'Gewässer wird gesucht …': 'Looking for the water …',
+  'Wetter wird geholt …': 'Fetching the weather …',
+  'Wassertemperatur wird gesucht …': 'Looking for the water temperature …',
+  'Standort abgelehnt — in den iPhone-Einstellungen für Safari freigeben.': 'Location denied — allow it for Safari in the iPhone settings.',
+  'Standort nicht gefunden. Du kannst die Stelle gleich auf der Karte antippen.': 'Location not found. You can tap the spot on the map instead.',
+  'Standort wird nicht unterstützt': 'Location is not supported',
+  'Kein benanntes Gewässer gefunden — bitte selbst eintragen.': 'No named water found — please enter it yourself.',
+  'Laut Standort mittendrin.': 'Your location is right on it.',
+  'Nächstes Gewässer,': 'Nearest water,',
+  'entfernt.': 'away.',
+  'Stattdessen:': 'Instead:',
+  'Gewässer-Suche gerade nicht erreichbar — bitte selbst eintragen.': 'Water lookup unreachable right now — please enter it yourself.',
+  'Für diesen Zeitpunkt gibt es keine Daten (älter als 7 Tage) — bitte manuell eintragen.': 'No data for this time (older than 7 days) — please enter it manually.',
+  'Gemessen:': 'Measured at:',
+  'Keine Messstelle gefunden — bitte selbst messen.': 'No gauge found — please measure it yourself.',
+  'Erst Standort setzen': 'Set a location first',
+  'Erst Datum & Uhrzeit setzen': 'Set date & time first',
+  'Die Karte ließ sich nicht laden.': 'The map could not be loaded.',
+  'Erfassen und Fotos funktionieren davon unabhängig weiter.': 'Recording catches and photos keeps working regardless.',
+  'Nochmal versuchen': 'Try again',
+  'Karte nicht ladbar': 'Map not loadable',
+  'Neu anfangen': 'Start fresh',
+  'Zählen': 'Count',
+  'Über': 'Over',
+  'über': 'over',
+  'nach': 'by',
+  'Aufteilen nach': 'Split by',
+  'Alle Fische': 'All species',
+  'Alle Gewässer': 'All waters',
+  'Mit fester Reihenfolge': 'With a fixed order',
+  'Nach Häufigkeit sortiert': 'Sorted by frequency',
+  'Uhrzeit': 'Time of day',
+  'Monat': 'Month',
+  'Fischlänge': 'Fish length',
+  'Regen davor': 'Rain before',
+  'Ködergröße': 'Bait size',
+  'Ködergewicht': 'Bait weight',
+  '✓ Änderungen sichern': '✓ Save changes',
+  '✚ Auswertung speichern': '✚ Save this chart',
+  '✚ Als neue speichern': '✚ Save as new',
+  'Änderungen gesichert': 'Changes saved',
+  'Auswertung gespeichert': 'Chart saved',
+  'Name für diese Auswertung:': 'Name for this chart:',
+  'Neuer Name:': 'New name:',
+  'Auswertung': 'Chart',
+  'löschen?': 'delete?',
+  'Gelöscht': 'Deleted',
+  'Umbenennen': 'Rename',
+  '✎ Bearbeiten': '✎ Edit',
+  '✕ Löschen': '✕ Delete',
+  'Liegt oben im Baukasten': 'Currently open above',
+  'gespeichert': 'saved',
+  'geändert, noch nicht gesichert': 'changed, not saved yet',
+  'Fischarten': 'Species',
+  'Größter': 'Biggest',
+  'Schwerster': 'Heaviest',
+  'Noch keine fertigen Fänge.': 'No finished catches yet.',
+  'Sobald der Erste gespeichert ist, steht hier die Auswertung.': 'As soon as the first one is saved, the charts appear here.',
+  'Für diese Auswahl gibt es keinen Fang.': 'No catch matches this selection.',
+  'in dieser Auswahl.': 'in this selection.',
+  'Für ein belastbares Muster sind das noch zu wenige — ab etwa 20 bis 30 wird es aussagekräftig. Bis dahin zeigt die Auswertung schlicht, was bisher drinsteht.': 'That is still too few for a reliable pattern — it gets meaningful at around 20 to 30. Until then the chart simply shows what is in there so far.',
+  'Dazu hat in dieser Auswahl noch kein Fang einen Wert.': 'No catch in this selection has a value for that yet.',
+  'Bei automatisch geholten Werten heißt das meist: der Fang wurde ohne Netz erfasst.': 'For automatically fetched values that usually means the catch was recorded without a connection.',
+  'Diese Achse hat keine natürliche Reihenfolge — sie steht nach Häufigkeit. Aussagekräftig ist deshalb die Höhe der Punkte, nicht der Anstieg dazwischen.': 'This axis has no natural order — it is sorted by frequency. So what matters is the height of the points, not the slope between them.',
+  'Ein Fang mit mehreren Köderfarben zählt in jeder mit — die Summe kann deshalb größer sein als die Zahl der Fänge.': 'A catch with several bait colours counts in each of them — so the total can be larger than the number of catches.',
+  'Alles außer den fünf häufigsten steht zusammengefasst als': 'Everything but the five most common is grouped as',
+  'Übrige': 'Other',
+  'Zeigt, wie sich deine Fänge verteilen — nicht, was besser fängt. Dafür müssten auch Ansitze ohne Fang erfasst sein.': 'This shows how your catches are distributed — not what catches better. For that, blank sessions would have to be recorded too.',
+  'Sprache': 'Language',
+  'Farbpalette': 'Colour palette',
+  'Hilfe & Fehler melden': 'Help & report a problem',
+  'Etwas geht nicht oder sieht falsch aus? Schreib es auf — auch ohne Netz. Die Meldung wartet dann im Gerät und geht beim nächsten Abgleich raus.': 'Something not working or looking wrong? Write it down — offline too. The report then waits on your device and goes out with the next sync.',
+  'Kurze Einführung ansehen': 'View the short introduction',
+  '🐞 Fehler melden': '🐞 Report a problem',
+  'Was ist passiert?': 'What happened?',
+  'Was wolltest du tun, und was ist stattdessen passiert?': 'What were you trying to do, and what happened instead?',
+  'Das geht automatisch mit:': 'This is sent along automatically:',
+  'Abschicken': 'Send',
+  'Bitte kurz beschreiben, was passiert ist': 'Please describe briefly what happened',
+  'Danke — ist notiert und geht mit dem nächsten Abgleich raus': 'Thanks — noted, and it goes out with the next sync',
+  'Eine Meldung wartet noch auf Netz und geht beim nächsten Abgleich raus.': 'One report is still waiting for a connection and goes out with the next sync.',
+  'Meldungen warten noch auf Netz und gehen beim nächsten Abgleich raus.': 'reports are still waiting for a connection and go out with the next sync.',
+  'Melden fehlgeschlagen': 'Reporting failed',
+  'Datenschutz': 'Privacy',
+  'Datenschutzerklärung': 'Privacy policy',
+  '⬇︎ Meine Daten herunterladen': '⬇︎ Download my data',
+  'Schließen': 'Close',
+  'Einstellungen schließen': 'Close settings',
+  'Datei wird gebaut …': 'Building the file …',
+  'fassung': 'version',
+  'geraet': 'device',
+  'bildschirm': 'screen',
+  'netz': 'network',
+  'sprache': 'language',
+  'installiert': 'installed',
+  'faenge': 'catches',
+  'ungesichert': 'not backed up',
+  'letzterAbgleich': 'last sync',
+  'Konto & Sync': 'Account & sync',
+  'Nicht angemeldet.': 'Not signed in.',
+  'Anmelden': 'Sign in',
+  'Abmelden': 'Sign out',
+  'Konto löschen': 'Delete account',
+  'Angemeldet als': 'Signed in as',
+  'Zuletzt abgeglichen:': 'Last synced:',
+  '⟳ Jetzt abgleichen': '⟳ Sync now',
+  '… wird abgeglichen': '… syncing',
+  'Angemeldet': 'Signed in',
+  'Fänge gesichert': 'catches backed up',
+  'Abgeglichen': 'Synced',
+  'hoch': 'up',
+  'runter': 'down',
+  'Alles schon aktuell': 'Everything is already up to date',
+  'Abgleich fehlgeschlagen': 'Sync failed',
+  'Kein Netz — wird nachgeholt': 'No connection — it will be caught up',
+  'Konto und alle Fänge auf dem Server löschen?': 'Delete the account and all catches on the server?',
+  'Die Fänge auf diesem Gerät bleiben.': 'The catches on this device are kept.',
+  'Konto gelöscht — die Fänge auf dem Gerät bleiben': 'Account deleted — the catches on this device are kept',
+  'Abgemeldet — deine Fänge bleiben auf dem Gerät': 'Signed out — your catches stay on this device',
+  '1 Fang liegt': '1 catch is',
+  'Fänge liegen': 'catches are',
+  'Noch nicht im Konto gesichert. Vor dem Abmelden, Löschen oder Neuinstallieren erst abgleichen — sonst ist das weg.': 'Not backed up to your account yet. Sync before signing out, deleting or reinstalling — otherwise it is gone.',
+  'Deine Fänge liegen auf diesem Gerät und in deinem Konto. Unten kannst du jederzeit alles als Datei herunterladen — das ist deine Kopie, lesbar auch ohne die App.': 'Your catches are on this device and in your account. You can download everything as a file below at any time — that is your own copy, readable without the app.',
+  'Nicht angemeldet — es wird gerade nichts abgeglichen. Die Fänge auf diesem Gerät sind unverändert da.': 'Not signed in — nothing is being synced right now. The catches on this device are untouched.',
+  'Willkommen zurück': 'Welcome back',
+  'Fangbuch einrichten': 'Set up your logbook',
+  'Melde dich an, um deine Fänge zu sehen — mit E-Mail oder Benutzername.': 'Sign in to see your catches — with e-mail or username.',
+  'Mit einem Konto sind deine Fänge gesichert und auf jedem Gerät da.': 'With an account your catches are backed up and available on every device.',
+  'Benutzername': 'Username',
+  'E-Mail': 'E-mail',
+  'E-Mail oder Benutzername': 'E-mail or username',
+  'Passwort': 'Password',
+  ' (mind. 6 Zeichen)': ' (at least 6 characters)',
+  'Konto erstellen': 'Create account',
+  'Noch kein Konto? Registrieren': 'No account yet? Sign up',
+  'Schon ein Konto? Anmelden': 'Already have an account? Sign in',
+  'Deine Fänge liegen dann auf einem Server in der EU.': 'Your catches will then be held on a server inside the EU.',
+  'E-Mail oder Benutzername und Passwort eingeben.': 'Enter e-mail or username and password.',
+  'E-Mail und Passwort eingeben.': 'Enter e-mail and password.',
+  'Einen Moment …': 'One moment …',
+  'Hat nicht geklappt.': 'That did not work.',
+  'Kein Netz — zum Anmelden wird einmal Verbindung gebraucht. Danach läuft die App auch offline.': 'No connection — signing in needs one once. After that the app also runs offline.',
+  'Diesen Benutzernamen gibt es nicht. Oder melde dich mit deiner E-Mail an.': 'That username does not exist. Or sign in with your e-mail.',
+  'Dieser Benutzername ist schon vergeben.': 'That username is already taken.',
+  'Konto angelegt. Bitte E-Mail bestätigen und dann anmelden.': 'Account created. Please confirm your e-mail, then sign in.',
+  'Weiter': 'Next',
+  'Überspringen': 'Skip',
+  'Los geht’s': 'Let’s go',
+  'Dein Fangbuch': 'Your logbook',
+  'Jeder Fisch mit Foto, Länge, Gewicht und Köder — an einem Ort statt in der Kamerarolle. Nach ein paar Wochen steht da eine Saison, die du wirklich nachlesen kannst.': 'Every fish with photo, length, weight and bait — in one place instead of scattered through your camera roll. After a few weeks you have a season you can actually look back on.',
+  'Das Drumherum kommt von allein': 'The rest fills itself in',
+  'Wetter, Luftdruck, Mondphase, Wasserstand und sogar das Gewässer holt die App aus Zeit und Standort. Du tippst den Fisch ein — der Rest steht schon da.': 'Weather, air pressure, moon phase, water level and even the name of the water are pulled from the time and your location. You type in the fish — the rest is already there.',
+  'Und dann wird es interessant': 'And then it gets interesting',
+  'Beißt der Hecht wirklich bei fallendem Luftdruck? Welche Köderfarbe bringt bei dir mehr? Genau solche Fragen stellst du dir selbst zusammen — aus deinen eigenen Fängen.': 'Do pike really bite on falling pressure? Which bait colour works better for you? You put exactly those questions together yourself — out of your own catches.',
+  'Alles bleibt deins': 'It all stays yours',
+  'Jeder Fang liegt auf der Karte, wo er gebissen hat. Alles ist in deinem Konto gesichert und auf jedem Gerät da — und du kannst es jederzeit als Datei mitnehmen.': 'Every catch sits on the map where it bit. Everything is backed up in your account and available on every device — and you can take it with you as a file at any time.',
+  'Gespeichert': 'Saved',
+  'Fang gespeichert 🎣': 'Catch saved 🎣',
+  'Datum & Uhrzeit fehlen': 'Date & time are missing',
+  'Mindestens Fischart oder Länge angeben': 'Enter at least a species or a length',
+  'Speichern fehlgeschlagen — Eintrag bleibt offen, bitte erneut versuchen.': 'Saving failed — the entry stays open, please try again.',
+  'Diesen Fang wirklich löschen?': 'Really delete this catch?',
+  'Foto ließ sich nicht verkleinern — im Original gespeichert.': 'The photo could not be resized — stored at original size.',
+  'Der Speicher dieses Browsers ist nicht erreichbar.': 'This browser’s storage cannot be reached.',
+  'Im privaten Modus von Safari lässt sich nichts sichern — normales Fenster benutzen.': 'Nothing can be stored in Safari’s private mode — use a normal window.',
+  'Speicher antwortet nicht': 'Storage is not responding',
+  'Speicher nicht verfügbar': 'Storage not available',
+  'Speicher blockiert': 'Storage blocked',
+  'Hochladen fehlgeschlagen': 'Upload failed',
+  'Abrufen fehlgeschlagen': 'Fetching failed',
+  'Löschen fehlgeschlagen': 'Deleting failed',
+  'Angelzeit/Auswertungen:': 'Fishing time/charts:',
+  'Neue Fassung da — sie kommt beim nächsten Start': 'New version available — it arrives at the next start',
+  'Fehler:': 'Error:',
+  'unbekannt': 'unknown',
+  'HTTP': 'HTTP',
+};
+
+function T(de){
+  if (SPRACHE === 'de' || de == null) return de;
+  const e = EN[String(de).trim()];
+  return e === undefined ? de : e;
+}
+
+/* ⚠️ Behälter, die aus Daten gebaut werden. Der Rundgang unten fasst sie nicht
+   an — sonst übersetzte er Fangdaten mit, und aus einem eingetragenen „Hecht"
+   würde beim Umschalten ein „Pike", der so nie eingetippt wurde. Alles darin
+   wird beim Umschalten ohnehin neu gezeichnet, dort steht T() im Quelltext. */
+const NICHT_UEBERSETZEN = ['#list', '#stats-body', '#detail-body', '#konto', '#gate-inner',
+  '#tour-inner', '#ds-text', '#g-ds-text', '#bug-umfeld', '#map', '#splash', '#toast',
+  '#viewer', '#zeit-gesamt', '#zeit-laeuft', '#zeit-warnung', '#korr-start',
+  '#st-count', '#st-waters', '#st-best', '#st-cloud', '#map-count', '#stats-pill',
+  '#trueb-info', '#mond-anzeige', '#geo-info', '#bug-warten', '#sicherung-text'].join(',');
+
+/* Die festen Beschriftungen einmal einsammeln, mit ihrem deutschen Urtext.
+   Der Urtext muss aufgehoben werden: ohne ihn ließe sich von Englisch nicht
+   nach Deutsch zurückschalten, weil dann nichts mehr da wäre, wonach man
+   nachschlagen könnte. */
+let sprachStellen = null;
+function sprachStellenSammeln(){
+  sprachStellen = [];
+  const drin = el => !!(el && el.closest && el.closest(NICHT_UEBERSETZEN));
+  const lauf = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode(n){
+      if (!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      const p = n.parentElement;
+      if (!p || p.tagName === 'SCRIPT' || p.tagName === 'STYLE') return NodeFilter.FILTER_REJECT;
+      if (drin(p)) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  for (let n = lauf.nextNode(); n; n = lauf.nextNode())
+    sprachStellen.push({ knoten: n, de: n.nodeValue });
+  for (const el of document.querySelectorAll('[placeholder],[aria-label],[title]')){
+    if (drin(el)) continue;
+    for (const a of ['placeholder', 'aria-label', 'title']){
+      const v = el.getAttribute(a);
+      if (v && v.trim()) sprachStellen.push({ el, attr: a, de: v });
+    }
+  }
+}
+
+function spracheAnwenden(){
+  if (!sprachStellen) sprachStellenSammeln();
+  for (const s of sprachStellen){
+    /* Der Urtext kann Einrückung tragen (`\n      Neuer Fang\n    `). Übersetzt
+       wird der Kern, die Leerzeichen drumherum bleiben — sonst klebt bei
+       Beschriftungen neben einem Zeichen alles zusammen. */
+    const roh = s.de;
+    const kern = roh.trim();
+    /* ⚠️ Umbrüche und Einrückung aus dem HTML stecken mitten im Text („… gilt
+       auch
+        für Fänge …"). Gesucht wird deshalb mit **geglättetem**
+       Leerraum — sonst fände ein mehrzeiliger Absatz seinen Eintrag nie und
+       stünde still auf Deutsch da. Ersetzt wird trotzdem der Urtext, damit
+       ohne Übersetzung die ursprüngliche Formatierung stehen bleibt. */
+    const flach = kern.replace(/\s+/g, ' ');
+    const neu = T(flach);
+    const text = roh.replace(kern, neu === flach ? kern : neu);
+    if (s.knoten) s.knoten.nodeValue = text; else s.el.setAttribute(s.attr, text);
+  }
+  try { document.documentElement.lang = SPRACHE; } catch {}
+}
+
+/* Umschalten: merken, feste Beschriftungen ersetzen, alles Gezeichnete neu
+   zeichnen. ⚠️ Ohne das zweite bliebe die halbe App in der alten Sprache
+   stehen, bis man zufällig die Ansicht wechselt — und eine halb übersetzte App
+   sieht kaputt aus, nicht mehrsprachig. */
+function spracheSetzen(s){
+  if (!SPRACHEN[s]) return;
+  SPRACHE = s;
+  try { localStorage.setItem(SPRACH_KEY, s); } catch {}
+  spracheAnwenden();
+  try { buildStatics(); } catch {}
+  try { renderZeit(); } catch {}
+  try { renderList(); } catch {}
+  try { renderKonto(); } catch {}
+  try { $('#ds-text').innerHTML = ''; $('#ds-text').hidden = true; } catch {}
+  try { $('#g-ds-text').innerHTML = ''; } catch {}
+  try { if (state.view === 'map')   renderMap(); } catch {}
+  try { if (state.view === 'stats') renderStats(); } catch {}
+  try { if (state.view === 'detail') openDetail(state.detailId); } catch {}
+  try { if ($('#gate').classList.contains('on')) renderGate(); } catch {}
+  try { if ($('#tour').classList.contains('on')) tourRendern(); } catch {}
+}
+
 const ARTEN = ['Hecht','Zander','Barsch','Wels','Aal','Karpfen','Schleie','Brasse','Rotauge',
   'Rotfeder','Döbel','Rapfen','Bachforelle','Regenbogenforelle','Seeforelle','Saibling','Äsche',
   'Karausche','Güster','Quappe','Hasel','Nase','Graskarpfen','Stör'];
@@ -1008,7 +1547,8 @@ function mondFor(when){
   const i      = Math.round(anteil * 8) % 8;                // acht Abschnitte, auf die Mitte gerundet
   const licht  = Math.round((1 - Math.cos(2 * Math.PI * anteil)) / 2 * 100);
   const [key, name, icon] = MONDPHASEN[i];
-  return { key, name, icon, licht };
+  // Der Schlüssel bleibt deutsch-frei, nur der angezeigte Name wird übersetzt.
+  return { key, name: T(name), icon, licht };
 }
 
 // Farbpaletten — dunkle zuerst, helle unten. "ink" ist die Schrift auf Akzentflächen.
@@ -1060,7 +1600,7 @@ function db(){
   return new Promise((res, rej) => {
     // Safari im privaten Modus lässt open() auch mal ewig hängen, ohne je
     // onerror zu feuern. Deshalb ein Wecker — sonst wartet die App stumm.
-    const guard = setTimeout(() => rej(new Error('Speicher antwortet nicht')), 6000);
+    const guard = setTimeout(() => rej(new Error(T('Speicher antwortet nicht'))), 6000);
     const done = fn => (...a) => { clearTimeout(guard); fn(...a); };
     const r = indexedDB.open(DBN, 2);
     r.onupgradeneeded = () => {
@@ -1069,8 +1609,8 @@ function db(){
       if (!d.objectStoreNames.contains(GRAB))  d.createObjectStore(GRAB,  { keyPath: 'id' });
     };
     r.onsuccess = done(() => { _db = r.result; res(_db); });
-    r.onerror   = done(() => rej(r.error || new Error('Speicher nicht verfügbar')));
-    r.onblocked = done(() => rej(new Error('Speicher blockiert')));
+    r.onerror   = done(() => rej(r.error || new Error(T('Speicher nicht verfügbar'))));
+    r.onblocked = done(() => rej(new Error(T('Speicher blockiert'))));
   });
 }
 async function allCatches(){
@@ -1195,16 +1735,16 @@ function renderZeit(){
   const offen = laeuft ? Math.max(0, Date.now() - z.start) : 0;
   $('#zeit-gesamt').textContent = dauerText(z.gesamt + offen);
   $('#zeit-laeuft').hidden = !laeuft;
-  if (laeuft) $('#zeit-laeuft').textContent = 'Läuft seit ' + laufText(offen);
-  $('#btn-zeit').textContent = laeuft ? '■ Stopp' : '▶︎ Start';
+  if (laeuft) $('#zeit-laeuft').textContent = T('Läuft seit') + ' ' + laufText(offen);
+  $('#btn-zeit').textContent = laeuft ? T('■ Stopp') : T('▶︎ Start');
   $('#btn-zeit').classList.toggle('danger', laeuft);
 
   const vergessen = laeuft && offen > ZEIT_WARNGRENZE;
   $('#zeit-warnung').hidden = !vergessen;
   if (vergessen){
     $('#zeit-warnung').textContent =
-      `Der Timer läuft seit ${dauerText(offen)} — vergessen zu stoppen? `
-      + 'Unter „Zeit korrigieren" kannst du die Uhrzeit nachtragen.';
+      `${T('Der Timer läuft seit')} ${dauerText(offen)} — ${T('vergessen zu stoppen?')} `
+      + T('Unter „Zeit korrigieren" kannst du die Uhrzeit nachtragen.');
   }
 
   clearInterval(zeitTicker);
@@ -1217,7 +1757,7 @@ $('#btn-zeit').onclick = () => {
   const z = zeitLesen();
   if (z.start == null){
     zeitSchreiben({ gesamt: z.gesamt, start: Date.now() });
-    toast('Angelzeit läuft');
+    toast(T('Angelzeit läuft'));
   } else {
     ansitzBeenden(Date.now());
   }
@@ -1267,12 +1807,12 @@ $('#btn-korr-stop').onclick = () => {
   const z = zeitLesen();
   if (z.start == null) return;
   const ende = new Date($('#korr-ende').value).getTime();
-  if (!isFinite(ende)) return toast('Bitte eine Uhrzeit eintragen');
-  if (ende < z.start) return toast('Das Ende liegt vor dem Start');
+  if (!isFinite(ende)) return toast(T('Bitte eine Uhrzeit eintragen'));
+  if (ende < z.start) return toast(T('Das Ende liegt vor dem Start'));
   // In der Zukunft ergibt kein Ansitz Sinn — dann eben bis jetzt.
   const dauer = ansitzBeenden(Math.min(ende, Date.now()));
   renderZeit(); korrFuellen();
-  toast('Ansitz eingetragen: ' + dauerText(dauer));
+  toast(T('Ansitz eingetragen:') + ' ' + dauerText(dauer));
 };
 
 $('#btn-korr-set').onclick = () => {
@@ -1281,7 +1821,7 @@ $('#btn-korr-set').onclick = () => {
   const z = zeitLesen();
   zeitSchreiben({ gesamt: h * 3600e3 + m * 60000, start: z.start });
   renderZeit(); korrFuellen();
-  toast('Gesamtzeit gesetzt');
+  toast(T('Gesamtzeit gesetzt'));
 };
 
 // Kommt die App aus dem Hintergrund zurück, ist die Anzeige alt — neu rechnen.
@@ -1315,7 +1855,7 @@ function setPalette(key, speichern){
 function renderPalettes(){
   $('#pal').innerHTML = Object.entries(PALETTEN).map(([k, [name, p]]) =>
     `<button data-pal="${k}"><span class="dots"><i style="background:${p.bg}"></i>`
-    + `<i style="background:${p.card2}"></i><i style="background:${p.accent}"></i></span>${name}</button>`
+    + `<i style="background:${p.card2}"></i><i style="background:${p.accent}"></i></span>${T(name)}</button>`
   ).join('');
 }
 $('#pal').addEventListener('click', e => {
@@ -1379,9 +1919,13 @@ function fmtDate(iso){
   return `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
-const phaseLabel  = k => (PHASEN.find(p => p[0] === k) || [,''])[1];
-const wetterLabel = k => (WETTER.find(w => w[0] === k) || [,''])[1];
-const truebLabel  = k => (TRUEBUNG.find(t => t[0] === k) || [,''])[1];
+/* ⚠️ Übersetzt wird hier, an der Beschriftung — nicht in den Listen oben.
+   Gespeichert wird ausschließlich der Schlüssel (`bewoelkt`, `leicht`), nie der
+   Text. Damit ändert ein Sprachwechsel keine einzige gespeicherte Angabe, und
+   ein auf Englisch erfasster Fang liest sich auf Deutsch richtig. */
+const phaseLabel  = k => T((PHASEN.find(p => p[0] === k) || [,''])[1]);
+const wetterLabel = k => T((WETTER.find(w => w[0] === k) || [,''])[1]);
+const truebLabel  = k => T((TRUEBUNG.find(t => t[0] === k) || [,''])[1]);
 const wetterIcon  = k => (WETTER.find(w => w[0] === k) || [,,''])[2];
 
 // Open-Meteo liefert die Lage als WMO-Schlüssel. Feiner als diese zehn Stufen
@@ -1437,7 +1981,7 @@ async function addPhotos(files){
       roh++;
     }
   }
-  if (roh) toast('Foto ließ sich nicht verkleinern — im Original gespeichert.');
+  if (roh) toast(T('Foto ließ sich nicht verkleinern — im Original gespeichert.'));
   renderPhotos();
 }
 function renderPhotos(){
@@ -1481,7 +2025,7 @@ function ladeKarte(){
     const s = document.createElement('script');
     s.src = 'leaflet/leaflet.js';
     s.onload  = () => res(window.L);
-    s.onerror = () => { _leafletP = null; rej(new Error('Karte nicht ladbar')); };
+    s.onerror = () => { _leafletP = null; rej(new Error(T('Karte nicht ladbar'))); };
     document.head.appendChild(s);
   });
   return _leafletP;
@@ -1542,17 +2086,17 @@ $('#f-lat').addEventListener('change', coordsVonHand);
 $('#f-lon').addEventListener('change', coordsVonHand);
 
 $('#btn-gps').onclick = () => {
-  if (!navigator.geolocation) return toast('Standort wird nicht unterstützt');
-  $('#gps-info').innerHTML = '<span class="spin"></span>Standort wird gesucht …';
+  if (!navigator.geolocation) return toast(T('Standort wird nicht unterstützt'));
+  $('#gps-info').innerHTML = `<span class="spin"></span>${T('Standort wird gesucht …')}`;
   navigator.geolocation.getCurrentPosition(
     pos => {
       setCoords(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
       loadWeather();               // Standort da → Luftwerte direkt hinterher
     },
     err => {
-      $('#gps-info').textContent = err.code === 1
+      $('#gps-info').textContent = T(err.code === 1
         ? 'Standort abgelehnt — in den iPhone-Einstellungen für Safari freigeben.'
-        : 'Standort nicht gefunden. Du kannst die Stelle gleich auf der Karte antippen.';
+        : 'Standort nicht gefunden. Du kannst die Stelle gleich auf der Karte antippen.');
     },
     { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
   );
@@ -1696,22 +2240,22 @@ async function loadGewaesser(lat, lon, force){
   // Ohne "force" nur ein leeres Feld füllen — von Hand Eingetragenes hat Vorrang,
   // genau wie bei Luft und Wasser.
   if (!force && feld.value !== ''){ $('#gw-info').textContent = ''; $('#gw-nah').innerHTML = ''; return; }
-  $('#gw-info').innerHTML = '<span class="spin"></span>Gewässer wird gesucht …';
+  $('#gw-info').innerHTML = `<span class="spin"></span>${T('Gewässer wird gesucht …')}`;
   $('#gw-nah').innerHTML = '';
   const treffer = await gewaesserNear(lat, lon);
   if (!treffer.length){
-    $('#gw-info').textContent = 'Kein benanntes Gewässer gefunden — bitte selbst eintragen.';
+    $('#gw-info').textContent = T('Kein benanntes Gewässer gefunden — bitte selbst eintragen.');
     return;
   }
   const erste = treffer[0];
   feld.value = erste.name;
   $('#gw-info').textContent = erste.drin
-    ? 'Laut Standort mittendrin.'
-    : `Nächstes Gewässer, ${gwEntfernung(erste.m)} entfernt.`;
+    ? T('Laut Standort mittendrin.')
+    : `${T('Nächstes Gewässer,')} ${gwEntfernung(erste.m)} ${T('entfernt.')}`;
   // Die übrigen zum Antippen — das erste ist begründet geraten, nicht gewusst.
   const rest = treffer.slice(1);
   $('#gw-nah').innerHTML = rest.length
-    ? '<span class="tiny muted" style="align-self:center">Stattdessen:</span>'
+    ? `<span class="tiny muted" style="align-self:center">${T('Stattdessen:')}</span>`
       + rest.map(g => `<button type="button" class="chip" data-gw="${esc(g.name)}">`
                     + `${esc(g.name)} · ${gwEntfernung(g.m)}</button>`).join('')
     : '';
@@ -1751,7 +2295,7 @@ async function waterTemp(lat, lon, when){
       const j = await r.json();
       const i = j.hourly.time.indexOf(when.slice(0, 13) + ':00');
       const v = i >= 0 ? j.hourly.sea_surface_temperature[i] : null;
-      if (v != null) return { wert: v, quelle: 'meer', station: 'Meeresoberfläche (Modellwert)' };
+      if (v != null) return { wert: v, quelle: 'meer', station: T('Meeresoberfläche (Modellwert)') };
     }
   } catch {}
 
@@ -1764,16 +2308,16 @@ async function waterTemp(lat, lon, when){
 async function loadWeather(force){
   const { lat, lon } = state.form;
   const when = $('#f-zeit').value;
-  if (lat == null){ toast('Erst Standort setzen'); return; }
-  if (!when){ toast('Erst Datum & Uhrzeit setzen'); return; }
+  if (lat == null){ toast(T('Erst Standort setzen')); return; }
+  if (!when){ toast(T('Erst Datum & Uhrzeit setzen')); return; }
 
   loadWater(lat, lon, when, force);
   // Läuft nebenher wie die Wassertemperatur: Overpass ist gelegentlich überlastet,
   // und ein Fehlschlag dort darf die Luftwerte nicht mit runterziehen.
   loadGewaesser(lat, lon, force).catch(() => {
-    $('#gw-info').textContent = 'Gewässer-Suche gerade nicht erreichbar — bitte selbst eintragen.';
+    $('#gw-info').textContent = T('Gewässer-Suche gerade nicht erreichbar — bitte selbst eintragen.');
   });
-  $('#wx-info').innerHTML = '<span class="spin"></span>Wetter wird geholt …';
+  $('#wx-info').innerHTML = `<span class="spin"></span>${T('Wetter wird geholt …')}`;
   const url = 'https://api.open-meteo.com/v1/forecast'
     + `?latitude=${lat}&longitude=${lon}`
     + '&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code,cloud_cover,precipitation'
@@ -1796,7 +2340,7 @@ async function loadWeather(force){
         if (d < bd){ bd = d; best = k; }
       });
       if (bd > 6 * 3600e3){
-        $('#wx-info').textContent = 'Für diesen Zeitpunkt gibt es keine Daten (älter als 7 Tage) — bitte manuell eintragen.';
+        $('#wx-info').textContent = T('Für diesen Zeitpunkt gibt es keine Daten (älter als 7 Tage) — bitte manuell eintragen.');
         return;
       }
       i = best;
@@ -1870,13 +2414,13 @@ async function pegelTrend(uuid, t){
 
 async function loadWater(lat, lon, when, force){
   if (!force && $('#f-wasser').value !== '') return;
-  $('#wt-info').innerHTML = '<span class="spin"></span>Wassertemperatur wird gesucht …';
+  $('#wt-info').innerHTML = `<span class="spin"></span>${T('Wassertemperatur wird gesucht …')}`;
   let res = null;
   try { res = await waterTemp(lat, lon, when); } catch {}
   if (res){
     $('#f-wasser').value = Math.round(res.wert * 10) / 10;
     state.form.wasserAuto = res;
-    $('#wt-info').textContent = 'Gemessen: ' + res.station;
+    $('#wt-info').textContent = T('Gemessen:') + ' ' + res.station;
     scheduleDraft();
     // Pegeltrend nur nebenbei — schlägt er fehl, bleibt der Trübungs-Hinweis
     // einfach beim Regen. Kein Grund, die Wassertemperatur mit runterzuziehen.
@@ -1888,7 +2432,7 @@ async function loadWater(lat, lon, when, force){
     }
   } else {
     state.form.wasserAuto = null;
-    $('#wt-info').textContent = 'Keine Messstelle gefunden — bitte selbst messen.';
+    $('#wt-info').textContent = T('Keine Messstelle gefunden — bitte selbst messen.');
   }
 }
 $('#btn-wx').onclick = () => loadWeather(true);
@@ -1918,17 +2462,19 @@ function bindSuggest(inputSel, listSel, quelle){
 }
 
 function buildStatics(){
-  bindSuggest('#f-art',    '#dl-art',    ARTEN);
-  bindSuggest('#f-koeder', '#dl-koeder', KOEDER);
+  /* ⚠️ Nur die Vorschläge werden übersetzt, nicht das Eingetippte. Wer „Hecht"
+     gespeichert hat, hat „Hecht" gespeichert — auch auf Englisch. */
+  bindSuggest('#f-art',    '#dl-art',    ARTEN.map(T));
+  bindSuggest('#f-koeder', '#dl-koeder', KOEDER.map(T));
   $('#f-windrichtung').innerHTML =
     '<option value="">—</option>' + DIRS.map(d => `<option value="${d}">${d}</option>`).join('');
-  $('#ch-phase').innerHTML = PHASEN.map(([k, l]) => `<button class="chip" data-phase="${k}">${l}</button>`).join('');
+  $('#ch-phase').innerHTML = PHASEN.map(([k, l]) => `<button class="chip" data-phase="${k}">${T(l)}</button>`).join('');
   $('#ch-wetter').innerHTML = WETTER.map(([k, l, ic]) =>
-    `<button class="chip" data-wetter="${k}">${ic} ${l}</button>`).join('');
+    `<button class="chip" data-wetter="${k}">${ic} ${T(l)}</button>`).join('');
   $('#ch-trueb').innerHTML = TRUEBUNG.map(([k, l]) =>
-    `<button class="chip" data-trueb="${k}">${l}</button>`).join('');
+    `<button class="chip" data-trueb="${k}">${T(l)}</button>`).join('');
   $('#ch-farbe').innerHTML = FARBEN.map(([n, hex]) =>
-    `<button class="chip" data-farbe="${n}"><i class="sw" style="background:${hex}"></i>${n}</button>`).join('');
+    `<button class="chip" data-farbe="${n}"><i class="sw" style="background:${hex}"></i>${T(n)}</button>`).join('');
 
   /* Statistiken: alles, was feststeht. Die Auswahllisten (Zählen, Gewässer,
      Punkte) hängen am Bestand und werden erst beim Zeichnen gefüllt.
@@ -1936,8 +2482,8 @@ function buildStatics(){
      Alles wird als Kurve gezeichnet. Die Gruppen sagen nur noch, ob die
      Reihenfolge der X-Achse eine Bedeutung hat — bei Fischart oder Köder tut
      sie das nicht, dort zählt allein die Höhe der Punkte. */
-  const achsGruppe = (titel, liste) => `<optgroup label="${titel}">` + liste.map(a =>
-    `<option value="${a.key}">${a.kurz}${a.einheit ? ' (' + a.einheit + ')' : ''}</option>`).join('') + '</optgroup>';
+  const achsGruppe = (titel, liste) => `<optgroup label="${T(titel)}">` + liste.map(a =>
+    `<option value="${a.key}">${T(a.kurz)}${a.einheit ? ' (' + a.einheit + ')' : ''}</option>`).join('') + '</optgroup>';
   $('#st-x').innerHTML = achsGruppe('Mit fester Reihenfolge', ACHSEN.filter(hatOrdnung))
                        + achsGruppe('Nach Häufigkeit sortiert', ACHSEN.filter(a => !hatOrdnung(a)));
   $('#st-x').onchange = e => {
@@ -1949,7 +2495,7 @@ function buildStatics(){
      „Köder" ist raus. Die Bauweise mit Kästchen bleibt, weil sie ein Aus-Zustand
      zulässt: nichts angekreuzt heißt eine einzelne Kurve, und das ist der Normalfall. */
   $('#st-teilen').innerHTML = TEILER.map(t =>
-    `<button class="chip" data-teilen="${t.key}"><span>☐ </span>${t.kurz}</button>`).join('');
+    `<button class="chip" data-teilen="${t.key}"><span>☐ </span>${T(t.kurz)}</button>`).join('');
   $('#st-teilen').onclick = e => {
     const b = e.target.closest('[data-teilen]'); if (!b) return;
     state.stats.teilen = state.stats.teilen === b.dataset.teilen ? '' : b.dataset.teilen;
@@ -1957,6 +2503,8 @@ function buildStatics(){
   };
   $('#st-gewaesser').onchange = e => { state.stats.gewaesser = e.target.value; renderStats(); };
   $('#st-art').onchange       = e => { state.stats.art       = e.target.value; renderStats(); };
+
+  renderTruebHint();     // füllt den Hinweis auch ohne Werte — und beim Sprachwechsel neu
 
   $('#st-speichern').onclick = auswertungSpeichern;
   $('#st-sichern').onclick   = auswertungSichern;
@@ -2007,17 +2555,17 @@ function renderTruebHint(){
   const teile = [];
   if (f.regen24 != null){
     const z = n => String(Math.round(n * 10) / 10).replace('.', ',');
-    teile.push(`24 h: ${z(f.regen24)} mm Regen`
+    teile.push(`24 h: ${z(f.regen24)} mm ${T('Regen')}`
       + (f.regen48 != null && f.regen48 > f.regen24 + 0.05 ? ` (48 h: ${z(f.regen48)} mm)` : ''));
   }
   if (f.pegel){
     const d = f.pegel.delta;
-    const richtung = d > 3 ? 'steigend' : d < -3 ? 'fallend' : 'gleichbleibend';
-    teile.push(`Pegel ${f.pegel.station}: ${d > 0 ? '+' : ''}${Math.round(d)} cm in 24 h (${richtung})`);
+    const richtung = T(d > 3 ? 'steigend' : d < -3 ? 'fallend' : 'gleichbleibend');
+    teile.push(`${T('Pegel')} ${f.pegel.station}: ${d > 0 ? '+' : ''}${Math.round(d)} cm in 24 h (${richtung})`);
   }
   $('#trueb-info').textContent = teile.length
     ? teile.join(' · ')
-    : 'Trübung misst niemand für dich — tipp an, was du siehst.';
+    : T('Trübung misst niemand für dich — tipp an, was du siehst.');
 }
 
 // Die Mondphase hängt allein am Zeitfeld — sie wird angezeigt, nicht eingegeben.
@@ -2193,8 +2741,8 @@ $('#v-new').addEventListener('change', scheduleDraft);
 async function saveNow(){
   const art  = $('#f-art').value.trim();
   const when = $('#f-zeit').value;
-  if (!when) return toast('Datum & Uhrzeit fehlen');
-  if (!art && !$('#f-laenge').value) return toast('Mindestens Fischart oder Länge angeben');
+  if (!when) return toast(T('Datum & Uhrzeit fehlen'));
+  if (!art && !$('#f-laenge').value) return toast(T('Mindestens Fischart oder Länge angeben'));
 
   clearTimeout(draftTimer);
   const war = state.editWasSaved;
@@ -2204,14 +2752,14 @@ async function saveNow(){
   try {
     await putCatch(rec);
     await reload();
-    toast(war ? 'Gespeichert' : 'Fang gespeichert 🎣');
+    toast(war ? T('Gespeichert') : T('Fang gespeichert 🎣'));
     state.editId = null;
     state.editWasSaved = false;
     go('log');
     syncJetzt(true);      // still im Hintergrund — der Fang ist schon sicher im Gerät
   } catch {
     // Lieber laut scheitern, als einen Fang stillschweigend verlieren.
-    toast('Speichern fehlgeschlagen — Eintrag bleibt offen, bitte erneut versuchen.');
+    toast(T('Speichern fehlgeschlagen — Eintrag bleibt offen, bitte erneut versuchen.'));
   } finally {
     btn.disabled = false;
   }
@@ -2220,18 +2768,18 @@ $('#fab-save').onclick = saveNow;
 
 $('#btn-del').onclick = async () => {
   if (!state.editId) return;
-  if (!confirm('Diesen Fang wirklich löschen?')) return;
+  if (!confirm(T('Diesen Fang wirklich löschen?'))) return;
   clearTimeout(draftTimer);
   try {
     await removeCatch(state.editId);
     state.editId = null;
     state.editWasSaved = false;
     await reload();
-    toast('Gelöscht');
+    toast(T('Gelöscht'));
     go('log');
     syncJetzt(true);
   } catch {
-    toast('Löschen fehlgeschlagen');
+    toast(T('Löschen fehlgeschlagen'));
   }
 };
 $('#btn-cancel').onclick = () => {
@@ -2278,8 +2826,8 @@ function gesichertRendern(){
   const n = nichtGesichert().length;
   pill.hidden = !n;
   if (!n) return;
-  pill.textContent = (n === 1 ? '1 Fang' : n + ' Fänge') + ' nur auf diesem Gerät';
-  pill.title = 'Noch nicht im Konto gesichert — tippen, um jetzt abzugleichen';
+  pill.textContent = (n === 1 ? '1 ' + T('Fang') : n + ' ' + T('Fänge')) + ' ' + T('nur auf diesem Gerät');
+  pill.title = T('Noch nicht im Konto gesichert — tippen, um jetzt abzugleichen');
 }
 
 /* ---------------------------- Liste ---------------------------- */
@@ -2297,10 +2845,10 @@ function renderList(){
   const offen = new Set(nichtGesichert().map(c => c.id));
 
   if (!state.catches.length){
-    list.innerHTML = `<div class="empty">Noch kein Fang drin.<br>
-      Tipp unten auf <b>Neuer Fang</b>, sobald der Erste im Kescher liegt.</div>`;
+    list.innerHTML = `<div class="empty">${T('Noch kein Fang drin.')}<br>
+      ${T('Tipp unten auf')} <b>${T('Neuer Fang')}</b>, ${T('sobald der Erste im Kescher liegt.')}</div>`;
   } else if (!rows.length){
-    list.innerHTML = '<div class="empty">Nichts gefunden.</div>';
+    list.innerHTML = `<div class="empty">${T('Nichts gefunden.')}</div>`;
   }
 
   rows.forEach(c => {
@@ -2310,14 +2858,14 @@ function renderList(){
 
     const size = [c.laenge && c.laenge + ' cm', c.gewicht && String(c.gewicht).replace('.', ',') + ' kg']
       .filter(Boolean).join(' · ');
-    const farben = farbenVon(c).join(', ');
-    const tags = (c.entwurf ? '<span class="pill warn">Entwurf</span>' : '')
-      + (offen.has(c.id) ? '<span class="pill offen">nur auf diesem Gerät</span>' : '') + [
+    const farben = farbenVon(c).map(T).join(', ');
+    const tags = (c.entwurf ? `<span class="pill warn">${T('Entwurf')}</span>` : '')
+      + (offen.has(c.id) ? `<span class="pill offen">${T('nur auf diesem Gerät')}</span>` : '') + [
       c.phase && phaseLabel(c.phase),
       c.wetter && (wetterIcon(c.wetter) + ' ' + wetterLabel(c.wetter)),
       [c.koeder, farben].filter(Boolean).join(' · '),
       c.druck  && c.druck + ' hPa',
-      c.windRichtung && ('Wind ' + c.windRichtung)
+      c.windRichtung && (T('Wind') + ' ' + c.windRichtung)
     ].filter(Boolean).map(t => `<span class="pill">${t}</span>`).join('');
 
     const th = (c.photos && c.photos[0])
@@ -2327,7 +2875,7 @@ function renderList(){
     el.innerHTML = `
       <div class="th">${th}</div>
       <div style="flex:1; min-width:0">
-        <div class="t1">${c.art || 'Fang'}${size ? ' · ' + size : ''}</div>
+        <div class="t1">${c.art || T('Fang')}${size ? ' · ' + size : ''}</div>
         <div class="t2">${fmtDate(c.when)}${c.gewaesser ? ' · ' + c.gewaesser : ''}</div>
         <div class="tags">${tags}</div>
       </div>`;
@@ -2337,9 +2885,11 @@ function renderList(){
   const fertig = state.catches.filter(c => !c.entwurf);
   const waters = new Set(fertig.map(c => c.gewaesser).filter(Boolean));
   const best = fertig.reduce((a, c) => (c.laenge && (!a || c.laenge > a.laenge)) ? c : a, null);
-  $('#st-count').textContent  = fertig.length + (fertig.length === 1 ? ' Fang' : ' Fänge');
-  $('#st-waters').textContent = waters.size + (waters.size === 1 ? ' Gewässer' : ' Gewässer');
-  $('#st-best').textContent   = best ? `Größter: ${best.laenge} cm${best.art ? ' ' + best.art : ''}` : 'Noch kein Maß';
+  $('#st-count').textContent  = fertig.length + ' ' + T(fertig.length === 1 ? 'Fang' : 'Fänge');
+  /* Einzahl und Mehrzahl sind im Deutschen gleich, im Englischen nicht —
+     deshalb stehen hier zwei Schlüssel, obwohl links dasselbe Wort steht. */
+  $('#st-waters').textContent = waters.size + ' ' + T(waters.size === 1 ? 'Gewässer (eins)' : 'Gewässer (mehrere)');
+  $('#st-best').textContent   = best ? `${T('Größter:')} ${best.laenge} cm${best.art ? ' ' + best.art : ''}` : T('Noch kein Maß');
   gesichertRendern();
 }
 /* Tippen auf den Hinweis gleicht sofort ab — nicht still, damit man eine Antwort
@@ -2367,8 +2917,10 @@ function renderDetail(){
   const c = state.catches.find(x => x.id === state.detailId);
   if (!c) return go('log');
 
-  $('#d-title').textContent = c.art || 'Fang';
-  const kv = (k, v) => v == null || v === '' ? '' : `<div class="kv"><span>${k}</span><b>${v}</b></div>`;
+  $('#d-title').textContent = c.art || T('Fang');
+  /* ⚠️ Übersetzt wird hier zentral — jede Beschriftung im Detail läuft durch kv().
+     Der Wert dahinter bleibt unangetastet: dort stehen Fangdaten. */
+  const kv = (k, v) => v == null || v === '' ? '' : `<div class="kv"><span>${T(k)}</span><b>${v}</b></div>`;
   const dec = v => String(v).replace('.', ',');
 
   const gal = (c.photos || []).length
@@ -2387,11 +2939,11 @@ function renderDetail(){
       ${kv('Mondphase', mondFor(c.when) && `${mondFor(c.when).icon} ${mondFor(c.when).name} · ${mondFor(c.when).licht} %`)}
     </div>
     <div class="card">
-      <h2>Bedingungen</h2>
+      <h2>${T('Bedingungen')}</h2>
       ${kv('Wassertemperatur', c.wasser != null && dec(c.wasser) + ' °C')}
-      ${kv('Herkunft', c.wasserQuelle === 'pegel' ? 'Messstelle ' + (c.wasserStation || '')
-                     : c.wasserQuelle === 'meer'  ? (c.wasserStation || 'Meeresoberfläche')
-                     : c.wasserQuelle === 'manuell' ? 'selbst gemessen' : '')}
+      ${kv('Herkunft', c.wasserQuelle === 'pegel' ? T('Messstelle') + ' ' + (c.wasserStation || '')
+                     : c.wasserQuelle === 'meer'  ? (c.wasserStation || T('Meeresoberfläche'))
+                     : c.wasserQuelle === 'manuell' ? T('selbst gemessen') : '')}
       ${kv('Wassertrübung', truebLabel(c.truebung))}
       ${kv('Wassertiefe', c.tiefe != null && dec(c.tiefe) + ' m')}
       ${kv('Lufttemperatur', c.luft != null && dec(c.luft) + ' °C')}
@@ -2406,14 +2958,14 @@ function renderDetail(){
       ${kv('Köder', c.koeder)}
       ${kv('Größe', c.koederGroesse != null && dec(c.koederGroesse) + ' cm')}
       ${kv('Gewicht', c.koederGewicht != null && dec(c.koederGewicht) + ' g')}
-      ${kv(farbenVon(c).length > 1 ? 'Farben' : 'Farbe', farbenVon(c).join(', '))}
+      ${kv(farbenVon(c).length > 1 ? 'Farben' : 'Farbe', farbenVon(c).map(T).join(', '))}
     </div>
-    ${c.notiz ? `<div class="card"><h2>Notiz</h2><div style="font-size:14px; line-height:1.55">${
+    ${c.notiz ? `<div class="card"><h2>${T('Notiz')}</h2><div style="font-size:14px; line-height:1.55">${
       c.notiz.replace(/</g, '&lt;').replace(/\n/g, '<br>')}</div></div>` : ''}
     ${c.lat != null ? `<div class="card">
       ${kv('Koordinaten', c.lat.toFixed(5) + ', ' + c.lon.toFixed(5))}
       <a class="btn sm" style="display:block; margin-top:10px; text-decoration:none"
-         href="https://maps.apple.com/?ll=${c.lat},${c.lon}&q=Fangstelle">In Karten öffnen</a>
+         href="https://maps.apple.com/?ll=${c.lat},${c.lon}&q=Fangstelle">${T('In Karten öffnen')}</a>
     </div>` : ''}`;
 
   $('#d-body').querySelectorAll('[data-full]').forEach(img => {
@@ -2550,7 +3102,7 @@ $('#sheet').onclick = e => { if (e.target.id === 'sheet') sheetZu(); };
 })();
 
 $('#btn-export').onclick = async () => {
-  toast('Datei wird gebaut …');
+  toast(T('Datei wird gebaut …'));
   const out = [];
   for (const c of state.catches){
     const copy = { ...c };
@@ -2611,7 +3163,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v24';
+const FASSUNG = 'v25';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -2698,14 +3250,14 @@ async function registrieren(email, passwort, username){
   const name = username.trim().toLowerCase();
   // Vorher fragen, damit der Fehlschlag nicht erst beim Anlegen auftaucht.
   if (await rpc('username_frei', { uname: name }) === false)
-    throw new Error('Dieser Benutzername ist schon vergeben.');
+    throw new Error(T('Dieser Benutzername ist schon vergeben.'));
 
   const r = await fetch(`${SUPA_URL}/auth/v1/signup`,
     { method: 'POST', headers: kopf(false),
       body: JSON.stringify({ email, password: passwort, data: { username: name } }) });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(authFehler(d, 'Registrieren hat nicht geklappt.'));
-  if (!d.access_token) throw new Error('Konto angelegt. Bitte E-Mail bestätigen und dann anmelden.');
+  if (!d.access_token) throw new Error(T('Konto angelegt. Bitte E-Mail bestätigen und dann anmelden.'));
   kontoSchreiben({ access_token: d.access_token, refresh_token: d.refresh_token,
                    email: (d.user && d.user.email) || email, username: name, seit: Date.now() });
 }
@@ -2719,7 +3271,7 @@ async function anmelden(kennung, passwort){
   if (!email.includes('@')){
     name = email.toLowerCase();
     email = await rpc('email_fuer_username', { uname: name });
-    if (!email) throw new Error('Diesen Benutzernamen gibt es nicht. Oder melde dich mit deiner E-Mail an.');
+    if (!email) throw new Error(T('Diesen Benutzernamen gibt es nicht. Oder melde dich mit deiner E-Mail an.'));
   }
   const r = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`,
     { method: 'POST', headers: kopf(false), body: JSON.stringify({ email, password: passwort }) });
@@ -2740,7 +3292,7 @@ function abmelden(){
   $('#sheet').classList.remove('on');
   gateModus = 'login';
   gateZeigen();
-  toast('Abgemeldet — deine Fänge bleiben auf dem Gerät');
+  toast(T('Abgemeldet — deine Fänge bleiben auf dem Gerät'));
 }
 
 /* ---------- Fotos für die Cloud ---------- */
@@ -2797,7 +3349,7 @@ async function zeilenSchreiben(zeilen){
     const r = await api(TABELLE, { method: 'POST',
       headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify(teil) });
-    if (!r.ok) throw new Error('Hochladen fehlgeschlagen (' + r.status + ')');
+    if (!r.ok) throw new Error(T('Hochladen fehlgeschlagen') + ' (' + r.status + ')');
   }
 }
 
@@ -2864,7 +3416,7 @@ async function herunterladen(){
   const seit = syncStand();
   const r = await api(`${TABELLE}?select=id,updated,geloescht,serverzeit`
                     + `&serverzeit=gt.${encodeURIComponent(seit)}&order=serverzeit.asc`);
-  if (!r.ok) throw new Error('Abrufen fehlgeschlagen (' + r.status + ')');
+  if (!r.ok) throw new Error(T('Abrufen fehlgeschlagen') + ' (' + r.status + ')');
   const kopfzeilen = await r.json();
   if (!kopfzeilen.length) return 0;
 
@@ -2884,7 +3436,7 @@ async function herunterladen(){
   for (let i = 0; i < holen.length; i += 20){
     const teil = holen.slice(i, i + 20);
     const rr = await api(`${TABELLE}?select=*&id=in.(${teil.map(encodeURIComponent).join(',')})`);
-    if (!rr.ok) throw new Error('Abrufen fehlgeschlagen (' + rr.status + ')');
+    if (!rr.ok) throw new Error(T('Abrufen fehlgeschlagen') + ' (' + rr.status + ')');
     for (const zeile of await rr.json()){
       const rec = { ...(zeile.daten || {}), id: zeile.id, updated: zeile.updated, photos: [] };
       for (const p of (zeile.fotos || [])){
@@ -2949,7 +3501,7 @@ const WERTE = {
    alten Stand über den neuen schreiben, bevor es ihn überhaupt gesehen hat. */
 async function werteAbgleichen(){
   const r = await api(`${WERTE_TABELLE}?select=schluessel,updated,wert`);
-  if (!r.ok) throw new Error('Abrufen fehlgeschlagen (' + r.status + ')');
+  if (!r.ok) throw new Error(T('Abrufen fehlgeschlagen') + ' (' + r.status + ')');
   const drueben = new Map((await r.json()).map(z => [z.schluessel, z]));
 
   const raus = [];
@@ -2995,10 +3547,10 @@ async function werteAbgleichen(){
   const liste = raus.map(z => `"${z.schluessel}"`).join(',');
   const weg = await api(`${WERTE_TABELLE}?schluessel=in.(${encodeURIComponent(liste)})`,
     { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
-  if (!weg.ok) throw new Error('Hochladen fehlgeschlagen (' + weg.status + ')');
+  if (!weg.ok) throw new Error(T('Hochladen fehlgeschlagen') + ' (' + weg.status + ')');
   const rr = await api(WERTE_TABELLE, { method: 'POST',
     headers: { 'Prefer': 'return=minimal' }, body: JSON.stringify(raus) });
-  if (!rr.ok) throw new Error('Hochladen fehlgeschlagen (' + rr.status + ')');
+  if (!rr.ok) throw new Error(T('Hochladen fehlgeschlagen') + ' (' + rr.status + ')');
   return raus.length;
 }
 
@@ -3064,7 +3616,7 @@ async function meldungenNachreichen(){
   const r = await api(MELD_TABELLE, { method: 'POST',
     headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify(l.map(m => ({ id: m.id, text: m.text, umfeld: m.umfeld }))) });
-  if (!r.ok) throw new Error('Melden fehlgeschlagen (' + r.status + ')');
+  if (!r.ok) throw new Error(T('Melden fehlgeschlagen') + ' (' + r.status + ')');
   /* Erst nach dem OK leeren. Bricht es vorher ab, liegt die Meldung noch da und
      geht beim nächsten Mal mit — dieselbe Regel wie beim Push-Stand der Fänge:
      nie einen Stand behaupten, für den nichts verschickt wurde. */
@@ -3084,7 +3636,7 @@ function werteAnstossen(){
 let werteFehlerGemeldet = false;
 async function syncJetzt(still){
   if (!cloudAn() || !konto || syncLaeuft) return;
-  if (!navigator.onLine){ if (!still) toast('Kein Netz — wird nachgeholt'); return; }
+  if (!navigator.onLine){ if (!still) toast(T('Kein Netz — wird nachgeholt')); return; }
   syncLaeuft = true;
   renderKonto();
   try {
@@ -3102,7 +3654,7 @@ async function syncJetzt(still){
     } catch (e){
       if (!werteFehlerGemeldet){
         werteFehlerGemeldet = true;
-        toast('Angelzeit/Auswertungen: ' + (e.message || 'Abgleich fehlgeschlagen'));
+        toast(T('Angelzeit/Auswertungen:') + ' ' + (e.message || 'Abgleich fehlgeschlagen'));
       }
     }
 
@@ -3132,9 +3684,9 @@ async function syncJetzt(still){
        mehr, wenn sie einmal stimmt. */
     renderList();
     try { localStorage.setItem(SYNC_KEY + '-zeit', String(Date.now())); } catch {}
-    if (!still) toast(rauf || runter ? `Abgeglichen · ${rauf} hoch, ${runter} runter` : 'Alles schon aktuell');
+    if (!still) toast(rauf || runter ? `${T('Abgeglichen')} · ${rauf} ${T('hoch')}, ${runter} ${T('runter')}` : T('Alles schon aktuell'));
   } catch (e){
-    if (!still) toast(e.message || 'Abgleich fehlgeschlagen');
+    if (!still) toast(e.message || T('Abgleich fehlgeschlagen'));
   } finally {
     syncLaeuft = false;
     renderKonto();
@@ -3144,7 +3696,7 @@ async function syncJetzt(still){
 /* ---------- Konto löschen ---------- */
 async function kontoLoeschen(){
   const r = await api('/rest/v1/rpc/konto_loeschen', { method: 'POST', body: '{}' });
-  if (!r.ok) throw new Error('Löschen fehlgeschlagen (' + r.status + ')');
+  if (!r.ok) throw new Error(T('Löschen fehlgeschlagen') + ' (' + r.status + ')');
 }
 
 /* ---------- Anmelde-Schirm ----------
@@ -3183,31 +3735,31 @@ function renderGate(fehler){
         <path d="M6.5 12L2 8.2v7.6z"/>
         <circle cx="17.4" cy="10.4" r="1" fill="currentColor" stroke="none"/>
       </svg>
-      <div class="big">${anmelden ? 'Willkommen zurück' : 'Fangbuch einrichten'}</div>
+      <div class="big">${T(anmelden ? 'Willkommen zurück' : 'Fangbuch einrichten')}</div>
       <div class="tiny muted" style="line-height:1.6">
-        ${anmelden
+        ${T(anmelden
           ? 'Melde dich an, um deine Fänge zu sehen — mit E-Mail oder Benutzername.'
-          : 'Mit einem Konto sind deine Fänge gesichert und auf jedem Gerät da.'}
+          : 'Mit einem Konto sind deine Fänge gesichert und auf jedem Gerät da.')}
       </div>
     </div>
     ${anmelden ? '' : `
     <input class="in" id="g-name" autocomplete="username" spellcheck="false"
-           autocapitalize="none" placeholder="Benutzername">`}
+           autocapitalize="none" placeholder="${T('Benutzername')}">`}
     <input class="in" id="g-mail" type="${anmelden ? 'text' : 'email'}"
            inputmode="${anmelden ? 'text' : 'email'}"
            autocomplete="${anmelden ? 'username' : 'email'}"
            spellcheck="false" autocapitalize="none"
-           placeholder="${anmelden ? 'E-Mail oder Benutzername' : 'E-Mail'}">
+           placeholder="${T(anmelden ? 'E-Mail oder Benutzername' : 'E-Mail')}">
     <input class="in" id="g-pw" type="password"
            autocomplete="${anmelden ? 'current-password' : 'new-password'}"
-           placeholder="Passwort${anmelden ? '' : ' (mind. 6 Zeichen)'}">
+           placeholder="${T('Passwort')}${anmelden ? '' : T(' (mind. 6 Zeichen)')}">
     ${fehler ? `<div class="fehler">${fehler}</div>` : ''}
-    <button class="btn primary" id="g-los">${anmelden ? 'Anmelden' : 'Konto erstellen'}</button>
+    <button class="btn primary" id="g-los">${T(anmelden ? 'Anmelden' : 'Konto erstellen')}</button>
     <button class="link" id="g-wechsel">
-      ${anmelden ? 'Noch kein Konto? Registrieren' : 'Schon ein Konto? Anmelden'}</button>
+      ${T(anmelden ? 'Noch kein Konto? Registrieren' : 'Schon ein Konto? Anmelden')}</button>
     <div class="tiny muted fuss">
-      Deine Fänge liegen dann auf einem Server in der EU.
-      <button class="link" id="g-ds" style="margin-top:6px; text-decoration:underline">Datenschutz</button>
+      ${T('Deine Fänge liegen dann auf einem Server in der EU.')}
+      <button class="link" id="g-ds" style="margin-top:6px; text-decoration:underline">${T('Datenschutz')}</button>
     </div>
     <div id="g-ds-text" hidden style="margin-top:12px"></div>`;
 
@@ -3230,15 +3782,15 @@ async function gateLos(){
   const pw      = $('#g-pw').value;
   const name    = anmeldenModus ? null : $('#g-name').value.trim();
   if (!kennung || !pw)
-    return renderGate(anmeldenModus ? 'E-Mail oder Benutzername und Passwort eingeben.'
-                                    : 'E-Mail und Passwort eingeben.');
+    return renderGate(T(anmeldenModus ? 'E-Mail oder Benutzername und Passwort eingeben.'
+                                      : 'E-Mail und Passwort eingeben.'));
   if (!anmeldenModus){
     const fehler = namePruefen(name);
     if (fehler) return renderGate(fehler);
   }
-  if (!navigator.onLine) return renderGate('Kein Netz — zum Anmelden wird einmal Verbindung gebraucht. Danach läuft die App auch offline.');
+  if (!navigator.onLine) return renderGate(T('Kein Netz — zum Anmelden wird einmal Verbindung gebraucht. Danach läuft die App auch offline.'));
   const btn = $('#g-los');
-  btn.disabled = true; btn.textContent = 'Einen Moment …';
+  btn.disabled = true; btn.textContent = T('Einen Moment …');
   try {
     if (anmeldenModus) await anmelden(kennung, pw);
     else               await registrieren(kennung, pw, name);
@@ -3249,7 +3801,7 @@ async function gateLos(){
        wäre eine Belästigung. Über die Einstellungen ist sie jederzeit da. */
     if (!anmeldenModus) tourZeigen();
   } catch (e){
-    renderGate(e.message || 'Hat nicht geklappt.');
+    renderGate(e.message || T('Hat nicht geklappt.'));
   }
 }
 
@@ -3263,7 +3815,7 @@ async function ersterAbgleich(){
   await syncJetzt(true);
   await reload();
   renderList(); renderZeit();
-  toast(eigene ? `Angemeldet — ${eigene} Fänge gesichert` : 'Angemeldet');
+  toast(eigene ? `${T('Angemeldet')} — ${eigene} ${T('Fänge gesichert')}` : T('Angemeldet'));
 }
 
 /* ---------- Oberfläche ---------- */
@@ -3277,20 +3829,20 @@ function renderKonto(){
   // sobald ein Konto aktiv ist — sonst steht eine Unwahrheit in den Einstellungen.
   const st = $('#sicherung-text');
   if (st) st.innerHTML = konto
-    ? `Deine Fänge liegen auf diesem Gerät <b style="color:var(--txt)">und</b> in deinem Konto.
-       Unten kannst du jederzeit alles als Datei herunterladen — das ist deine Kopie,
-       lesbar auch ohne die App.`
-    : `Nicht angemeldet — es wird gerade nichts abgeglichen. Die Fänge auf diesem
-       Gerät sind unverändert da.`;
+    ? T('Deine Fänge liegen auf diesem Gerät und in deinem Konto. Unten kannst du '
+      + 'jederzeit alles als Datei herunterladen — das ist deine Kopie, lesbar auch '
+      + 'ohne die App.')
+    : T('Nicht angemeldet — es wird gerade nichts abgeglichen. Die Fänge auf diesem '
+      + 'Gerät sind unverändert da.');
 
   // Ohne Konto kommt man gar nicht bis hierher — der Anmelde-Schirm liegt davor.
   // Der Zweig bleibt trotzdem stehen, damit die Einstellungen nicht leer wirken,
   // falls die Sitzung mitten im Betrieb wegfällt.
   if (!konto){
     box.innerHTML = `
-      <label class="f">Konto & Sync</label>
-      <p class="tiny muted" style="margin:0 0 10px">Nicht angemeldet.</p>
-      <button class="btn" id="k-gate" style="margin-bottom:12px">Anmelden</button>`;
+      <label class="f">${T('Konto & Sync')}</label>
+      <p class="tiny muted" style="margin:0 0 10px">${T('Nicht angemeldet.')}</p>
+      <button class="btn" id="k-gate" style="margin-bottom:12px">${T('Anmelden')}</button>`;
     $('#k-gate').onclick = () => { $('#sheet').classList.remove('on'); gateZeigen(); };
     return;
   }
@@ -3298,7 +3850,7 @@ function renderKonto(){
   let letzter = '';
   try {
     const t = Number(localStorage.getItem(SYNC_KEY + '-zeit') || 0);
-    if (t) letzter = 'Zuletzt abgeglichen: ' + new Date(t).toLocaleString('de-DE',
+    if (t) letzter = T('Zuletzt abgeglichen:') + ' ' + new Date(t).toLocaleString(SPRACHE === 'de' ? 'de-DE' : 'en-GB',
       { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   } catch {}
 
@@ -3310,35 +3862,36 @@ function renderKonto(){
   const offenN = nichtGesichert().length;
   const offenTeil = offenN ? `
     <p class="tiny" style="margin:0 0 10px; color:var(--warn); line-height:1.5">
-      <b>${offenN === 1 ? '1 Fang liegt' : offenN + ' Fänge liegen'} nur auf diesem Gerät.</b><br>
-      Noch nicht im Konto gesichert. Vor dem Abmelden, Löschen oder Neuinstallieren
-      erst abgleichen — sonst ${offenN === 1 ? 'ist er' : 'sind sie'} weg.
+      <b>${offenN === 1 ? T('1 Fang liegt') : offenN + ' ' + T('Fänge liegen')} ${T('nur auf diesem Gerät.')}</b><br>
+      ${T('Noch nicht im Konto gesichert. Vor dem Abmelden, Löschen oder Neuinstallieren '
+        + 'erst abgleichen — sonst ist das weg.')}
     </p>` : '';
 
   box.innerHTML = `
-    <label class="f">Konto & Sync</label>
+    <label class="f">${T('Konto & Sync')}</label>
     <p class="tiny muted" style="margin:0 0 10px">
-      Angemeldet als <b style="color:var(--txt)">${konto.username || konto.email || ''}</b>
+      ${T('Angemeldet als')} <b style="color:var(--txt)">${konto.username || konto.email || ''}</b>
       ${konto.username && konto.email ? `<br><span style="opacity:.7">${konto.email}</span>` : ''}
       <br>${letzter}
     </p>
     ${offenTeil}
     <button class="btn" id="k-sync" style="margin-bottom:8px" ${syncLaeuft ? 'disabled' : ''}>
-      ${syncLaeuft ? '… wird abgeglichen' : '⟳ Jetzt abgleichen'}</button>
-    <button class="btn" id="k-out" style="margin-bottom:8px">Abmelden</button>
-    <button class="btn danger" id="k-del" style="margin-bottom:12px">Konto löschen</button>`;
+      ${T(syncLaeuft ? '… wird abgeglichen' : '⟳ Jetzt abgleichen')}</button>
+    <button class="btn" id="k-out" style="margin-bottom:8px">${T('Abmelden')}</button>
+    <button class="btn danger" id="k-del" style="margin-bottom:12px">${T('Konto löschen')}</button>`;
 
   $('#k-sync').onclick = () => syncJetzt(false);
   $('#k-out').onclick  = abmelden;
   $('#k-del').onclick  = async () => {
-    if (!confirm('Konto und alle Fänge auf dem Server löschen?\n\nDie Fänge auf diesem Gerät bleiben.')) return;
+    if (!confirm(T('Konto und alle Fänge auf dem Server löschen?') + '\n\n'
+               + T('Die Fänge auf diesem Gerät bleiben.'))) return;
     try { await kontoLoeschen(); kontoSchreiben(null);
           try { localStorage.removeItem(SYNC_KEY); localStorage.removeItem(SYNC_KEY + '-push'); } catch {}
           $('#sheet').classList.remove('on');
           gateModus = 'reg';
           gateZeigen();
-          toast('Konto gelöscht — die Fänge auf dem Gerät bleiben'); }
-    catch (e){ toast(e.message || 'Löschen fehlgeschlagen'); }
+          toast(T('Konto gelöscht — die Fänge auf dem Gerät bleiben')); }
+    catch (e){ toast(e.message || T('Löschen fehlgeschlagen')); }
   };
 }
 
@@ -3358,7 +3911,70 @@ function renderKonto(){
    ============================================================ */
 const KONTAKT = 'Karl Fangmeyer · karlm.fangmeyer@gmail.com';
 
+/* ⚠️ Die Datenschutzerklärung wird **nicht** Satz für Satz durch T() geschickt,
+   sondern liegt zweimal ganz vor. Ein Rechtstext, der aus einzeln nachgeschlagenen
+   Sätzen zusammengesetzt wird, kann bei einer fehlenden Übersetzung halb deutsch
+   und halb englisch herauskommen — und dann sagt er womöglich etwas anderes, als er
+   soll. Entweder ganz oder gar nicht.
+   ⚠️ Maßgeblich ist die deutsche Fassung; das steht im englischen Text auch drin. */
 function datenschutzText(){
+  return SPRACHE === 'en' ? datenschutzEN() : datenschutzDE();
+}
+
+function datenschutzEN(){
+  const cloudTeil = !cloudAn() ? `
+    <p><b>This version has no account.</b> Your catches, photos and locations stay
+    in your device's storage only. Nothing is transferred anywhere, and the operator
+    of this app cannot see them.</p>`
+  : `
+    <p><b>This app requires an account.</b> It cannot be used without signing in.
+    Stored are: your e-mail address, your <b>username</b>, an encrypted digest of your
+    password and everything you record about your catches — including <b>locations</b>
+    and <b>photos</b> in reduced size. Also your <b>fishing time</b> (the accumulated
+    length of your sessions) and the <b>charts</b> you build for yourself.
+    This is held at Supabase (Supabase Inc.) on servers inside the EU.
+    As the owner of the project, the operator of this app has technical access to it.
+    The legal basis is Art. 6(1)(b) GDPR (providing the app); for creating the account
+    additionally your consent under (a).</p>
+    <p>Your catches are also kept in your device's storage so the app works without a
+    connection — at the water that is the normal case. You stay signed in; the session
+    is remembered locally so poor reception does not sign you out.</p>
+    <p><b>Deletion:</b> In the settings, „Delete account" removes your account and all
+    associated data on the server immediately and completely. The catches on your device
+    are kept. „Sign out" only stops synchronising.</p>
+    <p><b>Retention:</b> As long as the account exists. There is no automatic deletion
+    period and no evaluation of your data for other purposes.</p>`;
+
+  return `
+    <h3 style="font-size:15px; margin:0 0 8px">Privacy</h3>
+    <p><b>Controller:</b> ${KONTAKT}</p>
+    ${cloudTeil}
+    <p><b>What leaves the device even without an account</b> — this cannot be avoided
+    if the map and the weather are to work:</p>
+    <ul style="margin:0 0 8px 16px; padding:0">
+      <li><b>Map tiles</b> from OpenStreetMap: opening the map sends the visible section
+          and your IP address to openstreetmap.org.</li>
+      <li><b>Weather values</b> from Open-Meteo: filling them in automatically sends the
+          coordinates of the spot and the time to open-meteo.com.</li>
+      <li><b>Water temperature</b> from PEGELONLINE (German Federal Waterways and
+          Shipping Administration): the same coordinates.</li>
+      <li><b>Name of the water</b> from OpenStreetMap via an Overpass server
+          (overpass-api.de, alternatively overpass.kumi.systems): filling it in
+          automatically sends the coordinates of the spot there.</li>
+      <li><b>Delivery</b> of the app via GitHub Pages (GitHub Inc.); as with any web
+          server, your IP address occurs there.</li>
+    </ul>
+    <p>All of this is optional: without the map and without automatic filling, every
+    catch can be recorded fully by hand. There is no advertising, no tracking, no
+    analytics tools and no passing on to third parties for advertising purposes.</p>
+    <p><b>Your rights:</b> access, rectification, erasure, restriction, data portability
+    and objection (Art. 15–21 GDPR), and to lodge a complaint with a supervisory
+    authority. For data portability there is <b>„Download my data"</b> further down —
+    it gives you all your catches including photos as a file, without having to ask.</p>
+    <p class="tiny muted">As of August 2026 · <b>The German version is authoritative.</b></p>`;
+}
+
+function datenschutzDE(){
   const cloudTeil = !cloudAn() ? `
     <p><b>Ein Konto gibt es in dieser Fassung nicht.</b> Deine Fänge, Fotos und
     Standorte liegen ausschließlich im Speicher deines Geräts. Sie werden
@@ -3458,14 +4074,14 @@ function tourRendern(){
   $('#tour-inner').innerHTML = `
     <div class="mitte">
       <div class="bild" aria-hidden="true">${k.bild}</div>
-      <h2>${k.titel}</h2>
-      <p>${k.text}</p>
+      <h2>${T(k.titel)}</h2>
+      <p>${T(k.text)}</p>
     </div>
     <div class="punkte" aria-hidden="true">
       ${TOUR.map((_, i) => `<i class="${i === tourNr ? 'da' : ''}"></i>`).join('')}
     </div>
-    <button class="btn primary" id="tour-weiter">${letzte ? 'Los geht’s' : 'Weiter'}</button>
-    <button class="weg" id="tour-weg">${letzte ? '' : 'Überspringen'}</button>`;
+    <button class="btn primary" id="tour-weiter">${T(letzte ? 'Los geht’s' : 'Weiter')}</button>
+    <button class="weg" id="tour-weg">${letzte ? '' : T('Überspringen')}</button>`;
   $('#tour-weiter').onclick = () => {
     if (letzte) return tourSchliessen();
     tourNr++; tourRendern();
@@ -3481,9 +4097,15 @@ function bugWartendZeigen(){
   const p = $('#bug-warten');
   p.hidden = !n;
   if (n) p.textContent = n === 1
-    ? 'Eine Meldung wartet noch auf Netz und geht beim nächsten Abgleich raus.'
-    : n + ' Meldungen warten noch auf Netz und gehen beim nächsten Abgleich raus.';
+    ? T('Eine Meldung wartet noch auf Netz und geht beim nächsten Abgleich raus.')
+    : n + ' ' + T('Meldungen warten noch auf Netz und gehen beim nächsten Abgleich raus.');
 }
+
+/* ⚠️ Die beiden Namen im Auswahlfeld werden NICHT übersetzt. „Deutsch" heißt auf
+   Englisch „German" — wer die App gerade auf Deutsch stehen hat und kein Deutsch
+   kann, sucht aber nach „English", nicht nach „Englisch". Sprachnamen stehen
+   überall in ihrer eigenen Sprache, genau deshalb. */
+$('#sprache').onchange = e => spracheSetzen(e.target.value);
 
 $('#btn-hilfe').onclick = () => { sheetZu(); tourZeigen(); };
 
@@ -3495,7 +4117,7 @@ $('#btn-bug').onclick = () => {
      und nicht den vom Start der App. */
   const u = umfeldSammeln();
   $('#bug-umfeld').textContent = Object.entries(u)
-    .map(([k, v]) => k + ': ' + v).join('\n');
+    .map(([k, v]) => T(k) + ': ' + v).join('\n');
   bugWartendZeigen();
   $('#bug-text').focus();
 };
@@ -3503,14 +4125,14 @@ $('#btn-bug').onclick = () => {
 $('#btn-bug-ab').onclick = async () => {
   const feld = $('#bug-text');
   const text = feld.value.trim();
-  if (text.length < 5) return toast('Bitte kurz beschreiben, was passiert ist');
+  if (text.length < 5) return toast(T('Bitte kurz beschreiben, was passiert ist'));
   meldungAnlegen(text);
   feld.value = '';
   $('#bug-form').hidden = true;
   /* ⚠️ Die Rückmeldung sagt bewusst „ist notiert" und nicht „ist abgeschickt".
      Ohne Netz stimmt „abgeschickt" nicht, und eine App, die das behauptet, ist
      genau das Problem, das am 08.08. zwei Fänge gekostet hat. */
-  toast('Danke — ist notiert und geht mit dem nächsten Abgleich raus');
+  toast(T('Danke — ist notiert und geht mit dem nächsten Abgleich raus'));
   try { await meldungenNachreichen(); } catch {}
   bugWartendZeigen();
 };
@@ -3577,7 +4199,7 @@ const REIHEN_DUNKEL = ['#3987e5','#d95926','#199e70','#c98500','#d55181','#9085e
 const REIHEN_HELL   = ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#4a3aa7'];
 const HELLE_PALETTEN = new Set(['papier','tageslicht','sand','nebel']);
 const reihenFarben = () => HELLE_PALETTEN.has(palAktiv) ? REIHEN_HELL : REIHEN_DUNKEL;
-const UEBRIGE = 'Übrige';
+const UEBRIGE = 'Übrige';   // wird beim Anzeigen durch T() geschickt
 const MAX_REIHEN = 6;
 
 const alsListe = w => Array.isArray(w) ? w.filter(x => x != null && x !== '')
@@ -3631,27 +4253,33 @@ const ACHSEN = [
     reihe: () => Array.from({ length: 24 }, (_, i) => String(i)),
     schluessel: c => { const d = new Date(c.when); return isNaN(d) ? null : String(d.getHours()); } },
   { key:'monat',  kurz:'Monat',
-    reihe: () => MONATE_KURZ.slice(),
-    schluessel: c => { const d = new Date(c.when); return isNaN(d) ? null : MONATE_KURZ[d.getMonth()]; } },
+    reihe: () => MONATE_KURZ.map(T),
+    schluessel: c => { const d = new Date(c.when); return isNaN(d) ? null : T(MONATE_KURZ[d.getMonth()]); } },
   // Feste Reihenfolge: die Tageszeit läuft von morgens nach nachts, der Mond
   // von Neumond nach Neumond, das Wetter von klar nach Schnee, die Trübung von
   // klar nach sehr trüb. Nach Häufigkeit sortiert wäre das als Kurve Unsinn.
+  /* ⚠️ Reihenfolge und Schlüssel müssen **dieselbe Sprache sprechen**. Die Stufen
+     einer festen Achse werden über den angezeigten Text zugeordnet, nicht über
+     einen Schlüssel. Stünde links „Bewölkt" und rechts käme „Cloudy" heraus,
+     fiele auf Englisch jeder Fang aus seiner Stufe und die Kurve läge flach auf
+     null — ohne Fehlermeldung, es sähe nur nach „keine Fänge" aus.
+     Deshalb geht hier beides durch T(), oder keines von beidem. */
   { key:'tageszeit', kurz:'Tageszeit',
-    reihe: () => PHASEN.map(p => p[1]),
+    reihe: () => PHASEN.map(p => T(p[1])),
     schluessel: c => phaseLabel(c.phase) },
   { key:'wetter', kurz:'Wetter',
-    reihe: () => WETTER.map(w => w[2] + ' ' + w[1]),
+    reihe: () => WETTER.map(w => w[2] + ' ' + T(w[1])),
     schluessel: c => c.wetter && (wetterIcon(c.wetter) + ' ' + wetterLabel(c.wetter)) },
   { key:'mond', kurz:'Mondphase',
-    reihe: () => MONDPHASEN.map(m => m[2] + ' ' + m[1]),
+    reihe: () => MONDPHASEN.map(m => m[2] + ' ' + T(m[1])),
     schluessel: c => { const m = mondFor(c.when); return m && (m.icon + ' ' + m.name); } },
   { key:'trueb', kurz:'Wassertrübung',
-    reihe: () => TRUEBUNG.map(t => t[1]),
-    schluessel: c => (TRUEBUNG.find(([k]) => k === c.truebung) || [,null])[1] },
+    reihe: () => TRUEBUNG.map(t => T(t[1])),
+    schluessel: c => truebLabel(c.truebung) || null },
   // Ohne feste Liste — die Reihenfolge kommt aus der Häufigkeit.
   { key:'art',       kurz:'Fischart',   kat: c => c.art },
   { key:'koeder',    kurz:'Köder',      kat: c => c.koeder },
-  { key:'farbe',     kurz:'Köderfarbe', kat: c => farbenVon(c) },
+  { key:'farbe',     kurz:'Köderfarbe', kat: c => farbenVon(c).map(T) },
   { key:'gewaesser', kurz:'Gewässer',   kat: c => c.gewaesser }
 ];
 const achseVon = k => ACHSEN.find(a => a.key === k) || ACHSEN[0];
@@ -3670,7 +4298,7 @@ const hatOrdnung = a => !!(a.stufe || a.reihe);
    liefert dafür null, also wird eine einzelne Kurve gezeichnet statt aufgeteilter — das
    ist der richtige Rückfall und nicht etwa ein leeres Bild. */
 const TEILER = [
-  { key:'farbe',  kurz:'Köderfarbe', hol: c => alsListe(farbenVon(c)) }
+  { key:'farbe',  kurz:'Köderfarbe', hol: c => alsListe(farbenVon(c)).map(T) }
 ];
 const teilerVon = k => TEILER.find(t => t.key === k) || null;
 
@@ -3723,8 +4351,8 @@ const auswGleich = (a, b) => !!a && !!b
   && ['art','x','teilen','gewaesser'].every(k => (a[k] || '') === (b[k] || ''));
 
 function auswBeschreibung(a){
-  const teile = [(a.art || 'Alle Fische') + ' über ' + achseVon(a.x).kurz];
-  if (teilerVon(a.teilen)) teile.push('nach ' + teilerVon(a.teilen).kurz);
+  const teile = [(a.art || T('Alle Fische')) + ' ' + T('über') + ' ' + T(achseVon(a.x).kurz)];
+  if (teilerVon(a.teilen)) teile.push(T('nach') + ' ' + T(teilerVon(a.teilen).kurz));
   if (a.gewaesser) teile.push(a.gewaesser);
   return teile.join(' · ');
 }
@@ -3735,14 +4363,14 @@ function auswBeschreibung(a){
    was eingestellt ist, und bei mehreren Karten untereinander ist genau das die Frage. */
 
 function auswertungSpeichern(){
-  const name = (prompt('Name für diese Auswertung:',
-    (state.stats.art || 'Alle Fische') + ' / ' + achseVon(state.stats.x).kurz) || '').trim();
+  const name = (prompt(T('Name für diese Auswertung:'),
+    (state.stats.art || T('Alle Fische')) + ' / ' + T(achseVon(state.stats.x).kurz)) || '').trim();
   if (!name) return;
   const neu = { id: uid(), name, ...auswNehmen(state.stats) };
   auswertungenSchreiben([...state.auswertungen, neu]);
   state.stats.aktiv = neu.id;
   renderStats();
-  toast('Auswertung gespeichert');
+  toast(T('Auswertung gespeichert'));
 }
 
 function auswertungSichern(){
@@ -3751,7 +4379,7 @@ function auswertungSichern(){
   auswertungenSchreiben(state.auswertungen.map(a =>
     a.id === id ? { ...a, ...auswNehmen(state.stats) } : a));
   renderStats();
-  toast('Änderungen gesichert');
+  toast(T('Änderungen gesichert'));
 }
 
 function auswertungLaden(id){
@@ -3770,7 +4398,7 @@ function auswertungLaden(id){
 function auswertungUmbenennen(id){
   const a = state.auswertungen.find(x => x.id === id);
   if (!a) return;
-  const name = (prompt('Neuer Name:', a.name) || '').trim();
+  const name = (prompt(T('Neuer Name:'), a.name) || '').trim();
   if (!name) return;
   auswertungenSchreiben(state.auswertungen.map(x => x.id === id ? { ...x, name } : x));
   renderStats();
@@ -3778,7 +4406,7 @@ function auswertungUmbenennen(id){
 
 function auswertungLoeschen(id){
   const a = state.auswertungen.find(x => x.id === id);
-  if (!a || !confirm(`Auswertung „${a.name}" löschen?`)) return;
+  if (!a || !confirm(`${T('Auswertung')} „${a.name}" ${T('löschen?')}`)) return;
   auswertungenSchreiben(state.auswertungen.filter(x => x.id !== id));
   if (state.stats.aktiv === id) state.stats.aktiv = null;
   renderStats();
@@ -4005,17 +4633,17 @@ function bedienung(a){
   return `<div class="tiny muted" style="margin-top:8px">${esc(auswBeschreibung(a))}</div>
   <div class="ausw-bed">
     ${offen
-      ? '<span class="tiny muted" style="flex:1; align-self:center">Liegt oben im Baukasten</span>'
-      : `<button class="btn sm" data-bearb="${a.id}" style="flex:1">✎ Bearbeiten</button>`}
-    <button class="btn sm" data-um="${a.id}">Umbenennen</button>
-    <button class="btn sm" data-weg="${a.id}">✕ Löschen</button>
+      ? `<span class="tiny muted" style="flex:1; align-self:center">${T('Liegt oben im Baukasten')}</span>`
+      : `<button class="btn sm" data-bearb="${a.id}" style="flex:1">${T('✎ Bearbeiten')}</button>`}
+    <button class="btn sm" data-um="${a.id}">${T('Umbenennen')}</button>
+    <button class="btn sm" data-weg="${a.id}">${T('✕ Löschen')}</button>
   </div>`;
 }
 
 function legende(d){
   if (d.reihen.length < 2) return '';    // eine Reihe braucht keine — der Titel nennt sie
   return `<div class="leg">${d.reihen.map(r =>
-    `<span><i style="background:${r.farbe}"></i>${esc(r.name)}</span>`).join('')}</div>`;
+    `<span><i style="background:${r.farbe}"></i>${esc(T(r.name))}</span>`).join('')}</div>`;
 }
 
 function hinweise(d){
@@ -4023,13 +4651,13 @@ function hinweise(d){
   /* ⚠️ Der Satz, der den Einwand gegen Kurven über Kategorien ersetzt: bei
      Fischart, Köder, Farbe und Gewässer sagt nur die Höhe der Punkte etwas,
      der Verlauf dazwischen nicht. Er darf nicht wegfallen. */
-  if (d.ungeordnet) t.push('Diese Achse hat keine natürliche Reihenfolge — '
+  if (d.ungeordnet) t.push(T('Diese Achse hat keine natürliche Reihenfolge — '
     + 'sie steht nach Häufigkeit. Aussagekräftig ist deshalb die Höhe der Punkte, '
-    + 'nicht der Anstieg dazwischen.');
-  if (d.mehrfach) t.push('Ein Fang mit mehreren Köderfarben zählt in jeder mit — '
-    + 'die Summe kann deshalb größer sein als die Zahl der Fänge.');
+    + 'nicht der Anstieg dazwischen.'));
+  if (d.mehrfach) t.push(T('Ein Fang mit mehreren Köderfarben zählt in jeder mit — '
+    + 'die Summe kann deshalb größer sein als die Zahl der Fänge.'));
   if (d.reihen.some(r => r.name === UEBRIGE))
-    t.push(`Alles außer den fünf häufigsten steht zusammengefasst als „${UEBRIGE}".`);
+    t.push(`${T('Alles außer den fünf häufigsten steht zusammengefasst als')} „${T(UEBRIGE)}".`);
   /* ⚠️ HINWEIS_VERTEILUNG steht bewusst **nicht** hier, sondern einmal unter
      allem. Am großen Bildschirm liegen bis zu fünf Auswertungen nebeneinander —
      derselbe Absatz fünfmal ist kein Hinweis mehr, sondern Rauschen, und wird
@@ -4037,9 +4665,9 @@ function hinweise(d){
   return t.length ? `<div class="hint">${t.join(' ')}</div>` : '';
 }
 
-const HINWEIS_VERTEILUNG =
+const HINWEIS_VERTEILUNG = () => T(
   'Zeigt, wie sich deine Fänge verteilen — nicht, was besser fängt. '
-  + 'Dafür müssten auch Ansitze ohne Fang erfasst sein.';
+  + 'Dafür müssten auch Ansitze ohne Fang erfasst sein.');
 
 /* Ablesehilfe: Fadenkreuz plus die Werte an der angetippten Stelle. Ohne sie
    ließen sich die Zahlen zwischen zwei Y-Linien nur schätzen — und mit sechs
@@ -4090,9 +4718,9 @@ function renderStats(){
       + werte.map(w => `<option value="${esc(w)}"${w === aktuell ? ' selected' : ''}>${esc(w)}</option>`).join('');
   };
   opts('#st-gewaesser', [...new Set(fertig.map(c => c.gewaesser).filter(Boolean))].sort(),
-       state.stats.gewaesser, 'Alle Gewässer');
+       state.stats.gewaesser, T('Alle Gewässer'));
   opts('#st-art', [...new Set(fertig.map(c => c.art).filter(Boolean))].sort(),
-       state.stats.art, 'Alle Fische');
+       state.stats.art, T('Alle Fische'));
   $('#st-x').value = state.stats.x;
   $$('#st-teilen .chip').forEach(c => {
     const an = c.dataset.teilen === state.stats.teilen;
@@ -4103,7 +4731,7 @@ function renderStats(){
   const geladen = state.auswertungen.find(a => a.id === state.stats.aktiv);
   const geaendert = geladen && !auswGleich(geladen, state.stats);
   $('#st-sichern').hidden = !geaendert;
-  $('#st-speichern').textContent = geladen ? '✚ Als neue speichern' : '✚ Auswertung speichern';
+  $('#st-speichern').textContent = T(geladen ? '✚ Als neue speichern' : '✚ Auswertung speichern');
 
   /* Die Kopfzeile des Baukastens. Seit die Liste „Meine Auswertungen" weg ist, ist das
      die einzige Stelle, an der steht, woran man gerade sitzt — und ob es ungesicherte
@@ -4112,20 +4740,20 @@ function renderStats(){
   $('#st-offen').style.display = geladen ? 'flex' : 'none';
   if (geladen){
     $('#st-offen-name').textContent = geladen.name;
-    $('#st-offen-stand').textContent = geaendert ? ' · geändert, noch nicht gesichert' : ' · gespeichert';
+    $('#st-offen-stand').textContent = ' · ' + T(geaendert ? 'geändert, noch nicht gesichert' : 'gespeichert');
   }
 
   const rows = statsRows();
-  $('#stats-pill').textContent = rows.length + (rows.length === 1 ? ' Fang' : ' Fänge');
+  $('#stats-pill').textContent = rows.length + ' ' + T(rows.length === 1 ? 'Fang' : 'Fänge');
   const body = $('#stats-body');
 
   if (!fertig.length){
-    body.innerHTML = `<div class="empty">Noch keine fertigen Fänge.<br>
-      Sobald der Erste gespeichert ist, steht hier die Auswertung.</div>`;
+    body.innerHTML = `<div class="empty">${T('Noch keine fertigen Fänge.')}<br>
+      ${T('Sobald der Erste gespeichert ist, steht hier die Auswertung.')}</div>`;
     return;
   }
   if (!rows.length){
-    body.innerHTML = '<div class="empty">Für diese Auswahl gibt es keinen Fang.</div>';
+    body.innerHTML = `<div class="empty">${T('Für diese Auswahl gibt es keinen Fang.')}</div>`;
     return;
   }
 
@@ -4139,10 +4767,10 @@ function renderStats(){
   // eine Eigenschaft der App.
   const kachel = (n, l) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div></div>`;
   const kacheln = `<div class="card voll"><div class="tiles">
-    ${kachel(arten.size, arten.size === 1 ? 'Fischart' : 'Fischarten')}
-    ${kachel(rows.length, rows.length === 1 ? 'Fang' : 'Fänge')}
-    ${kachel(groesster ? zahl(groesster.laenge) + ' cm' : '—', groesster && groesster.art ? 'Größter · ' + groesster.art : 'Größter')}
-    ${kachel(schwerster ? zahl(schwerster.gewicht) + ' kg' : '—', schwerster && schwerster.art ? 'Schwerster · ' + schwerster.art : 'Schwerster')}
+    ${kachel(arten.size, T(arten.size === 1 ? 'Fischart' : 'Fischarten'))}
+    ${kachel(rows.length, T(rows.length === 1 ? 'Fang' : 'Fänge'))}
+    ${kachel(groesster ? zahl(groesster.laenge) + ' cm' : '—', T('Größter') + (groesster && groesster.art ? ' · ' + groesster.art : ''))}
+    ${kachel(schwerster ? zahl(schwerster.gewicht) + ' kg' : '—', T('Schwerster') + (schwerster && schwerster.art ? ' · ' + schwerster.art : ''))}
   </div></div>`;
 
   // Ehrlichkeit an der richtigen Stelle: bei einer Handvoll Fängen sagt keine
@@ -4151,9 +4779,9 @@ function renderStats(){
   // ⚠️ Das hält nichts mehr auf — gezeichnet wird ab dem ersten Fang.
   const duenn = rows.length < 15
     ? `<div class="card voll"><div class="hint" style="margin:0">
-         <b>${rows.length} ${rows.length === 1 ? 'Fang' : 'Fänge'} in dieser Auswahl.</b>
-         Für ein belastbares Muster sind das noch zu wenige — ab etwa 20 bis 30 wird es
-         aussagekräftig. Bis dahin zeigt die Auswertung schlicht, was bisher drinsteht.</div></div>`
+         <b>${rows.length} ${T(rows.length === 1 ? 'Fang' : 'Fänge')} ${T('in dieser Auswahl.')}</b>
+         ${T('Für ein belastbares Muster sind das noch zu wenige — ab etwa 20 bis 30 wird es '
+           + 'aussagekräftig. Bis dahin zeigt die Auswertung schlicht, was bisher drinsteht.')}</div></div>`
     : '';
 
   /* Ein Bild aus einer Einstellung. `eigen` heißt: die gerade eingestellte
@@ -4167,8 +4795,8 @@ function renderStats(){
     const zeilen = einst === state.stats ? rows : statsRows(einst);
     const d = zeilen.length && reihenBauen(zeilen, achse, einst.teilen);
     if (!d) return `<div class="card"><h2>${esc(titel)}</h2>
-      <div class="hint" style="margin:0">Dazu hat in dieser Auswahl noch kein Fang einen Wert. ${
-        achse.stufe ? 'Bei automatisch geholten Werten heißt das meist: der Fang wurde ohne Netz erfasst.' : ''
+      <div class="hint" style="margin:0">${T('Dazu hat in dieser Auswahl noch kein Fang einen Wert.')} ${
+        achse.stufe ? T('Bei automatisch geholten Werten heißt das meist: der Fang wurde ohne Netz erfasst.') : ''
       }</div>${bedienung(gespeichert)}</div>`;
     return diagramm(d, titel, gespeichert);
   };
@@ -4196,7 +4824,7 @@ function renderStats(){
   /* Der wichtigste Satz im ganzen Reiter, deshalb einmal darunter statt in
      jeder Karte: hier stehen Verteilungen, keine Erfolgsquoten. */
   const fuss = gezeichnet()
-    ? `<div class="hint voll" style="margin:2px 2px 0">${HINWEIS_VERTEILUNG}</div>` : '';
+    ? `<div class="hint voll" style="margin:2px 2px 0">${HINWEIS_VERTEILUNG()}</div>` : '';
 
   body.innerHTML = kacheln + duenn + inhalt + fuss;
   lupeVerdrahten();
@@ -4229,11 +4857,19 @@ async function reload(){
   refreshWaterList();
 }
 // Fehler sollen sichtbar sein — auf dem Handy gibt es keine Konsole zum Nachsehen.
-window.addEventListener('error', e => toast('Fehler: ' + (e.message || 'unbekannt')));
+window.addEventListener('error', e => toast(T('Fehler:') + ' ' + (e.message || T('unbekannt'))));
 window.addEventListener('unhandledrejection', e =>
-  toast('Fehler: ' + ((e.reason && e.reason.message) || 'unbekannt')));
+  toast(T('Fehler:') + ' ' + ((e.reason && e.reason.message) || T('unbekannt'))));
 
 (async function init(){
+  /* ⚠️ Die Sprache **zuerst**, vor allem anderen. Der Rundgang durch die festen
+     Beschriftungen muss den deutschen Urtext einsammeln, solange er noch dasteht —
+     liefe er später, hätte er womöglich schon Übersetztes vor sich und könnte nie
+     wieder zurück. Außerdem blitzte sonst beim Start kurz Deutsch auf.
+     Ohne gespeicherte Wahl entscheidet die Sprache des Geräts (siehe spracheLesen). */
+  $('#sprache').value = SPRACHE;
+  spracheAnwenden();
+
   renderPalettes();
   let pal = 'tiefes-wasser';
   try { pal = localStorage.getItem(PAL_KEY) || pal; } catch {}
@@ -4257,8 +4893,8 @@ window.addEventListener('unhandledrejection', e =>
     await reload();
     renderList();
   } catch {
-    $('#list').innerHTML = `<div class="empty">Der Speicher dieses Browsers ist nicht erreichbar.<br>
-      Im privaten Modus von Safari lässt sich nichts sichern — normales Fenster benutzen.</div>`;
+    $('#list').innerHTML = `<div class="empty">${T('Der Speicher dieses Browsers ist nicht erreichbar.')}<br>
+      ${T('Im privaten Modus von Safari lässt sich nichts sichern — normales Fenster benutzen.')}</div>`;
   }
   /* ---------- Neue Fassung holen ----------
    ⚠️ Karls Meldung vom 08.08.: „ich habe es bei mir auf dem handy nicht, mein kollege
@@ -4292,7 +4928,7 @@ window.addEventListener('unhandledrejection', e =>
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (neuGeladen) return;
       if (state.view === 'new' && formHatInhalt()){
-        toast('Neue Fassung da — sie kommt beim nächsten Start');
+        toast(T('Neue Fassung da — sie kommt beim nächsten Start'));
         return;
       }
       neuGeladen = true;

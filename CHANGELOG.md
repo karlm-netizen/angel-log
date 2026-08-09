@@ -6,6 +6,52 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 09.08.2026 (3) — Deutsch und Englisch
+
+Karls Ansage: *„sprach einstellung deutsch + englisch."* Umschaltbar ganz oben in den
+Einstellungen; ohne eigene Wahl entscheidet die Sprache des Geräts.
+
+**Wie es gebaut ist — und warum so:**
+
+⚠️ **Der Schlüssel ist der deutsche Satz selbst**, nicht ein Kürzel wie `log.empty`. Zwei
+Gründe, und beide zählen bei einer App, die eine Person pflegt:
+1. **Der Quelltext bleibt lesbar** — ein Aufruf mit dem Satz darin sagt beim Lesen, was dort
+   steht. Bei Kürzeln müsste man jedes Mal in einer Tabelle nachschlagen.
+2. **Eine fehlende Übersetzung fällt weich** — was fehlt, kommt auf Deutsch heraus. Ein
+   Kürzel-System zeigte an derselben Stelle das Kürzel: kaputt statt bloß unübersetzt.
+
+⚠️ **Übersetzt wird die Oberfläche, nicht die Daten.** Ein Fang, der als „Hecht" eingetragen
+wurde, heißt „Hecht" — auch auf Englisch. Alles andere wäre gelogen: die App weiß nicht, ob
+wirklich ein Hecht gemeint war, und ein einmal übersetzter Eintrag ließe sich nicht mehr
+zurückrechnen. Die **Vorschlagslisten** (Fischarten, Köder) sind Vorschläge und werden
+übersetzt; was eingetippt und gespeichert ist, bleibt stehen. Eine Prüfung wacht darüber.
+
+⚠️ **Der gefährlichste Fall steckte in den Statistiken.** Bei festen Achsen (Wetter,
+Tageszeit, Mondphase, Trübung) werden die Stufen über den **angezeigten Text** zugeordnet.
+Stünde links „Bewölkt" und der Fang lieferte „Cloudy", fiele auf Englisch jeder Fang aus
+seiner Stufe — **die Kurve läge flach auf null, ohne Fehlermeldung**, und sähe aus wie
+„keine Fänge". Deshalb geht dort beides durch dieselbe Übersetzung, oder keines von beidem.
+Eine eigene Prüfung stellt genau das nach; baut man den Fehler ein, schlägt sie an.
+
+⚠️ **Die Datenschutzerklärung liegt zweimal ganz vor**, statt Satz für Satz nachgeschlagen zu
+werden. Ein Rechtstext, der aus Einzelteilen entsteht, kann bei einer Lücke halb deutsch und
+halb englisch herauskommen — und dann etwas anderes sagen, als er soll. **Maßgeblich ist die
+deutsche Fassung**, das steht im englischen Text auch drin.
+
+⚠️ **Die Sprachnamen selbst bleiben stehen** — „Deutsch" und „English", nicht „German".
+Wer kein Deutsch kann und die App auf Deutsch vorfindet, sucht nach „English".
+
+**Ein Wächter, den es vorher nicht gab:** Fehlt ein Eintrag im Wörterbuch, fällt das *nicht*
+als Fehler auf — es kommt still Deutsch heraus, und das sieht nach Absicht aus statt nach
+Lücke. Der Prüflauf bricht deshalb ab, wenn ein fester Aufruf ohne englische Fassung
+dasteht. **401 Einträge, alle 166 festen Schlüssel gedeckt.**
+
+**Nebenbei behoben:** Der Hinweis unter den Trübungs-Chips stand fest im HTML, in einem
+Behälter, den der Sprach-Rundgang bewusst nicht anfasst — er wäre auf Englisch deutsch
+stehen geblieben. Er kommt jetzt ganz aus dem Skript.
+
+**460 Prüfungen grün** (von 449). Gegengeprobt an der Achsen-Zuordnung.
+
 ## 09.08.2026 (2) — Fehler melden und eine kurze Einführung
 
 Zwei Ansagen von Karl: *„support für bugs"* und *„tutorial für die app, kleine vorstellung
