@@ -2092,6 +2092,63 @@ window.addEventListener('error', e => {
   });
   t('am Ende steht wieder Deutsch', () => SPRACHE === 'de' || SPRACHE);
 
+  /* ============ Abgleich pruefen und heilen (09.08.2026) ============
+     Karls Meldung: "fänge auf meinem handy und auf meinem pc sind nicht gleich
+     warum auch immer."
+
+     ⚠️ Das "warum auch immer" ist der Befund. Der Abgleich laeuft still, und
+     wenn etwas fehlt, sagt einem nichts, auf welcher Seite -- dasselbe Muster
+     wie beim Datenverlust am 08.08. Geprueft wird deshalb, dass die Richtung
+     benannt wird und nicht nur "es ist unterschiedlich". */
+  ta('der Abgleich-Test benennt, was hier fehlt', async () => {
+    sandbox([mkC('a', 1000), mkC('b', 2000)]);
+    api = async () => ({ ok: true, json: async () => [{ id: 'a' }, { id: 'b' }, { id: 'c' }] });
+    konto = { access_token: 'tok' };
+    const z = await abgleichPruefen();
+    konto = null;
+    return (z.imKonto === 3 && z.aufGeraet === 2 && z.fehltHier === 1 && z.fehltDort === 0)
+        || JSON.stringify(z);
+  });
+  ta('und was dort fehlt', async () => {
+    sandbox([mkC('a', 1000), mkC('b', 2000), mkC('c', 3000)]);
+    api = async () => ({ ok: true, json: async () => [{ id: 'a' }] });
+    konto = { access_token: 'tok' };
+    const z = await abgleichPruefen();
+    konto = null;
+    return (z.fehltDort === 2 && z.fehltHier === 0) || JSON.stringify(z);
+  });
+  ta('Entwuerfe zaehlen in keiner der beiden Richtungen mit', async () => {
+    // Sie bleiben absichtlich lokal -- als "fehlt im Konto" waeren sie ein
+    // Fehlalarm, der die echten Faelle unsichtbar macht.
+    sandbox([mkC('a', 1000), mkC('e', 2000, { entwurf: true })]);
+    api = async () => ({ ok: true, json: async () => [{ id: 'a' }] });
+    konto = { access_token: 'tok' };
+    const z = await abgleichPruefen();
+    konto = null;
+    return (z.fehltDort === 0 && z.entwuerfe === 1 && z.aufGeraet === 1) || JSON.stringify(z);
+  });
+  ta('"Alles neu laden" setzt BEIDE Staende zurueck', async () => {
+    /* ⚠️ Der Grund, warum es das gibt. Der Herunterlade-Stand laeuft nur
+       vorwaerts und wurde nie zurueckgesetzt. Verliert ein Geraet seine lokale
+       Datenbank, behaelt aber den localStorage -- Safari raeumt IndexedDB nach
+       laengerer Nichtbenutzung weg --, dann fragt es "was ist seit gestern
+       passiert?" und bekommt nichts. Die Faenge liegen im Konto und kommen nie
+       wieder herunter. Fuer -push gibt es seit dem 08.08. eine Reparatur, fuer
+       diese Richtung gab es keine. */
+    sandbox([]);
+    localStorage.setItem('angellog-sync', '2026-08-09T00:00:00Z');
+    localStorage.setItem('angellog-sync-push', '99999');
+    api = async () => ({ ok: true, json: async () => [] });
+    zeilenSchreiben = async () => {};
+    konto = { access_token: 'tok' };
+    await allesNeuLaden();
+    konto = null;
+    const stand = localStorage.getItem('angellog-sync');
+    // Nach dem Durchlauf darf der Stand nicht mehr der alte sein.
+    return (stand !== '2026-08-09T00:00:00Z')
+        || ('Herunterlade-Stand steht noch auf ' + stand);
+  });
+
   /* ==================== Fehler melden (09.08.2026) ====================
      Karls Ansage: "support für bugs". Der Kern ist nicht das Formular, sondern
      dass eine Meldung ohne Netz nicht verlorengeht -- Kaputtes faellt beim

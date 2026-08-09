@@ -6,6 +6,39 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 09.08.2026 (4) — Abgleich prüfen, und ein Loch gestopft
+
+Karls Meldung: *„fänge auf meinem handy und auf meinem pc sind nicht gleich warum auch
+immer."*
+
+⚠️ **„Warum auch immer" ist der eigentliche Befund.** Der Abgleich läuft still, und wenn
+etwas fehlt, sagt einem nichts, auf welcher Seite. Das ist dasselbe Muster wie beim
+Datenverlust am 08.08. — nicht der Fehler kostet, sondern dass man ihn nicht sieht.
+
+**Neu in den Einstellungen: „⇄ Abgleich prüfen".** Zeigt beide Seiten nebeneinander und
+benennt die **Richtung**:
+
+- *Im Konto: 14 · Auf diesem Gerät: 12*
+- *2 liegen im Konto und fehlen hier* → dieses Gerät hat etwas nicht geholt
+- *3 liegen hier und fehlen im Konto* → dieses Gerät hat etwas nicht hochgeladen
+- *Entwürfe (bleiben absichtlich lokal): 1* → gehören in keine der beiden Richtungen
+
+Stimmt etwas nicht, steht darunter **„⟲ Alles neu laden"**: setzt beide Stände zurück und
+zieht alles einmal durch. Verlieren kann man dabei nichts (`merge-duplicates` beim Hochladen,
+je Fang gewinnt die jüngere Fassung beim Herunterladen); es kostet einmal Datenvolumen für
+alle Fotos, deshalb auf Ansage statt selbsttätig.
+
+⚠️ **Und damit ist ein echtes Loch zu.** Der Herunterlade-Stand läuft **nur vorwärts** und
+wurde nie zurückgesetzt. Verliert ein Gerät seine lokale Datenbank, behält aber den
+localStorage — das passiert wirklich, Safari räumt IndexedDB nach längerer Nichtbenutzung
+weg, der localStorage bleibt —, dann fragt es beim nächsten Abgleich „was ist seit gestern
+passiert?" und bekommt: nichts. **Die Fänge liegen im Konto und kommen trotzdem nie wieder
+herunter.** Für den Hochlade-Stand gibt es seit dem 08.08. eine Reparatur, für diese Richtung
+gab es keine.
+
+**464 Prüfungen grün** (von 460). Gegengeprobt: setzt man nur den Hochlade-Stand zurück,
+schlägt die Prüfung an.
+
 ## 09.08.2026 (3) — Deutsch und Englisch
 
 Karls Ansage: *„sprach einstellung deutsch + englisch."* Umschaltbar ganz oben in den
