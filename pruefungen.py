@@ -1886,6 +1886,110 @@ window.addEventListener('error', e => {
     return Number(localStorage.getItem('angellog-sync-push')) === 5000
         || ('Stand ist ' + localStorage.getItem('angellog-sync-push'));
   });
+  /* ============ Sichtbar machen, was noch nicht in der Cloud liegt ============
+     Die Lehre aus dem 08.08.2026: der Fehler allein hat die zwei Faenge nicht
+     gekostet, seine UNSICHTBARKEIT hat es. Die App sah aus wie eine, bei der
+     alles oben liegt; der Kollege hat im Vertrauen darauf neu installiert.
+
+     Diese Pruefungen haengen deshalb nicht am damaligen Fehler, sondern an der
+     Anzeige — sie muss auch bei kuenftigen Ursachen tragen (kein Netz,
+     abgelaufene Sitzung, Server weg).
+
+     ⚠️ Bewusst als synchrone Pruefungen: sandbox() ersetzt renderList durch eine
+     leere Funktion, und geprueft wird hier gerade die echte Liste. Synchrone
+     Pruefungen laufen alle, bevor der erste sandbox()-Aufruf geschieht. */
+  const cloudSetzen = (faenge, stand) => {
+    state.catches = faenge;
+    localStorage.setItem('angellog-sync-push', String(stand));
+    renderList();
+  };
+  t('nicht gesicherte Faenge werden gezaehlt', () => {
+    cloudSetzen([mkC('alt', 1000), mkC('neu1', 5000), mkC('neu2', 6000)], 3000);
+    const n = nichtGesichert().length;
+    return n === 2 || ('gezaehlt: ' + n);
+  });
+  t('ein Entwurf zaehlt nicht als ungesichert', () => {
+    // Entwuerfe bleiben absichtlich lokal und sind schon als Entwurf markiert.
+    cloudSetzen([mkC('e', 5000, { entwurf: true })], 0);
+    const n = nichtGesichert().length;
+    return n === 0 || ('gezaehlt: ' + n);
+  });
+  t('der Hinweis steht in der Liste, wenn etwas offen ist', () => {
+    cloudSetzen([mkC('neu', 5000)], 1000);
+    const p = document.querySelector('#st-cloud');
+    return (!p.hidden && /1 Fang nur auf diesem Ger/.test(p.textContent))
+        || ('hidden=' + p.hidden + ' text=' + p.textContent);
+  });
+  t('und er nennt die richtige Mehrzahl', () => {
+    cloudSetzen([mkC('a', 5000), mkC('b', 6000)], 1000);
+    return /2 F.nge nur auf diesem Ger/.test(document.querySelector('#st-cloud').textContent)
+        || document.querySelector('#st-cloud').textContent;
+  });
+  t('der Hinweis verschwindet, wenn alles gesichert ist', () => {
+    /* ⚠️ Der wichtigere Teil. Eine Warnung, die nach erfolgreichem Hochladen
+       stehen bleibt, behauptet eine Gefahr, die es nicht gibt — und wird bald
+       uebersehen. Dann traegt sie nichts mehr, wenn sie einmal stimmt. */
+    cloudSetzen([mkC('a', 5000), mkC('b', 6000)], 9000);
+    return document.querySelector('#st-cloud').hidden === true
+        || ('steht noch da: ' + document.querySelector('#st-cloud').textContent);
+  });
+  t('jeder offene Fang ist in der Liste einzeln markiert', () => {
+    // Die Zahl allein genuegt nicht -- man muss sehen, WELCHE Faenge es sind.
+    cloudSetzen([mkC('alt', 1000), mkC('neu1', 5000), mkC('neu2', 6000)], 3000);
+    const zeilen = [...document.querySelectorAll('#list .item')];
+    const markiert = zeilen.filter(z => /nur auf diesem Ger/.test(z.textContent))
+                           .map(z => z.dataset.id).sort();
+    return (markiert.length === 2 && markiert[0] === 'neu1' && markiert[1] === 'neu2')
+        || JSON.stringify(markiert);
+  });
+  t('ein gesicherter Fang traegt die Markierung nicht', () => {
+    cloudSetzen([mkC('alt', 1000)], 3000);
+    const z = document.querySelector('#list .item');
+    return !/nur auf diesem Ger/.test(z.textContent) || 'faelschlich markiert';
+  });
+  t('die Einstellungen warnen vor dem Abmelden und Loeschen', () => {
+    /* Die Seite, auf der man landet, bevor man abmeldet, das Konto loescht oder
+       neu installiert. Genau dort hat der Kollege am 08.08. nichts gesehen. */
+    cloudSetzen([mkC('neu', 5000)], 1000);
+    const vorher = konto;
+    konto = { access_token: 'tok', username: 'karl' };
+    renderKonto();
+    const txt = document.querySelector('#konto').textContent;
+    konto = vorher; renderKonto();
+    return (/nur auf diesem Ger/.test(txt) && /Neuinstallieren|neu ?installier/i.test(txt))
+        || txt.slice(0, 200);
+  });
+  t('ohne eingerichtete Cloud bleibt der Hinweis stumm', () => {
+    /* Ohne Cloud gibt es nichts zu sichern -- dann waere die Warnung sinnlos.
+       ⚠️ Quelltext-Pruefung, weil cloudAn ein `const` ist und sich nicht
+       ersetzen laesst. Geprueft wird, dass der Riegel die ERSTE Zeile ist:
+       stuende er hinter dem Lesen des Push-Standes, meldete eine App ohne
+       Cloud jeden Fang als ungesichert. */
+    const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
+    const a = js.indexOf('function nichtGesichert(');
+    if (a < 0) return 'nichtGesichert nicht gefunden';
+    const kopf = js.slice(a, js.indexOf('}', a));
+    return /^[^\n]*\n\s*if \(!cloudAn\(\)\) return \[\];/.test(kopf)
+        || 'kein Riegel als erste Zeile';
+  });
+  t('nach reinem Hochladen wird die Liste aufgefrischt', () => {
+    /* ⚠️ Quelltext-Pruefung mit Absicht: der Fall braucht einen vollen
+       syncJetzt-Durchlauf mit Netz, und im Rahmen laeuft kein Netz.
+       Geprueft wird deshalb die Stelle selbst — renderList() muss NACH dem
+       `if (runter)`-Block stehen und nicht darin. Stand es darin, blieb der
+       Hinweis nach erfolgreichem Hochladen stehen, weil dabei nichts
+       heruntergeladen wird. */
+    const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
+    const a = js.indexOf('async function syncJetzt(');
+    if (a < 0) return 'syncJetzt nicht gefunden';
+    const block = js.slice(a, a + 2600);
+    const zweig = block.indexOf('if (runter)');
+    const rl    = block.indexOf('renderList();', zweig);
+    const zu    = block.indexOf('\n    }', zweig);     // Ende des runter-Zweigs
+    if (zweig < 0 || rl < 0 || zu < 0) return 'Stelle nicht gefunden';
+    return rl > zu || 'renderList() steht im runter-Zweig — Hinweis bleibt stehen';
+  });
+
   t('ein gemeldeter Grabstein behaelt seinen Todeszeitpunkt', () => {
     /* ⚠️ Hier stand `updated: Date.now()`. Ein Grabstein bekam beim Melden einen
        juengeren Stempel als den, mit dem er hochgeladen wurde -- und gewaenne damit

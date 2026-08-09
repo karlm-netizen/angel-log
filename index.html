@@ -242,6 +242,15 @@ setTimeout(function(){
   .item.entwurf{border-color:var(--warn); box-shadow:inset 3px 0 0 var(--warn)}
   .pill.warn{background:var(--warn); color:#241a02; font-weight:700}
 
+  /* „nur auf diesem Gerät" — umrandet statt gefüllt, anders als der Entwurf-Hinweis.
+     ⚠️ Der Unterschied ist inhaltlich, nicht dekorativ: ein Entwurf ist eine halbe
+     Sache und soll lokal bleiben. Ein noch nicht gesicherter Fang ist fertig und
+     wartet nur — er darf nicht aussehen, als sei mit ihm etwas nicht in Ordnung,
+     aber man muss ihn erkennen können. */
+  .pill.offen{background:transparent; border:1px solid var(--warn); color:var(--warn); font-weight:600}
+  #st-cloud{cursor:pointer}
+  #st-cloud[hidden]{display:none}
+
   /* Speichern-Haken — spart das Scrollen ans Formularende */
   .fab{position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom) + 76px);
     width:58px; height:58px; border-radius:99px; background:var(--accent);
@@ -543,6 +552,8 @@ function splashWeg(){
       <span class="pill" id="st-count">0 Fänge</span>
       <span class="pill" id="st-waters">0 Gewässer</span>
       <span class="pill" id="st-best">—</span>
+      <!-- ⚠️ Der Hinweis, der am 08.08.2026 gefehlt hat. Siehe `gesichertRendern()`. -->
+      <span class="pill offen" id="st-cloud" role="button" tabindex="0" hidden></span>
     </div>
     <input class="in" id="q" placeholder="Suchen: Art, Gewässer, Köder …" style="margin-top:10px">
     <div id="list"></div>
@@ -2192,6 +2203,46 @@ $('#btn-cancel').onclick = () => {
   go(back);
 };
 
+/* ------------------- Was noch nicht in der Cloud liegt -------------------
+
+   ⚠️ Warum es das gibt. Am 08.08.2026 hat ein Fehler im Push-Stand zwei Fänge des
+   Kollegen nie hochladen lassen; sie lagen ausschließlich auf seinem iPhone, und eine
+   Neuinstallation hat sie mitgenommen. Der Fehler ist behoben — **aber der Fehler
+   allein hat die Fänge nicht gekostet, seine Unsichtbarkeit hat es.** Die App sah
+   genauso aus wie eine, bei der alles oben liegt. Wer neu installiert, tut das im
+   Vertrauen darauf, dass die Cloud die Daten hat.
+
+   Deshalb steht hier keine zweite Absicherung gegen *denselben* Fehler, sondern der
+   Blick darauf, was tatsächlich noch nicht gesichert ist. Das trägt auch bei den
+   Fällen, an die niemand gedacht hat: kein Netz am Wasser, abgelaufene Sitzung,
+   Server nicht erreichbar, ein künftiger Fehler an derselben Stelle.
+
+   Maßstab ist derselbe, nach dem `hochladen()` auswählt: alles mit `updated` über dem
+   Push-Stand ist noch nicht draußen. Eine eigene Buchführung wäre eine zweite Wahrheit
+   neben der ersten — und die zweite läge irgendwann falsch.
+
+   Nicht mitgezählt:
+   - **Entwürfe** — sie sind absichtlich lokal und als „Entwurf" schon gekennzeichnet.
+   - **Grabsteine** (gelöschte Fänge, noch nicht gemeldet) — eine nicht gemeldete
+     Löschung kann keine Daten kosten, sie kommt nur später an.
+   Ohne eingerichtete Cloud gibt es nichts zu sichern, dann bleibt alles stumm. */
+function nichtGesichert(){
+  if (!cloudAn()) return [];
+  let seit = 0;
+  try { seit = Number(localStorage.getItem(SYNC_KEY + '-push') || 0); } catch { return []; }
+  return state.catches.filter(c => !c.entwurf && (c.updated || 0) > seit);
+}
+
+function gesichertRendern(){
+  const pill = $('#st-cloud');
+  if (!pill) return;
+  const n = nichtGesichert().length;
+  pill.hidden = !n;
+  if (!n) return;
+  pill.textContent = (n === 1 ? '1 Fang' : n + ' Fänge') + ' nur auf diesem Gerät';
+  pill.title = 'Noch nicht im Konto gesichert — tippen, um jetzt abzugleichen';
+}
+
 /* ---------------------------- Liste ---------------------------- */
 function renderList(){
   const q = $('#q').value.trim().toLowerCase();
@@ -2201,6 +2252,10 @@ function renderList(){
 
   const list = $('#list');
   list.innerHTML = '';
+
+  /* Einmal ermittelt statt je Zeile — sonst wird der Push-Stand für jeden Fang
+     neu aus dem localStorage geholt. */
+  const offen = new Set(nichtGesichert().map(c => c.id));
 
   if (!state.catches.length){
     list.innerHTML = `<div class="empty">Noch kein Fang drin.<br>
@@ -2217,7 +2272,8 @@ function renderList(){
     const size = [c.laenge && c.laenge + ' cm', c.gewicht && String(c.gewicht).replace('.', ',') + ' kg']
       .filter(Boolean).join(' · ');
     const farben = farbenVon(c).join(', ');
-    const tags = (c.entwurf ? '<span class="pill warn">Entwurf</span>' : '') + [
+    const tags = (c.entwurf ? '<span class="pill warn">Entwurf</span>' : '')
+      + (offen.has(c.id) ? '<span class="pill offen">nur auf diesem Gerät</span>' : '') + [
       c.phase && phaseLabel(c.phase),
       c.wetter && (wetterIcon(c.wetter) + ' ' + wetterLabel(c.wetter)),
       [c.koeder, farben].filter(Boolean).join(' · '),
@@ -2245,7 +2301,15 @@ function renderList(){
   $('#st-count').textContent  = fertig.length + (fertig.length === 1 ? ' Fang' : ' Fänge');
   $('#st-waters').textContent = waters.size + (waters.size === 1 ? ' Gewässer' : ' Gewässer');
   $('#st-best').textContent   = best ? `Größter: ${best.laenge} cm${best.art ? ' ' + best.art : ''}` : 'Noch kein Maß';
+  gesichertRendern();
 }
+/* Tippen auf den Hinweis gleicht sofort ab — nicht still, damit man eine Antwort
+   bekommt. Wer liest, dass etwas nur auf diesem Gerät liegt, will es loswerden
+   können, ohne erst die Einstellungen zu suchen. */
+$('#st-cloud').addEventListener('click', () => syncJetzt(false));
+$('#st-cloud').addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); syncJetzt(false); }
+});
 $('#list').addEventListener('click', e => {
   const it = e.target.closest('.item');
   if (!it) return;
@@ -2936,10 +3000,16 @@ async function syncJetzt(still){
        Aufgefrischt wird jetzt, was gerade zu sehen ist. */
     if (runter) {
       await reload();
-      renderList();
       if (state.view === 'map')   renderMap();
       if (state.view === 'stats') renderStats();
     }
+    /* ⚠️ Ohne `if` — auch ein reines Hochladen ändert etwas Sichtbares: der
+       Hinweis „nur auf diesem Gerät" muss danach verschwinden. Stand das hier
+       im `runter`-Zweig, blieb die Warnung nach erfolgreichem Hochladen stehen
+       und behauptete eine Gefahr, die nicht mehr besteht. Eine Warnung, die
+       falsch stehen bleibt, wird bald übersehen — und dann trägt sie nichts
+       mehr, wenn sie einmal stimmt. */
+    renderList();
     try { localStorage.setItem(SYNC_KEY + '-zeit', String(Date.now())); } catch {}
     if (!still) toast(rauf || runter ? `Abgeglichen · ${rauf} hoch, ${runter} runter` : 'Alles schon aktuell');
   } catch (e){
@@ -3107,6 +3177,19 @@ function renderKonto(){
       { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   } catch {}
 
+  /* ⚠️ Der Hinweis gehört genau hierher, nicht nur auf die Liste. Dies ist die Seite,
+     auf der man landet, bevor man abmeldet, das Konto löscht oder die App neu
+     installiert — also vor jedem Schritt, der lokale Fänge unwiderruflich mitnimmt.
+     Der Kollege hat am 08.08. neu installiert, ohne dass ihm irgendwo etwas gesagt
+     hätte, dass zwei Fänge nur bei ihm lagen. */
+  const offenN = nichtGesichert().length;
+  const offenTeil = offenN ? `
+    <p class="tiny" style="margin:0 0 10px; color:var(--warn); line-height:1.5">
+      <b>${offenN === 1 ? '1 Fang liegt' : offenN + ' Fänge liegen'} nur auf diesem Gerät.</b><br>
+      Noch nicht im Konto gesichert. Vor dem Abmelden, Löschen oder Neuinstallieren
+      erst abgleichen — sonst ${offenN === 1 ? 'ist er' : 'sind sie'} weg.
+    </p>` : '';
+
   box.innerHTML = `
     <label class="f">Konto & Sync</label>
     <p class="tiny muted" style="margin:0 0 10px">
@@ -3114,6 +3197,7 @@ function renderKonto(){
       ${konto.username && konto.email ? `<br><span style="opacity:.7">${konto.email}</span>` : ''}
       <br>${letzter}
     </p>
+    ${offenTeil}
     <button class="btn" id="k-sync" style="margin-bottom:8px" ${syncLaeuft ? 'disabled' : ''}>
       ${syncLaeuft ? '… wird abgeglichen' : '⟳ Jetzt abgleichen'}</button>
     <button class="btn" id="k-out" style="margin-bottom:8px">Abmelden</button>

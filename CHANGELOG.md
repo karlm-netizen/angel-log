@@ -6,6 +6,43 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 09.08.2026 (1) — Sichtbar, was noch nicht in der Cloud liegt
+
+Der Vorschlag vom 08.08., jetzt freigegeben. **Er behebt keinen Fehler — er behebt eine
+Blindheit.**
+
+Am 08.08. hat ein Fehler im Push-Stand zwei Fänge des Kollegen nie hochladen lassen; sie
+lagen nur auf seinem iPhone, eine Neuinstallation hat sie mitgenommen. Der Fehler ist
+behoben. **Aber der Fehler allein hat die Fänge nicht gekostet — seine Unsichtbarkeit hat
+es.** Die App sah genauso aus wie eine, bei der alles oben liegt. Wer neu installiert, tut
+das im Vertrauen darauf, dass die Cloud die Daten hat.
+
+Deshalb ist das hier keine zweite Absicherung gegen denselben Fehler, sondern der Blick auf
+das, was tatsächlich noch nicht gesichert ist. Das trägt auch bei allem, woran niemand
+gedacht hat: kein Netz am Wasser, abgelaufene Sitzung, Server nicht erreichbar, ein
+künftiger Fehler an derselben Stelle.
+
+- **Oben in der Liste** steht ein Hinweis „*N* Fänge nur auf diesem Gerät", sobald etwas
+  offen ist. **Antippen gleicht sofort ab.**
+- **Jeder betroffene Fang ist einzeln markiert** — die Zahl allein genügt nicht, man muss
+  sehen, *welche* es sind.
+- **In den Einstellungen** steht die Warnung ausführlich: dort landet man, bevor man
+  abmeldet, das Konto löscht oder neu installiert. Genau dort hat der Kollege nichts gesehen.
+
+⚠️ **Maßstab ist derselbe, nach dem `hochladen()` auswählt** — alles mit `updated` über dem
+Push-Stand. Eine eigene Buchführung wäre eine zweite Wahrheit neben der ersten, und die
+zweite läge irgendwann falsch.
+
+⚠️ **Entwürfe zählen nicht** (die sind absichtlich lokal und schon markiert), **Grabsteine
+auch nicht** (eine nicht gemeldete Löschung kann keine Daten kosten).
+
+⚠️ **Der Hinweis muss nach dem Hochladen verschwinden**, auch wenn dabei nichts
+heruntergeladen wurde. Dafür ist das Auffrischen aus dem `runter`-Zweig herausgerückt. Eine
+Warnung, die falsch stehen bleibt, wird bald übersehen — und trägt dann nichts mehr, wenn
+sie einmal stimmt.
+
+**434 Prüfungen grün** (von 424). Gegengeprobt: macht man die Anzeige blind, fallen fünf.
+
 ## 08.08.2026 (10) — Ladeleiste nach unten, Mitte ganz frei
 
 Karls Ansage: *„der ladebalken soll nach unten und angel log soll aus der mitte weg."*
