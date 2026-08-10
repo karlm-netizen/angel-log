@@ -6,6 +6,26 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 10.08.2026 (2) — Der Anmelde-Schirm
+
+Zwei Ansagen von Karl, beide auf demselben Bildschirm.
+
+- ✅ **Das echte App-Symbol steht jetzt im Anmelde-Schirm.** Dort stand eine gezeichnete
+  Fischsilhouette aus der Zeit vor dem eigenen Icon.
+  ⚠️ **Es war die letzte Stelle, an der das alte Bild überlebt hatte** — und ausgerechnet
+  der erste Bildschirm, den man von der App überhaupt zu sehen bekommt. Am 07.08. ist das
+  Symbol überall ausgetauscht worden, am 08.08. kam es zusätzlich in die Kopfzeile; gesucht
+  wurde beide Male an den Stellen, die man beim *Benutzen* sieht. Der Anmelde-Schirm kommt
+  davor.
+- ✅ **Passwort anzeigen** — Auge rechts im Feld, ein Tipp zeigt es, der nächste verbirgt es.
+  ⚠️ Die Schreibmarke bleibt stehen, wo sie war: ein Wechsel des Feldtyps setzt sie sonst
+  ans Ende, und am Handy schließt ein verlorener Fokus die Tastatur — mitten im Tippen.
+  Die Beschriftung wechselt mit („Passwort anzeigen" / „Passwort verbergen"), sonst ist der
+  Knopf für alle unbrauchbar, die ihn vorgelesen bekommen.
+
+**484 Prüfungen grün** (von 476). Gegengeprobt: altes Symbol und toter Knopf wieder
+eingebaut → genau die vier zuständigen Prüfungen fallen.
+
 ## 10.08.2026 — Ein Fang weiß jetzt selbst, ob er im Konto liegt
 
 Karls Meldung: *„wieso habe ich 11 fänge auf meinem pc und nur 5 auf meinem handy?"* und

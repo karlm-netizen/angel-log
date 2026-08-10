@@ -1786,6 +1786,60 @@ window.addEventListener('error', e => {
     const txt = document.querySelector('#gate').textContent.toLowerCase();
     return (!/ohne konto|überspringen|ueberspringen|später|spaeter/.test(txt)) || 'es gibt einen Ausweg';
   });
+  /* ============ Anmelde-Schirm, 10.08.2026 ============
+     Karl: "app icon wenn man sich anmelden / regstrieren will ist immernoch das
+     alte". Hier stand eine gezeichnete Fischsilhouette aus der Zeit vor dem
+     eigenen Symbol -- die letzte Stelle, an der sie ueberlebt hatte, und zugleich
+     der erste Bildschirm, den man von der App ueberhaupt zu sehen bekommt. */
+  t('Der Anmelde-Schirm zeigt das echte App-Symbol', () => {
+    konto = null; gateModus = 'login'; gateZeigen();
+    const bild = document.querySelector('#gate .hero img');
+    return (bild && /icon-192\.png/.test(bild.getAttribute('src')))
+        || (bild ? bild.getAttribute('src') : 'kein Bild im Kopf des Schirms');
+  });
+  t('und nicht mehr die gezeichnete Silhouette', () => {
+    // Zwei Symbole fuer dieselbe App sind eins zu viel -- und das falsche steht vorn.
+    return (!document.querySelector('#gate .hero svg')) || 'die alte SVG steht noch da';
+  });
+  /* ---- Passwort anzeigen (Karls Ansage vom 10.08.2026) ---- */
+  t('Neben dem Passwort steht ein Auge', () => {
+    const k = document.querySelector('#g-pw-auge');
+    return (!!k && !!k.querySelector('svg')) || 'kein Knopf';
+  });
+  t('Ein Tipp macht das Passwort sichtbar', () => {
+    const feld = document.querySelector('#g-pw');
+    feld.value = 'geheim123';
+    document.querySelector('#g-pw-auge').click();
+    return feld.type === 'text' || ('Typ ist ' + feld.type);
+  });
+  t('und der naechste verbirgt es wieder', () => {
+    document.querySelector('#g-pw-auge').click();
+    return document.querySelector('#g-pw').type === 'password'
+        || ('Typ ist ' + document.querySelector('#g-pw').type);
+  });
+  t('die Beschriftung sagt, was der naechste Tipp tut', () => {
+    /* Sonst ist der Knopf fuer alle unbrauchbar, die ihn vorgelesen bekommen --
+       und fuer jeden anderen zweideutig: zeigt das Auge den Zustand oder die Tat? */
+    const k = document.querySelector('#g-pw-auge');
+    const vorher = k.getAttribute('aria-label');
+    k.click();
+    const nachher = k.getAttribute('aria-label');
+    k.click();
+    return (/anzeigen/i.test(vorher) && /verbergen/i.test(nachher))
+        || `vorher "${vorher}", nachher "${nachher}"`;
+  });
+  t('das Auge liegt nicht auf den letzten Zeichen', () => {
+    /* Genau dort sieht man beim Tippen hin. Das Feld braucht rechts mindestens so
+       viel Platz, wie der Knopf breit ist. */
+    const feld = document.querySelector('#g-pw');
+    const rechts = parseFloat(getComputedStyle(feld).paddingRight);
+    const knopf  = document.querySelector('#g-pw-auge').getBoundingClientRect().width;
+    return (rechts >= knopf * .9) || `Platz ${rechts}px, Knopf ${knopf}px`;
+  });
+  t('der Knopf ist gross genug zum Treffen', () => {
+    const r = document.querySelector('#g-pw-auge').getBoundingClientRect();
+    return (r.width >= 40 && r.height >= 40) || `${Math.round(r.width)}x${Math.round(r.height)}`;
+  });
   // ---- Benutzername ----
   t('Beim Anmelden kein Namensfeld', () => {
     konto = null; gateModus = 'login'; gateZeigen();

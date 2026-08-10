@@ -354,9 +354,26 @@ setTimeout(function(){
   .gate.on{display:block}
   .gate .inner{max-width:400px; margin:0 auto}
   .gate .hero{text-align:center; margin:0 0 24px}
-  .gate .hero svg{width:60px; height:60px; color:var(--accent); margin-bottom:12px}
+  /* ⚠️ Das echte App-Symbol, nicht mehr die gezeichnete Fischsilhouette (Karl,
+     10.08.2026: „app icon wenn man sich anmelden / regstrieren will ist immernoch
+     das alte"). Es war die letzte Stelle, an der das alte Bild noch stand — und
+     ausgerechnet die erste, die man von der App zu sehen bekommt.
+     Eckenradius wie bei einem App-Symbol, damit es als solches gelesen wird. */
+  .gate .hero img{width:76px; height:76px; border-radius:19px; margin-bottom:12px;
+    box-shadow:0 6px 20px rgba(0,0,0,.35)}
   .gate .hero .big{font-size:22px; font-weight:800; margin-bottom:8px; letter-spacing:-.4px}
   .gate .in{margin-bottom:10px}
+
+  /* Passwort anzeigen (Karls Ansage vom 10.08.2026).
+     ⚠️ Das Feld bekommt rechts Platz, sonst liegt der Knopf auf den letzten
+     Zeichen — genau dort, wo man beim Tippen hinsieht. */
+  .pw-feld{position:relative; margin-bottom:10px}
+  .pw-feld .in{margin-bottom:0; padding-right:48px}
+  .pw-auge{position:absolute; right:2px; top:50%; transform:translateY(-50%);
+    width:44px; height:44px; background:none; border:0; color:var(--muted);
+    display:grid; place-items:center; border-radius:11px}
+  .pw-auge:active{color:var(--accent)}
+  .pw-auge svg{width:21px; height:21px}
   .gate .fehler{color:var(--danger); font-size:13px; line-height:1.5; margin:0 2px 10px}
   .gate .link{background:none; border:0; color:var(--muted); font-size:13px;
     width:100%; text-align:center; margin-top:14px; padding:8px}
@@ -1170,6 +1187,8 @@ const EN = {
   'Tipp unten auf': 'Tap',
   'sobald der Erste im Kescher liegt.': 'below as soon as the first one is in the net.',
   'Nichts gefunden.': 'Nothing found.',
+  'Passwort anzeigen': 'Show password',
+  'Passwort verbergen': 'Hide password',
   'Entwurf': 'Draft',
   /* Zwei Schlüssel für ein deutsches Wort: „1 Entwurf" / „4 Entwürfe" heißt im
      Englischen „1 draft" / „4 drafts" — dieselbe Bauart wie bei Fang/Fänge. */
@@ -3197,7 +3216,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v27';
+const FASSUNG = 'v28';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -3827,16 +3846,26 @@ function gateZeigen(fehler){
 }
 function gateVerbergen(){ $('#gate').classList.remove('on'); }
 
+/* Auge auf / Auge zu. Zwei Bilder statt eines durchgestrichenen, weil man am
+   Zustand des Auges sofort sieht, was ein Tipp bewirkt. */
+const AUGE_AUF = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/>
+    <circle cx="12" cy="12" r="2.9"/></svg>`;
+const AUGE_ZU = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+    stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/>
+    <circle cx="12" cy="12" r="2.9"/><path d="M4 20L20 4"/></svg>`;
+
 function renderGate(fehler){
   const anmelden = gateModus === 'login';
   $('#gate-inner').innerHTML = `
     <div class="hero">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-           stroke-linecap="round" stroke-linejoin="round">
-        <path d="M6.5 12c2.5-3.6 6-5.6 9.5-5.6 2.8 0 4.9 1.7 6 5.6-1.1 3.9-3.2 5.6-6 5.6-3.5 0-7-2-9.5-5.6z"/>
-        <path d="M6.5 12L2 8.2v7.6z"/>
-        <circle cx="17.4" cy="10.4" r="1" fill="currentColor" stroke="none"/>
-      </svg>
+      <!-- ⚠️ Das echte App-Symbol. Hier stand bis zum 10.08.2026 eine gezeichnete
+           Fischsilhouette aus der Zeit vor dem eigenen Icon — die letzte Stelle, an
+           der das alte Bild überlebt hatte, und zugleich der erste Bildschirm, den
+           man überhaupt zu sehen bekommt. -->
+      <img src="icon-192.png" alt="">
       <div class="big">${T(anmelden ? 'Willkommen zurück' : 'Fangbuch einrichten')}</div>
       <div class="tiny muted" style="line-height:1.6">
         ${T(anmelden
@@ -3852,9 +3881,13 @@ function renderGate(fehler){
            autocomplete="${anmelden ? 'username' : 'email'}"
            spellcheck="false" autocapitalize="none"
            placeholder="${T(anmelden ? 'E-Mail oder Benutzername' : 'E-Mail')}">
-    <input class="in" id="g-pw" type="password"
-           autocomplete="${anmelden ? 'current-password' : 'new-password'}"
-           placeholder="${T('Passwort')}${anmelden ? '' : T(' (mind. 6 Zeichen)')}">
+    <div class="pw-feld">
+      <input class="in" id="g-pw" type="password"
+             autocomplete="${anmelden ? 'current-password' : 'new-password'}"
+             placeholder="${T('Passwort')}${anmelden ? '' : T(' (mind. 6 Zeichen)')}">
+      <button type="button" class="pw-auge" id="g-pw-auge"
+              aria-label="${T('Passwort anzeigen')}">${AUGE_AUF}</button>
+    </div>
     ${fehler ? `<div class="fehler">${fehler}</div>` : ''}
     <button class="btn primary" id="g-los">${T(anmelden ? 'Anmelden' : 'Konto erstellen')}</button>
     <button class="link" id="g-wechsel">
@@ -3873,6 +3906,19 @@ function renderGate(fehler){
   };
   $('#g-los').onclick = gateLos;
   $('#g-pw').onkeydown = e => { if (e.key === 'Enter') gateLos(); };
+  /* Passwort anzeigen. ⚠️ Die Schreibmarke muss stehen bleiben, wo sie war: ein
+     Wechsel des Feldtyps setzt sie sonst ans Ende, und am Handy schließt ein
+     verlorener Fokus die Tastatur — mitten im Tippen. */
+  $('#g-pw-auge').onclick = () => {
+    const feld = $('#g-pw'), knopf = $('#g-pw-auge');
+    const zeigt = feld.type === 'text';
+    const pos = feld.selectionStart;
+    feld.type = zeigt ? 'password' : 'text';
+    knopf.innerHTML = zeigt ? AUGE_AUF : AUGE_ZU;
+    knopf.setAttribute('aria-label', T(zeigt ? 'Passwort anzeigen' : 'Passwort verbergen'));
+    feld.focus();
+    try { feld.setSelectionRange(pos, pos); } catch {}
+  };
   // Beim Tippen klein schreiben, damit sichtbar ist, wie der Name gespeichert wird.
   const nf = $('#g-name');
   if (nf) nf.oninput = () => { nf.value = nf.value.toLowerCase().replace(/\s+/g, ''); };
