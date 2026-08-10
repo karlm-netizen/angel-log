@@ -568,6 +568,13 @@ function splashWeg(){
     </div>
     <div class="row" style="gap:8px; margin:10px 0 4px">
       <span class="pill" id="st-count">0 Fänge</span>
+      <!-- ⚠️ Karls Meldung vom 10.08.2026: „ich habe 11 Fänge auf dem PC". Es waren
+           acht. Die Liste zeigt Entwürfe mit an, die Zählung ließ sie weg — zwei
+           Wahrheiten auf einem Bildschirm, und die Liste ist die, die man zählt.
+           Wir haben deshalb einen halben Abend lang einen Datenverlust gesucht,
+           den es nie gab. Steht ein Entwurf in der Liste, steht seine Zahl jetzt
+           auch hier oben. -->
+      <span class="pill warn" id="st-drafts" hidden></span>
       <span class="pill" id="st-waters">0 Gewässer</span>
       <span class="pill" id="st-best">—</span>
       <!-- ⚠️ Der Hinweis, der am 08.08.2026 gefehlt hat. Siehe `gesichertRendern()`. -->
@@ -1164,6 +1171,10 @@ const EN = {
   'sobald der Erste im Kescher liegt.': 'below as soon as the first one is in the net.',
   'Nichts gefunden.': 'Nothing found.',
   'Entwurf': 'Draft',
+  /* Zwei Schlüssel für ein deutsches Wort: „1 Entwurf" / „4 Entwürfe" heißt im
+     Englischen „1 draft" / „4 drafts" — dieselbe Bauart wie bei Fang/Fänge. */
+  'Entwurf (einer)': 'draft',
+  'Entwürfe': 'drafts',
   'Wind': 'Wind',
   'nur auf diesem Gerät': 'on this device only',
   'nur auf diesem Gerät.': 'on this device only.',
@@ -2815,9 +2826,17 @@ $('#btn-cancel').onclick = () => {
    Fällen, an die niemand gedacht hat: kein Netz am Wasser, abgelaufene Sitzung,
    Server nicht erreichbar, ein künftiger Fehler an derselben Stelle.
 
-   Maßstab ist derselbe, nach dem `hochladen()` auswählt: alles mit `updated` über dem
-   Push-Stand ist noch nicht draußen. Eine eigene Buchführung wäre eine zweite Wahrheit
-   neben der ersten — und die zweite läge irgendwann falsch.
+   Maßstab ist derselbe, nach dem `hochladen()` auswählt — es gibt nur eine Wahrheit,
+   und sie steht **am Fang**: `cloud` ist die Fassung, die nachweislich im Konto liegt.
+
+   ⚠️ **Hier stand ein Stand für das ganze Gerät** (`SYNC_KEY + '-push'`), und das war
+   falsch, in beide Richtungen. Karls Meldung am Abend des 10.08.2026: ein Fang, der
+   gerade **heruntergeladen** worden war, trug den Hinweis „nur auf diesem Gerät".
+   Kein Wunder — er kam vom Handy und trug dessen Uhrzeit, und die war neuer als das
+   letzte Hochladen des PCs. Ein Gerätestand kann nicht ausdrücken, dass ein Fang von
+   drüben kam; er kennt nur „später als". Die andere Richtung ist die gefährliche:
+   steht der Stand einmal zu hoch, wird ein älterer Fang **stillschweigend für immer
+   übersprungen** — genau der Verlust vom 08.08., nur durch eine andere Tür.
 
    Nicht mitgezählt:
    - **Entwürfe** — sie sind absichtlich lokal und als „Entwurf" schon gekennzeichnet.
@@ -2826,9 +2845,7 @@ $('#btn-cancel').onclick = () => {
    Ohne eingerichtete Cloud gibt es nichts zu sichern, dann bleibt alles stumm. */
 function nichtGesichert(){
   if (!cloudAn()) return [];
-  let seit = 0;
-  try { seit = Number(localStorage.getItem(SYNC_KEY + '-push') || 0); } catch { return []; }
-  return state.catches.filter(c => !c.entwurf && (c.updated || 0) > seit);
+  return state.catches.filter(c => !c.entwurf && (c.updated || 0) > (c.cloud || 0));
 }
 
 function gesichertRendern(){
@@ -2897,6 +2914,12 @@ function renderList(){
   const waters = new Set(fertig.map(c => c.gewaesser).filter(Boolean));
   const best = fertig.reduce((a, c) => (c.laenge && (!a || c.laenge > a.laenge)) ? c : a, null);
   $('#st-count').textContent  = fertig.length + ' ' + T(fertig.length === 1 ? 'Fang' : 'Fänge');
+  /* Die Zahl, die in der Liste steht, aber nicht in „x Fänge" — siehe die
+     Begründung am Element. Ohne Entwürfe bleibt das Schild weg. */
+  const entwuerfe = state.catches.length - fertig.length;
+  const draftPill = $('#st-drafts');
+  draftPill.hidden = !entwuerfe;
+  draftPill.textContent = entwuerfe + ' ' + T(entwuerfe === 1 ? 'Entwurf (einer)' : 'Entwürfe');
   /* Einzahl und Mehrzahl sind im Deutschen gleich, im Englischen nicht —
      deshalb stehen hier zwei Schlüssel, obwohl links dasselbe Wort steht. */
   $('#st-waters').textContent = waters.size + ' ' + T(waters.size === 1 ? 'Gewässer (eins)' : 'Gewässer (mehrere)');
@@ -3174,7 +3197,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v26';
+const FASSUNG = 'v27';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -3327,28 +3350,21 @@ const SYNC_KEY = 'angellog-sync';
 const syncStand = () => { try { return localStorage.getItem(SYNC_KEY) || '1970-01-01T00:00:00Z'; } catch { return '1970-01-01T00:00:00Z'; } };
 const syncStandSetzen = s => { try { localStorage.setItem(SYNC_KEY, s); } catch {} };
 
-/* ---------- Einmalige Reparatur nach dem Fehler vom 08.08.2026 ----------
-   ⚠️ Den Fehler zu beheben genügt nicht. Auf jedem Gerät, das ihn erlebt hat, steht
-   `-push` bereits zu hoch: die durchgefallenen Fänge liegen zwar noch im Gerät, ihr
-   `updated` ist aber kleiner als dieser Stand — sie würden auch mit dem reparierten
-   Code weiter übersprungen, für immer.
+/* ---------- Der Push-Stand ist abgeschafft (10.08.2026) ----------
+   Hier stand `reparaturPush()`: eine einmalige Rücksetzung von `SYNC_KEY + '-push'`
+   auf 0, weil der Stand nach dem Fehler vom 08.08. auf vielen Geräten zu hoch stand.
 
-   Deshalb einmalig auf 0 zurück. Der nächste Abgleich prüft dann jeden Fang erneut
-   und schickt hoch, was drüben fehlt. Das kostet einmal Datenvolumen für alle Fotos;
-   verloren gehen kann dabei nichts, weil die Datenbank `merge-duplicates` verwendet
-   und ein zweites Hochladen desselben Fangs dieselbe Zeile trifft.
+   Beides ist weg — die Reparatur und das, was sie reparieren musste. Ein einzelner
+   Stand für das ganze Gerät kann nicht sagen, ob **dieser eine** Fang im Konto liegt;
+   er kann nur „später als" sagen. Jetzt trägt jeder Fang sein `cloud`: die Fassung,
+   die nachweislich oben angekommen ist.
 
-   ⚠️ Der Merker gehört in den localStorage und nicht an die Fassung der App: er darf
-   genau einmal je Gerät greifen, nicht bei jedem Update erneut. */
-const REPARATUR_KEY = 'angellog-reparatur-push-2026-08-08';
-function reparaturPush(){
-  try {
-    if (localStorage.getItem(REPARATUR_KEY)) return false;
-    localStorage.setItem(REPARATUR_KEY, String(Date.now()));
-    localStorage.setItem(SYNC_KEY + '-push', '0');
-    return true;
-  } catch { return false; }
-}
+   ⚠️ Die Reparatur wird dadurch überflüssig, nicht nur ersetzt. Ein Fang aus alter
+   Zeit hat noch gar kein `cloud`, gilt also als ungesichert und geht beim nächsten
+   Abgleich mit hoch — das ist genau, was die Rücksetzung erzwingen sollte, nur ohne
+   Merker, ohne Datum und ohne die Frage, ob es schon einmal gelaufen ist. Es kostet
+   einmal je Gerät das Datenvolumen für alle Fotos; verlieren kann man dabei nichts,
+   weil dieselbe Zeile getroffen wird (`merge-duplicates`). */
 
 const TABELLE = '/rest/v1/angel_faenge';
 
@@ -3364,31 +3380,46 @@ async function zeilenSchreiben(zeilen){
   }
 }
 
-/* ⚠️ Der Fehler, der am 08.08.2026 zwei Fänge des Kollegen gekostet hat.
+/* Nach erfolgreichem Hochladen an jedem Fang vermerken, welche Fassung oben liegt.
 
-   Hier stand am Ende `setItem(SYNC_KEY + '-push', String(Date.now()))` — der
-   Zeitpunkt **nach** dem Hochladen. Ausgewählt wird aber **vorher**, in der Schleife
-   unten. Dazwischen liegt echte Zeit: Fotos verkleinern und verschicken dauert am
-   Handy im Mobilfunk leicht zehn Sekunden bis eine Minute.
+   ⚠️ **Der Vergleich `rec.updated === updated` ist der Kern, nicht Beiwerk.** Er ist
+   die Stelle, an der der Verlust vom 08.08.2026 verhindert wird — und zwar diesmal
+   durch die Bauweise und nicht durch ein sorgfältig gesetztes Datum.
 
-   Jeder Fang, der **in diesem Fenster** erfasst oder geändert wurde, fiel durch:
-   für die laufende Runde war er zu spät, und der neue Stand erklärte ihn zugleich
-   für erledigt. Beim nächsten Abgleich wurde er übersprungen — und bei jedem
-   weiteren auch. Er lag noch im Gerät, kam aber nie in die Cloud und damit auf kein
-   zweites Gerät. Genau die Lage am Wasser: zwei Fische kurz nacheinander eintragen,
-   während der erste mit seinem Foto noch hochlädt.
+   Zwischen dem Auswählen und dem Vermerken liegt echte Zeit: Fotos verkleinern und
+   verschicken dauert am Handy im Mobilfunk zehn Sekunden bis eine Minute. Wer in
+   diesem Fenster denselben Fang ändert (oder ihn gerade erst einträgt), hat danach
+   ein neueres `updated` im Speicher als das, was verschickt wurde. Dann darf `cloud`
+   **nicht** gesetzt werden: oben liegt die alte Fassung, hier die neue, und der Fang
+   gehört in die nächste Runde. Genau das war damals andersherum — der Stand erklärte
+   ihn für erledigt, und er ging nie wieder mit.
 
-   Jetzt rückt der Stand nur so weit vor, **wie tatsächlich hochgeladen wurde** —
-   auf das größte `updated` der verschickten Zeilen. Was danach entstand, bleibt
-   offen und geht in der nächsten Runde mit. Der Stand darf nie einen Zeitpunkt
-   behaupten, für den nichts verschickt wurde. */
+   Gelesen wird aus dem **Speicher**, nicht aus `state.catches`: die Liste im
+   Hauptspeicher kann längst veraltet sein, der Speicher ist die Wahrheit. */
+async function cloudMerken(paare){
+  if (!paare.length) return;
+  const jetzt = new Map((await allCatches()).map(c => [c.id, c]));
+  for (const [id, updated] of paare){
+    const rec = jetzt.get(id);
+    if (!rec || rec.updated !== updated) continue;   // zwischendurch geändert → nächste Runde
+    rec.cloud = updated;
+    await putCatch(rec, true);                       // `true`: `updated` bleibt stehen
+  }
+}
+
+/* ⚠️ Ausgewählt wird **je Fang**, nicht über einen Stand für das ganze Gerät.
+   Warum das sein muss, steht ausführlich über `nichtGesichert()`: ein Gerätestand
+   kann nicht ausdrücken, dass ein Fang von drüben kam, und er überspringt still,
+   was älter ist als er. Beides hat Karl am 10.08.2026 gesehen — einen frisch
+   heruntergeladenen Fang mit dem Schild „nur auf diesem Gerät", und acht Fänge am
+   PC, von denen fünf nie hochgingen. */
 async function hochladen(){
-  const seit = Number(localStorage.getItem(SYNC_KEY + '-push') || 0);
   const raus = [];
-  let hoechstes = seit;
+  const gesendet = [];
   for (const c of state.catches){
-    if ((c.updated || 0) <= seit) continue;
     if (c.entwurf) continue;                 // Entwürfe sind halbe Sachen, die bleiben lokal
+    const updated = c.updated || Date.now();
+    if (updated <= (c.cloud || 0)) continue; // diese Fassung liegt nachweislich schon oben
     const fotos = [];
     for (const p of (c.photos || [])){
       const klein = await fotoFuerCloud(p.full);
@@ -3398,9 +3429,12 @@ async function hochladen(){
     }
     const daten = { ...c };
     delete daten.photos;
-    const updated = c.updated || Date.now();
-    if (updated > hoechstes) hoechstes = updated;
+    /* `cloud` ist eine Notiz dieses Geräts über dieses Gerät. Ginge sie mit hoch,
+       zöge sie das andere Gerät herunter und behauptete dort etwas über einen
+       Speicher, den sie nie gesehen hat. */
+    delete daten.cloud;
     raus.push({ id: c.id, updated, geloescht: false, daten, fotos });
+    gesendet.push([c.id, updated]);
   }
   // Gelöschtes als Grabstein melden, sonst lebt der Fang auf dem anderen Gerät weiter.
   const graeber = (await allGraeber()).filter(g => !g.gemeldet);
@@ -3408,11 +3442,7 @@ async function hochladen(){
 
   await zeilenSchreiben(raus);
   await grabMarkieren(graeber.map(g => g.id));
-  /* Nur bis zum größten tatsächlich verschickten `updated` vorrücken — siehe die
-     Erklärung über der Funktion. Grabsteine zählen hier bewusst nicht mit: sie
-     hängen an `gemeldet`, nicht an diesem Stand, und ihr Zeitstempel könnte den
-     Stand über Fänge hinausschieben, die noch gar nicht dran waren. */
-  try { localStorage.setItem(SYNC_KEY + '-push', String(hoechstes)); } catch {}
+  await cloudMerken(gesendet);
   return raus.length;
 }
 
@@ -3449,7 +3479,13 @@ async function herunterladen(){
     const rr = await api(`${TABELLE}?select=*&id=in.(${teil.map(encodeURIComponent).join(',')})`);
     if (!rr.ok) throw new Error(T('Abrufen fehlgeschlagen') + ' (' + rr.status + ')');
     for (const zeile of await rr.json()){
-      const rec = { ...(zeile.daten || {}), id: zeile.id, updated: zeile.updated, photos: [] };
+      /* ⚠️ `cloud` gleich mitschreiben: dieser Fang kommt **aus** dem Konto, er liegt
+         dort also nachweislich in genau dieser Fassung. Ohne das hielte ihn das Gerät
+         für eine eigene, noch ungesicherte Änderung — würde ihn samt Fotos sofort
+         zurückschieben und ihn obendrein als „nur auf diesem Gerät" anschreiben.
+         Das war Karls Meldung vom 10.08.2026. */
+      const rec = { ...(zeile.daten || {}), id: zeile.id, updated: zeile.updated,
+                    cloud: zeile.updated, photos: [] };
       for (const p of (zeile.fotos || [])){
         try { rec.photos.push({ full: await dataURLToBlob(p.full), thumb: await dataURLToBlob(p.thumb || p.full) }); }
         catch {}
@@ -3507,10 +3543,13 @@ async function abgleichPruefen(){
    heruntergeladen gewinnt je Fang die jüngere Fassung. Es kostet einmal
    Datenvolumen für alle Fotos — deshalb nicht selbsttätig, sondern auf Ansage. */
 async function allesNeuLaden(){
-  try {
-    localStorage.removeItem(SYNC_KEY);
-    localStorage.setItem(SYNC_KEY + '-push', '0');
-  } catch {}
+  try { localStorage.removeItem(SYNC_KEY); } catch {}
+  /* Und die Notiz „liegt oben" an jedem Fang löschen — sonst zieht der Knopf nur
+     herunter und lässt die Gegenrichtung aus. Wer ihn drückt, glaubt gerade dem
+     Abgleich nicht mehr; dann darf keine Notiz von ihm stehen bleiben. */
+  const alle = await allCatches();
+  for (const c of alle){ if (c.cloud != null){ delete c.cloud; await putCatch(c, true); } }
+  await reload();
   await syncJetzt(false);
 }
 
@@ -3873,7 +3912,8 @@ async function gateLos(){
    als bei Gym-Log, wo ein ganzer Datenblock ersetzt wird und deshalb entschieden
    werden muss, welche Seite gilt. */
 async function ersterAbgleich(){
-  try { localStorage.setItem(SYNC_KEY + '-push', '0'); } catch {}
+  /* Hier stand `-push` auf 0 zu setzen, damit vorhandene Fänge sicher mitgehen.
+     Nicht mehr nötig: ein Fang ohne `cloud` gilt ohnehin als ungesichert. */
   const eigene = state.catches.filter(c => !c.entwurf).length;
   await syncJetzt(true);
   await reload();
@@ -5045,8 +5085,6 @@ window.addEventListener('unhandledrejection', e =>
   if (cloudAn()){
     konto = kontoLesen();
     renderKonto();
-    // Einmalig, bevor der erste Abgleich läuft — siehe reparaturPush().
-    reparaturPush();
     if (gateNoetig()) gateZeigen();
     else syncJetzt(true);
     // Wer ohne Netz einträgt, soll nicht daran denken müssen.

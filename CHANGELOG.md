@@ -6,6 +6,71 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 10.08.2026 — Ein Fang weiß jetzt selbst, ob er im Konto liegt
+
+Karls Meldung: *„wieso habe ich 11 fänge auf meinem pc und nur 5 auf meinem handy?"* und
+kurz darauf *„irgendwas funktioniert allgemein in der datenübertragung nicht"*.
+
+**Es waren zwei Fehler und ein Missverständnis, und das Missverständnis war meins.**
+
+### 1. Der Stand für das ganze Gerät ist abgeschafft
+
+Bis heute entschied **ein einziges Datum je Gerät** (`angellog-sync-push`), ob ein Fang schon
+im Konto liegt. Das kann die Frage gar nicht beantworten — es kennt nur „später als".
+
+- **Nach oben falsch:** ein gerade **heruntergeladener** Fang trägt die Uhr des *anderen*
+  Geräts. Die ist neuer als das letzte Hochladen hier → er wurde als „nur auf diesem Gerät"
+  angeschrieben. Genau Karls Beobachtung: *„bei dem einen, der neu ist, steht nur auf diesem
+  Gerät dabei. Das stimmt aber nicht. Der ist auch auf meinem Handy."*
+- **Nach unten falsch, und das ist die teure Richtung:** steht der Stand einmal zu hoch, wird
+  ein älterer Fang **stillschweigend übersprungen** — bei jedem Abgleich, für immer. Das ist
+  derselbe Verlust wie am 08.08., nur durch eine andere Tür.
+- **Nebenbefund, in der Gegenprobe schwarz auf weiß:** jeder heruntergeladene Fang wurde beim
+  nächsten Abgleich **samt Fotos sofort wieder hochgeschoben** (`zurueckgeschoben: ["n"]`).
+
+Jetzt trägt jeder Fang sein eigenes `cloud` — die Fassung, die nachweislich oben angekommen
+ist. Gesetzt wird es an genau zwei Stellen: nach erfolgreichem Hochladen und beim
+Herunterladen (denn von dort kam der Fang ja).
+
+⚠️ **Der Wächter beim Vermerken ist der Kern, nicht Beiwerk.** Vermerkt wird nur, wenn der
+Fang im Speicher noch dieselbe Fassung hat, die verschickt wurde. Wer während des Hochladens
+denselben Fang ändert — am Handy im Mobilfunk dauert ein Foto zehn Sekunden bis eine Minute —,
+bekommt kein `cloud` und geht in der nächsten Runde mit. Damit ist der Verlust vom 08.08.
+durch die **Bauweise** verhindert und nicht mehr durch ein sorgfältig gesetztes Datum.
+
+⚠️ **Die einmalige Reparatur vom 08.08. ist ersatzlos weg** — sie wird überflüssig, nicht
+ersetzt. Ein Fang ohne `cloud` gilt als ungesichert und geht beim nächsten Abgleich mit hoch.
+Das kostet einmal je Gerät das Datenvolumen für alle Fotos und heilt dabei jeden Bestand, der
+hinter einem zu hohen Stand feststeckte.
+
+### 2. Zwei Wahrheiten auf einem Bildschirm
+
+Karl zählte **elf Fänge** am PC. Es waren **acht** — plus vier Entwürfe. Die Liste zeigt
+Entwürfe mit an, die Zählung darüber ließ sie weg. **Gezählt wird, was man sieht.**
+
+Steht ein Entwurf in der Liste, steht seine Zahl jetzt auch oben (`4 Entwürfe`, gelb, neben
+`8 Fänge`). Eine Prüfung hält fest, dass Fänge plus Entwürfe immer die Zeilenzahl ergeben.
+
+⚠️ **Daran hing der halbe Abend.** Wir haben einen Datenverlust gesucht, den es nie gab, weil
+der Bildschirm zwei verschiedene Zahlen behauptete und ich der falschen geglaubt habe.
+
+### Prüfungen
+
+**476 grün** (von 464). Neu unter anderem: ein geholter Fang trägt sein `cloud`, er gilt nicht
+als ungesichert, er wird nicht zurückgeschoben; eine Änderung während des Hochladens gilt
+nicht als gesichert; Liste und Zählung widersprechen sich nie.
+
+⚠️ **Gegengeprobt:** beide Fehler zur Kontrolle wieder eingebaut → **genau vier Prüfungen
+fallen**, und zwar die vier, die es sollen. Eine Prüfung, die den Fehler nicht fängt, ist keine.
+
+⚠️ **Am Prüfrahmen nachgebessert:** bricht der Lauf ohne Ergebnis ab, starb bisher die
+**Fehlermeldung selbst** an einem `UnicodeEncodeError` (Windows-Konsole auf cp1252). Der
+Abbruch war sichtbar, sein Grund nicht. Heute dreimal passiert.
+
+⚠️ **Unverändert offen:** der Lauf bricht weiter sporadisch ohne Ergebnis ab (heute drei von
+sechs Läufen) und geht beim Wiederholen ohne Änderung durch. Chrome wackelt unter virtueller
+Zeit. Nicht behoben, nur benannt.
+
 ## 09.08.2026 (4) — Abgleich prüfen, und ein Loch gestopft
 
 Karls Meldung: *„fänge auf meinem handy und auf meinem pc sind nicht gleich warum auch

@@ -1268,6 +1268,9 @@ window.addEventListener('error', e => {
       if (!vomServer || rec.updated == null) rec.updated = Date.now();
       fakeDB.set(rec.id, rec); fakeGrab.delete(rec.id); return rec;
     };
+    // cloudMerken() liest den Speicher, nicht state.catches -- sonst schriebe es
+    // eine veraltete Fassung zurueck. Im Rahmen ist der Speicher fakeDB.
+    allCatches   = async () => [...fakeDB.values()];
     removeCatch  = async (id) => { fakeDB.delete(id); fakeGrab.set(id, { id, updated: Date.now(), gemeldet: false }); };
     allGraeber   = async () => [...fakeGrab.values()];
     grabMarkieren = async (ids) => ids.forEach(id => fakeGrab.set(id, { ...fakeGrab.get(id), id, gemeldet: true }));
@@ -1334,22 +1337,51 @@ window.addEventListener('error', e => {
 
   // ---- Hochladen ----
   ta('Nur Geaendertes geht hoch', async () => {
-    sandbox([mkC('a', 5000), mkC('b', 50)]);
-    localStorage.setItem('angellog-sync-push', '1000');
+    // `cloud` = die Fassung, die nachweislich im Konto liegt. b ist damit durch, a nicht.
+    sandbox([mkC('a', 5000, { cloud: 1000 }), mkC('b', 50, { cloud: 50 })]);
     let raus = null; zeilenSchreiben = async z => { raus = z; };
     await hochladen();
     return (raus.length === 1 && raus[0].id === 'a') || JSON.stringify(raus.map(r => r.id));
   });
+  ta('Ein Fang ohne cloud-Vermerk geht hoch', async () => {
+    /* Der Normalfall nach dem Umbau vom 10.08.2026 und zugleich die Wanderung der
+       Altbestaende: wer kein `cloud` traegt, war nachweislich noch nie oben. Frueher
+       brauchte es dafuer eine einmalige Ruecksetzung des Geraetestandes. */
+    sandbox([mkC('alt', 50)]);
+    let raus = null; zeilenSchreiben = async z => { raus = z; };
+    await hochladen();
+    return (raus.length === 1 && raus[0].id === 'alt') || JSON.stringify(raus.map(r => r.id));
+  });
+  ta('cloud faehrt nicht mit in die Cloud', async () => {
+    /* `cloud` ist eine Notiz dieses Geraets ueber dieses Geraet. Ginge sie mit hoch,
+       zoege das andere Geraet sie herunter und behauptete etwas ueber einen Speicher,
+       den sie nie gesehen hat. */
+    sandbox([mkC('a', 5000, { cloud: 1000 })]);
+    let raus = null; zeilenSchreiben = async z => { raus = z; };
+    await hochladen();
+    return (raus[0].daten.cloud === undefined) || ('cloud steht in daten: ' + raus[0].daten.cloud);
+  });
+  ta('Nach dem Hochladen traegt der Fang seine Fassung', async () => {
+    sandbox([mkC('a', 5000)]);
+    zeilenSchreiben = async () => {};
+    await hochladen();
+    return (fakeDB.get('a').cloud === 5000) || ('cloud ist ' + fakeDB.get('a').cloud);
+  });
+  ta('und geht danach nicht ein zweites Mal hoch', async () => {
+    sandbox([mkC('a', 5000)]);
+    let raus = null; zeilenSchreiben = async z => { raus = z; };
+    await hochladen();
+    await hochladen();
+    return (raus.length === 0) || ('zweiter Lauf schickte ' + JSON.stringify(raus.map(r => r.id)));
+  });
   ta('Entwuerfe bleiben lokal', async () => {
     sandbox([mkC('a', 5000, { entwurf: true }), mkC('b', 5000)]);
-    localStorage.setItem('angellog-sync-push', '0');
     let raus = null; zeilenSchreiben = async z => { raus = z; };
     await hochladen();
     return (raus.length === 1 && raus[0].id === 'b') || JSON.stringify(raus.map(r => r.id));
   });
   ta('Geloeschtes geht als Grabstein hoch', async () => {
     sandbox([], [{ id: 'weg', updated: 9000, gemeldet: false }]);
-    localStorage.setItem('angellog-sync-push', '0');
     let raus = null; zeilenSchreiben = async z => { raus = z; };
     await hochladen();
     const g = raus.find(r => r.id === 'weg');
@@ -1357,7 +1389,6 @@ window.addEventListener('error', e => {
   });
   ta('Ein gemeldeter Grabstein geht nicht nochmal hoch', async () => {
     sandbox([], [{ id: 'weg', updated: 9000, gemeldet: false }]);
-    localStorage.setItem('angellog-sync-push', '0');
     let raus = null; zeilenSchreiben = async z => { raus = z; };
     await hochladen();
     await hochladen();
@@ -1401,6 +1432,48 @@ window.addEventListener('error', e => {
       : antwort([{ id: 'n', updated: 4242, geloescht: false, daten: { art: 'Aal' }, fotos: [] }]);
     await herunterladen();
     return (fakeDB.get('n').updated === 4242) || 'updated wurde auf ' + fakeDB.get('n').updated + ' gesetzt';
+  });
+  /* ============ Karls Meldung vom 10.08.2026 ============
+     "bei dem einen, der neu ist, steht nur auf diesem Geraet dabei. Das stimmt aber
+     nicht. Der ist auch auf meinem Handy."
+
+     Der Fang war gerade heruntergeladen worden. Er trug die Uhr des Handys, und die
+     war neuer als das letzte Hochladen des PCs -- also galt er als ungesichert. Ein
+     Stand fuer das ganze Geraet kann nicht ausdruecken, dass etwas von drueben kam.
+
+     ⚠️ Die zweite Pruefung ist die teure Haelfte: derselbe Irrtum hat den Fang auch
+     samt Fotos sofort wieder hochgeschoben, bei jedem Abgleich aufs Neue. */
+  ta('Ein geholter Fang weiss, dass er im Konto liegt', async () => {
+    sandbox([]);
+    localStorage.removeItem('angellog-sync');
+    api = async pfad => pfad.includes('select=id,')
+      ? antwort([{ id: 'n', updated: 4242, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }])
+      : antwort([{ id: 'n', updated: 4242, geloescht: false, daten: { art: 'Aal' }, fotos: [] }]);
+    await herunterladen();
+    return (fakeDB.get('n').cloud === 4242) || ('cloud ist ' + fakeDB.get('n').cloud);
+  });
+  ta('und traegt deshalb nicht "nur auf diesem Geraet"', async () => {
+    sandbox([]);
+    localStorage.removeItem('angellog-sync');
+    api = async pfad => pfad.includes('select=id,')
+      ? antwort([{ id: 'n', updated: 4242, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }])
+      : antwort([{ id: 'n', updated: 4242, geloescht: false, daten: { art: 'Aal' }, fotos: [] }]);
+    await herunterladen();
+    state.catches = [...fakeDB.values()];
+    const n = nichtGesichert().length;
+    return (n === 0) || (n + ' Faenge gelten als ungesichert');
+  });
+  ta('und wird nicht sofort wieder hochgeschoben', async () => {
+    sandbox([]);
+    localStorage.removeItem('angellog-sync');
+    api = async pfad => pfad.includes('select=id,')
+      ? antwort([{ id: 'n', updated: 4242, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }])
+      : antwort([{ id: 'n', updated: 4242, geloescht: false, daten: { art: 'Aal' }, fotos: [] }]);
+    await herunterladen();
+    state.catches = [...fakeDB.values()];
+    let raus = null; zeilenSchreiben = async z => { raus = z; };
+    await hochladen();
+    return (raus.length === 0) || ('zurueckgeschoben: ' + JSON.stringify(raus.map(r => r.id)));
   });
   ta('Grabstein vom Server loescht lokal', async () => {
     sandbox([mkC('weg', 100)]);
@@ -1806,14 +1879,18 @@ window.addEventListener('error', e => {
   });
 
   ta('Erster Abgleich schiebt vorhandene Faenge hoch', async () => {
+    /* Wer die App vorher ohne Konto benutzt hat, hat seine Faenge im Geraet. Beim
+       ersten Anmelden muessen sie mit, statt neben dem Konto liegen zu bleiben.
+       ⚠️ Hier stand frueher eine kuenstlich in die Zukunft gesetzte Marke
+       (`-push`), gegen die sich ersterAbgleich wehren musste. Die Marke gibt es
+       seit dem 10.08.2026 nicht mehr -- und damit auch nichts mehr, wogegen man
+       sich wehren muesste. */
     sandbox([mkC('alt1', 5000), mkC('alt2', 6000), mkC('entw', 7000, { entwurf: true })]);
-    localStorage.setItem('angellog-sync-push', String(Date.now() + 60000));  // alles schon gemeldet
     let raus = null; zeilenSchreiben = async z => { raus = z; };
     api = async () => ({ ok: true, json: async () => [] });
     konto = { access_token: 'tok' };
     await ersterAbgleich();
     konto = null;
-    // Trotz gesetzter Marke muessen beide fertigen Faenge hoch — der Entwurf nicht.
     const ids = (raus || []).map(r => r.id).sort();
     return (ids.length === 2 && ids[0] === 'alt1' && ids[1] === 'alt2') || JSON.stringify(ids);
   });
@@ -1829,14 +1906,17 @@ window.addEventListener('error', e => {
      durch den neuen Stand zugleich als erledigt. Er ging nie hoch, bei keinem
      spaeteren Abgleich, und lag nur noch auf dem einen Geraet.
 
-     ⚠️ Die Pruefung unten stellt genau dieses Fenster nach: waehrend
-     zeilenSchreiben laeuft, kommt ein Fang dazu. */
+     ⚠️ Die Pruefungen unten stellen genau dieses Fenster nach: waehrend
+     zeilenSchreiben laeuft, kommt ein Fang dazu bzw. wird einer geaendert.
+
+     ⚠️ Seit dem 10.08.2026 gibt es den Geraetestand nicht mehr -- jeder Fang traegt
+     sein `cloud`. Die Pruefungen bleiben trotzdem stehen, nur der Massstab hat
+     gewechselt: frueher "der Stand darf den Fang nicht ueberholt haben", jetzt "der
+     Fang darf kein cloud tragen, das er nicht verdient hat". Der Fehler von damals
+     wuerde beide fallen lassen. */
   ta('ein Fang aus dem Hochlade-Fenster geht nicht verloren', async () => {
     sandbox([mkC('erster', 1000)]);
-    localStorage.setItem('angellog-sync-push', '0');
-    let raus = null;
     zeilenSchreiben = async z => {
-      raus = z;
       // Genau hier tippt der Kollege den zweiten Fisch ein: das Hochladen des
       // ersten laeuft noch, sein Foto ist unterwegs.
       const spaet = mkC('waehrenddessen', Date.now());
@@ -1845,46 +1925,54 @@ window.addEventListener('error', e => {
     };
     api = async () => ({ ok: true, json: async () => [] });
     await hochladen();
-    const stand = Number(localStorage.getItem('angellog-sync-push'));
-    const spaet = [...fakeDB.values()].find(c => c.id === 'waehrenddessen');
-    // Der Stand darf den spaeten Fang nicht ueberholt haben, sonst faellt er durch.
-    return stand < spaet.updated
-        || `Stand ${stand} >= Fang ${spaet.updated} — der Fang faellt durch`;
+    const spaet = fakeDB.get('waehrenddessen');
+    // Er war nie verschickt -- also darf ihn nichts fuer gesichert erklaeren.
+    return !spaet.cloud || `cloud ist ${spaet.cloud} — der Fang faellt durch`;
   });
   ta('und er geht in der naechsten Runde wirklich hoch', async () => {
     sandbox([mkC('erster', 1000)]);
-    localStorage.setItem('angellog-sync-push', '0');
     let raus = null;
     zeilenSchreiben = async z => { raus = z; };
     api = async () => ({ ok: true, json: async () => [] });
     await hochladen();                      // Runde 1: nur 'erster'
-    const spaet = mkC('waehrenddessen', Number(localStorage.getItem('angellog-sync-push')) + 1);
+    const spaet = mkC('waehrenddessen', 2000);
     fakeDB.set(spaet.id, spaet); state.catches = [...fakeDB.values()];
     await hochladen();                      // Runde 2: muss den spaeten mitnehmen
     const ids = (raus || []).map(r => r.id);
-    return ids.includes('waehrenddessen') || JSON.stringify(ids);
+    return (ids.length === 1 && ids[0] === 'waehrenddessen') || JSON.stringify(ids);
   });
-  ta('der Stand springt nicht auf die Uhr, sondern auf das Verschickte', async () => {
+  ta('eine Aenderung waehrend des Hochladens gilt nicht als gesichert', async () => {
+    /* Der gefaehrlichere Zwilling: nicht ein neuer Fang, sondern derselbe Fang,
+       waehrend sein Foto laeuft. Verschickt wurde Fassung 1000, im Geraet steht
+       danach 7000. Wuerde jetzt cloud=7000 vermerkt, waere die Aenderung fuer
+       immer weg -- oben liegt die alte Fassung und niemand fragt mehr nach. */
+    sandbox([mkC('a', 1000)]);
+    zeilenSchreiben = async () => {
+      fakeDB.set('a', mkC('a', 7000));
+      state.catches = [...fakeDB.values()];
+    };
+    api = async () => ({ ok: true, json: async () => [] });
+    await hochladen();
+    return !fakeDB.get('a').cloud || ('cloud ist ' + fakeDB.get('a').cloud + ' statt leer');
+  });
+  ta('cloud springt nicht auf die Uhr, sondern auf das Verschickte', async () => {
     sandbox([mkC('a', 5000)]);
-    localStorage.setItem('angellog-sync-push', '0');
     zeilenSchreiben = async () => {};
     api = async () => ({ ok: true, json: async () => [] });
     await hochladen();
-    const stand = Number(localStorage.getItem('angellog-sync-push'));
-    // 5000 ist das groesste verschickte updated. Date.now() waere ~1.7e12.
-    return stand === 5000 || ('Stand ist ' + stand + ' statt 5000');
+    // 5000 ist die verschickte Fassung. Date.now() waere ~1.7e12.
+    return fakeDB.get('a').cloud === 5000 || ('cloud ist ' + fakeDB.get('a').cloud);
   });
-  ta('ein Grabstein schiebt den Stand nicht ueber offene Faenge', async () => {
-    // Grabsteine haengen an `gemeldet`, nicht am Push-Stand. Zaehlten sie mit,
-    // koennte ihr Zeitstempel den Stand ueber Faenge schieben, die noch nicht dran
-    // waren -- derselbe Verlust durch die Hintertuer.
+  ta('ein Grabstein erklaert keinen offenen Fang fuer gesichert', async () => {
+    /* Frueher konnte der Zeitstempel eines Grabsteins den Geraetestand ueber Faenge
+       schieben, die noch nicht dran waren -- derselbe Verlust durch die Hintertuer.
+       Am Fang selbst kann das gar nicht mehr passieren; die Pruefung haelt fest,
+       dass es dabei bleibt. */
     sandbox([mkC('a', 5000)], [{ id: 'tot', updated: 9e12, gemeldet: false }]);
-    localStorage.setItem('angellog-sync-push', '0');
     zeilenSchreiben = async () => {};
     api = async () => ({ ok: true, json: async () => [] });
     await hochladen();
-    return Number(localStorage.getItem('angellog-sync-push')) === 5000
-        || ('Stand ist ' + localStorage.getItem('angellog-sync-push'));
+    return fakeDB.get('a').cloud === 5000 || ('cloud ist ' + fakeDB.get('a').cloud);
   });
   /* ============ Sichtbar machen, was noch nicht in der Cloud liegt ============
      Die Lehre aus dem 08.08.2026: der Fehler allein hat die zwei Faenge nicht
@@ -1898,9 +1986,12 @@ window.addEventListener('error', e => {
      ⚠️ Bewusst als synchrone Pruefungen: sandbox() ersetzt renderList durch eine
      leere Funktion, und geprueft wird hier gerade die echte Liste. Synchrone
      Pruefungen laufen alle, bevor der erste sandbox()-Aufruf geschieht. */
+  /* `stand` war frueher ein Datum fuer das ganze Geraet. Seit dem 10.08.2026 traegt
+     jeder Fang selbst, welche Fassung im Konto liegt -- der Wert wird deshalb auf
+     alle verteilt. Die Pruefungen darunter sind unveraendert geblieben: es ist
+     dieselbe Frage, nur an der richtigen Stelle gestellt. */
   const cloudSetzen = (faenge, stand) => {
-    state.catches = faenge;
-    localStorage.setItem('angellog-sync-push', String(stand));
+    state.catches = faenge.map(c => ({ ...c, cloud: stand }));
     renderList();
   };
   t('nicht gesicherte Faenge werden gezaehlt', () => {
@@ -1913,6 +2004,40 @@ window.addEventListener('error', e => {
     cloudSetzen([mkC('e', 5000, { entwurf: true })], 0);
     const n = nichtGesichert().length;
     return n === 0 || ('gezaehlt: ' + n);
+  });
+  /* ============ Zwei Wahrheiten auf einem Bildschirm (10.08.2026) ============
+     Karl: "ich habe 11 Faenge auf meinem pc und nur 5 auf meinem handy". Es waren
+     acht und fuenf. Die Liste zeigt Entwuerfe mit an, die Zaehlung darueber liess
+     sie weg -- und gezaehlt wird, was man sieht. Wir haben daraufhin einen halben
+     Abend lang einen Datenverlust gesucht, den es nie gab.
+
+     ⚠️ Die Pruefung haengt an der Zahl, nicht am Aussehen: solange in der Liste
+     mehr Zeilen stehen als "x Faenge" behauptet, muss die Differenz oben stehen. */
+  t('Entwuerfe stehen mit ihrer Zahl ueber der Liste', () => {
+    cloudSetzen([mkC('a', 1000), mkC('e1', 2000, { entwurf: true }),
+                 mkC('e2', 3000, { entwurf: true })], 9000);
+    const zeilen = document.querySelectorAll('#list .item').length;
+    const zahl   = document.querySelector('#st-count').textContent;
+    const draft  = document.querySelector('#st-drafts');
+    return (zeilen === 3 && /^1 Fang/.test(zahl) && !draft.hidden && /^2 Entw/.test(draft.textContent))
+        || `${zeilen} Zeilen, oben "${zahl}", Entwuerfe "${draft.hidden ? '(versteckt)' : draft.textContent}"`;
+  });
+  t('ohne Entwuerfe bleibt das Schild weg', () => {
+    // Sonst stuende bei jedem normalen Blick eine 0 herum, die nichts erklaert.
+    cloudSetzen([mkC('a', 1000)], 9000);
+    return document.querySelector('#st-drafts').hidden === true
+        || ('steht da: ' + document.querySelector('#st-drafts').textContent);
+  });
+  t('Liste und Zaehlung widersprechen sich nie', () => {
+    /* Der eigentliche Satz, um den es geht -- unabhaengig davon, wie die Zahlen
+       spaeter dargestellt werden: was in der Liste steht, muss oben vollstaendig
+       aufgehen. Faenge plus Entwuerfe gleich Zeilen. */
+    cloudSetzen([mkC('a', 1000), mkC('b', 1100), mkC('e', 2000, { entwurf: true })], 9000);
+    const zeilen = document.querySelectorAll('#list .item').length;
+    const f = parseInt(document.querySelector('#st-count').textContent, 10);
+    const d = document.querySelector('#st-drafts').hidden
+            ? 0 : parseInt(document.querySelector('#st-drafts').textContent, 10);
+    return (f + d === zeilen) || `${f} Faenge + ${d} Entwuerfe != ${zeilen} Zeilen`;
   });
   t('der Hinweis steht in der Liste, wenn etwas offen ist', () => {
     cloudSetzen([mkC('neu', 5000)], 1000);
@@ -2127,17 +2252,15 @@ window.addEventListener('error', e => {
     konto = null;
     return (z.fehltDort === 0 && z.entwuerfe === 1 && z.aufGeraet === 1) || JSON.stringify(z);
   });
-  ta('"Alles neu laden" setzt BEIDE Staende zurueck', async () => {
+  ta('"Alles neu laden" setzt den Herunterlade-Stand zurueck', async () => {
     /* ⚠️ Der Grund, warum es das gibt. Der Herunterlade-Stand laeuft nur
        vorwaerts und wurde nie zurueckgesetzt. Verliert ein Geraet seine lokale
        Datenbank, behaelt aber den localStorage -- Safari raeumt IndexedDB nach
        laengerer Nichtbenutzung weg --, dann fragt es "was ist seit gestern
        passiert?" und bekommt nichts. Die Faenge liegen im Konto und kommen nie
-       wieder herunter. Fuer -push gibt es seit dem 08.08. eine Reparatur, fuer
-       diese Richtung gab es keine. */
+       wieder herunter. */
     sandbox([]);
     localStorage.setItem('angellog-sync', '2026-08-09T00:00:00Z');
-    localStorage.setItem('angellog-sync-push', '99999');
     api = async () => ({ ok: true, json: async () => [] });
     zeilenSchreiben = async () => {};
     konto = { access_token: 'tok' };
@@ -2147,6 +2270,21 @@ window.addEventListener('error', e => {
     // Nach dem Durchlauf darf der Stand nicht mehr der alte sein.
     return (stand !== '2026-08-09T00:00:00Z')
         || ('Herunterlade-Stand steht noch auf ' + stand);
+  });
+  ta('und es loest auch die cloud-Vermerke, sonst bliebe die Gegenrichtung aus', async () => {
+    /* Wer den Knopf drueckt, glaubt dem Abgleich gerade nicht mehr. Dann darf keine
+       Notiz von ihm stehen bleiben -- sonst zieht er nur herunter, und ein Fang, der
+       faelschlich als gesichert gilt, bleibt genau so liegen wie vorher. */
+    sandbox([mkC('a', 5000, { cloud: 5000 })]);
+    localStorage.setItem('angellog-sync', '2026-08-09T00:00:00Z');
+    let raus = null;
+    api = async () => ({ ok: true, json: async () => [] });
+    zeilenSchreiben = async z => { raus = z; };
+    konto = { access_token: 'tok' };
+    await allesNeuLaden();
+    konto = null;
+    return ((raus || []).some(r => r.id === 'a'))
+        || ('nicht mitgeschickt: ' + JSON.stringify((raus || []).map(r => r.id)));
   });
 
   /* ==================== Fehler melden (09.08.2026) ====================
@@ -3128,8 +3266,15 @@ r = subprocess.run([CHROME, '--headless=new', '--disable-gpu', '--no-sandbox',
                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=180)
 m = re.search(r'<pre id="testout">(.*?)</pre>', r.stdout, re.S)
 if not m:
-    print('Kein Ergebnis. Chrome-Ausgabe (Ende):')
-    print(r.stdout[-3000:]); print(r.stderr[-3000:]); sys.exit(1)
+    # ⚠️ Die Ausgabe enthaelt Umlaute und Sonderzeichen; die Windows-Konsole laeuft
+    # per Vorgabe auf cp1252. Ohne dieses Ersetzen stirbt die FEHLERMELDUNG selbst
+    # an einem UnicodeEncodeError und verdeckt genau das, was man sehen muesste.
+    # Am 10.08.2026 passiert: der Abbruch war da, der Grund unsichtbar.
+    def zeigen(s):
+        enc = sys.stdout.encoding or 'utf-8'
+        print(s.encode(enc, errors='replace').decode(enc, errors='replace'))
+    zeigen('Kein Ergebnis. Chrome-Ausgabe (Ende):')
+    zeigen(r.stdout[-3000:]); zeigen(r.stderr[-3000:]); sys.exit(1)
 txt = m.group(1).replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&quot;', '"')
 print(txt)
 sys.exit(0 if ', 0 fehlgeschlagen' in txt else 1)
