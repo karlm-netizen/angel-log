@@ -196,6 +196,15 @@ create policy "eigene meldungen anlegen" on public.angel_meldungen
 --
 --  Ohne Eintrag passiert schlicht nichts -- die App laeuft unveraendert weiter.
 --
+--  ⚠️ Der Kanal gehoert den Meldungen allein (#bug-reports-angel-log, ab 10.08.2026).
+--  Vorher liefen sie in einen Kanal mit Zugangsdaten -- Meldungen von Testern kaemen
+--  dort zwischen Passwoerter zu liegen, und ein Kanal, den man deshalb nicht teilen
+--  kann, ist als Posteingang fuer fremde Meldungen unbrauchbar.
+--
+--  ⚠️ Zum Kopieren dieser Datei: als UTF-8 lesen. Wird sie als Windows-1252 gelesen
+--  (PowerShell-Standard), stehen die Umlaute schon beim Einfuegen verdorben in der
+--  Funktion -- und die Nachricht gibt danach nur wieder, was hier steht.
+--
 --  ⚠️ net.http_post() aus pg_net ist ASYNCHRON: es legt die Anfrage in eine
 --  Warteschlange und kehrt sofort zurueck. Das ist hier keine Feinheit, sondern
 --  der Grund, warum es ueberhaupt in einem Trigger stehen darf. Wuerde der
