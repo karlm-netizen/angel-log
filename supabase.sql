@@ -219,27 +219,42 @@ security definer                      -- der Melder darf angel_konfig nicht lese
 set search_path = public, net, extensions
 as $$
 declare
-  ziel text;
-  txt  text;
+  ziel     text;
+  txt      text;
+  abgleich text;
 begin
   select wert into ziel from public.angel_konfig where schluessel = 'discord_webhook';
   if ziel is null or ziel = '' then return new; end if;
 
-  -- Zitat-Zeichen vor jede Zeile, damit ein mehrzeiliger Text in Discord als
-  -- ein Block steht und nicht mit dem Umfeld verschwimmt.
-  txt := '🐞 **Angel-Log — neue Fehlermeldung**' || E'\n'
-      || '> ' || replace(coalesce(new.text, ''), E'\n', E'\n> ') || E'\n'
-      || '`' || coalesce(new.umfeld->>'fassung', '?')
-      || '` · ' || coalesce(new.umfeld->>'bildschirm', '?')
+  -- Ein Zeitpunkt in ISO-Schreibweise ist zum Lesen nichts. 'nie' bleibt 'nie'.
+  abgleich := coalesce(new.umfeld->>'letzterAbgleich', '?');
+  if abgleich ~ '^\d{4}-\d{2}-\d{2}' then
+    abgleich := to_char(abgleich::timestamptz at time zone 'Europe/Berlin',
+                        'DD.MM. HH24:MI');
+  end if;
+
+  /* ⚠️ Bewusst OHNE Discord-Auszeichnung (**fett**, > Zitat, `Code`, -# klein).
+     Karl am 10.08.2026: "mach doch die komischen zeichen raus". Eine Meldung ist
+     kein Aushang -- und jedes Zeichen, das der Empfaenger im Zweifel roh sieht
+     statt gerendert, macht sie schlechter lesbar statt besser. Leerzeile statt
+     Zitatblock trennt genauso gut und kann nicht schiefgehen. */
+  txt := '🐞 Angel-Log — neue Fehlermeldung' || E'\n\n'
+      || coalesce(new.text, '') || E'\n\n'
+      || 'Fassung ' || coalesce(new.umfeld->>'fassung', '?')
       || ' · ' || coalesce(new.umfeld->>'netz', '?')
-      || ' · Fänge: ' || coalesce(new.umfeld->>'faenge', '?')
-      || ' · ungesichert: ' || coalesce(new.umfeld->>'ungesichert', '?')
-      || ' · letzter Abgleich: ' || coalesce(new.umfeld->>'letzterAbgleich', '?')
-      || E'\n-# ' || coalesce(new.umfeld->>'geraet', '?');
+      || ' · ' || coalesce(new.umfeld->>'bildschirm', '?')
+      || ' · ' || coalesce(new.umfeld->>'faenge', '?') || ' Fänge, '
+      || coalesce(new.umfeld->>'ungesichert', '?') || ' ungesichert' || E'\n'
+      || 'Letzter Abgleich: ' || abgleich || E'\n'
+      || 'Gerät: ' || coalesce(new.umfeld->>'geraet', '?');
 
   perform net.http_post(
     url     := ziel,
-    headers := '{"Content-Type": "application/json"}'::jsonb,
+    /* ⚠️ `charset=utf-8` ist hier kein Zierrat, sondern der Unterschied zwischen
+       "Fänge" und "FÃ¤nge". Ohne die Angabe liest Discord die Bytes als Latin-1,
+       und jeder Umlaut, jeder Gedankenstrich und das Emoji kommen als Buchstabensalat
+       an. Am 10.08.2026 genau so passiert. */
+    headers := '{"Content-Type": "application/json; charset=utf-8"}'::jsonb,
     -- Discord nimmt hoechstens 2000 Zeichen. Lieber gekuerzt ankommen als
     -- vollstaendig abgewiesen werden.
     body    := jsonb_build_object('content', left(txt, 1900))

@@ -906,9 +906,19 @@ function splashWeg(){
       <label class="f" for="bug-text">Was ist passiert?</label>
       <textarea class="in" id="bug-text" rows="4"
         placeholder="Was wolltest du tun, und was ist stattdessen passiert?"></textarea>
-      <p class="tiny muted" style="margin:8px 0 6px">Das geht automatisch mit:</p>
-      <pre id="bug-umfeld" class="tiny muted" style="margin:0 0 10px; white-space:pre-wrap;
-        word-break:break-word; background:var(--card2); border-radius:10px; padding:9px 10px"></pre>
+      <!-- ⚠️ Hier stand ein Kasten „Das geht automatisch mit:" mit dem vollständigen
+           Umfeld (Fassung, User-Agent, Bildschirm, Netz, Anzahl Fänge …). Karls
+           Ansage am 10.08.2026: raus damit, und wenn es genannt werden muss, dann
+           in der Datenschutzerklärung.
+           Er hat recht. Der Kasten war länger als das Eingabefeld darüber und
+           bestand zur Hälfte aus einer User-Agent-Zeile — wer gerade melden will,
+           dass etwas kaputt ist, bekam als Erstes eine Wand aus Technik zu lesen.
+           **Mitgeschickt wird unverändert dasselbe**; es steht jetzt vollständig
+           und ausdrücklich in der Datenschutzerklärung statt hier im Weg. -->
+      <p class="tiny muted" style="margin:8px 0 10px; line-height:1.5">
+        Ein paar technische Angaben gehen automatisch mit — was genau, steht in der
+        <b>Datenschutzerklärung</b> weiter unten.
+      </p>
       <button class="btn" id="btn-bug-ab">Abschicken</button>
       <p class="tiny muted" id="bug-warten" style="margin:8px 0 0" hidden></p>
     </div>
@@ -1454,7 +1464,7 @@ function T(de){
    würde beim Umschalten ein „Pike", der so nie eingetippt wurde. Alles darin
    wird beim Umschalten ohnehin neu gezeichnet, dort steht T() im Quelltext. */
 const NICHT_UEBERSETZEN = ['#list', '#stats-body', '#detail-body', '#konto', '#gate-inner',
-  '#tour-inner', '#ds-text', '#g-ds-text', '#bug-umfeld', '#map', '#splash', '#toast',
+  '#tour-inner', '#ds-text', '#g-ds-text', '#map', '#splash', '#toast',
   '#viewer', '#zeit-gesamt', '#zeit-laeuft', '#zeit-warnung', '#korr-start',
   '#st-count', '#st-waters', '#st-best', '#st-cloud', '#map-count', '#stats-pill',
   '#trueb-info', '#mond-anzeige', '#geo-info', '#bug-warten', '#sicherung-text'].join(',');
@@ -3227,7 +3237,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v30';
+const FASSUNG = 'v31';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -4174,12 +4184,17 @@ function datenschutzEN(){
           automatically sends the coordinates of the spot there.</li>
       <li><b>Delivery</b> of the app via GitHub Pages (GitHub Inc.); as with any web
           server, your IP address occurs there.</li>
-      <li><b>Bug reports</b> you send yourself via „Report a problem" are additionally
-          delivered to the operator as a message via <b>Discord</b> (Discord Inc.,
-          <b>USA</b>) — with your report text and the technical details shown to you
-          before sending (version, device, screen, network, number of catches).
-          <b>Without a report nothing leaves the device this way</b>; delivery only
-          happens when you press the button.</li>
+      <li><b>Bug reports</b> you send yourself via „Report a problem". Sent along
+          automatically with your text: <b>app version</b>, <b>your browser's
+          identifier</b> (user agent, which includes device and operating system),
+          <b>screen size</b>, <b>language setting</b>, whether the app was started
+          <b>from the home screen</b>, <b>online or offline</b>, the <b>number of your
+          catches</b>, the <b>number of catches not yet backed up</b> and the <b>time
+          of the last sync</b>. Without these a report says „doesn't work" and nobody
+          can do anything with it. The report is stored with the operator and
+          additionally delivered to them as a message via <b>Discord</b> (Discord Inc.,
+          <b>USA</b>). <b>Without a report nothing leaves the device this way</b> — it
+          only happens when you press the button.</li>
     </ul>
     <p>All of this is optional: without the map and without automatic filling, every
     catch can be recorded fully by hand. There is no advertising, no tracking, no
@@ -4235,12 +4250,18 @@ function datenschutzDE(){
           Ausfüllen gehen die Koordinaten des Fangorts dorthin.</li>
       <li><b>Auslieferung</b> der App über GitHub Pages (GitHub Inc.); dabei fällt
           wie bei jedem Webserver deine IP-Adresse an.</li>
-      <li><b>Fehlermeldungen</b>, die du selbst über „Fehler melden" abschickst,
-          werden dem Betreiber zusätzlich als Nachricht über <b>Discord</b> (Discord
-          Inc., <b>USA</b>) zugestellt — mit deinem Meldungstext und den technischen
-          Angaben, die dir vor dem Abschicken gezeigt werden (Fassung, Gerät,
-          Bildschirm, Netz, Anzahl Fänge). <b>Ohne Fehlermeldung geht dabei nichts
-          nach außen</b>; die Zustellung passiert nur, wenn du den Knopf drückst.</li>
+      <li><b>Fehlermeldungen</b>, die du selbst über „Fehler melden" abschickst.
+          Mit deinem Text gehen automatisch mit: <b>Fassung der App</b>, <b>Kennung
+          deines Browsers</b> (User-Agent, enthält Gerät und Betriebssystem),
+          <b>Bildschirmgröße</b>, <b>Spracheinstellung</b>, ob die App <b>vom
+          Home-Bildschirm</b> gestartet wurde, <b>online oder offline</b>, die
+          <b>Anzahl deiner Fänge</b>, die <b>Anzahl noch nicht gesicherter Fänge</b>
+          und der <b>Zeitpunkt des letzten Abgleichs</b>. Ohne diese Angaben steht in
+          einer Meldung „geht nicht" und niemand kann etwas damit anfangen.
+          Die Meldung wird beim Betreiber gespeichert und ihm zusätzlich als Nachricht
+          über <b>Discord</b> (Discord Inc., <b>USA</b>) zugestellt.
+          <b>Ohne Fehlermeldung geht dabei nichts nach außen</b> — das passiert nur,
+          wenn du den Knopf drückst.</li>
     </ul>
     <p>Beides ist freiwillig: Ohne Karte und ohne automatisches Ausfüllen lässt sich
     jeder Fang vollständig von Hand erfassen. Es gibt keine Werbung, kein Tracking,
@@ -4336,11 +4357,8 @@ $('#btn-bug').onclick = () => {
   const box = $('#bug-form');
   box.hidden = !box.hidden;
   if (box.hidden) return;
-  /* Erst beim Aufklappen füllen — das Umfeld soll den Stand von jetzt zeigen
-     und nicht den vom Start der App. */
-  const u = umfeldSammeln();
-  $('#bug-umfeld').textContent = Object.entries(u)
-    .map(([k, v]) => T(k) + ': ' + v).join('\n');
+  /* Das Umfeld wird beim Abschicken erhoben, nicht mehr beim Aufklappen angezeigt
+     (Karls Ansage vom 10.08.2026) — es steht jetzt in der Datenschutzerklärung. */
   bugWartendZeigen();
   $('#bug-text').focus();
 };

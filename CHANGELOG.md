@@ -6,6 +6,57 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 10.08.2026 (5) — Umlaut-Salat, und der Technik-Kasten ist raus
+
+### Die Discord-Nachricht kam als Buchstabensalat an
+
+Karl: *„sie sieht ein bisschen komisch aus, mach doch die komischen Zeichen raus."*
+Nachgesehen — die Nachricht stand so im Kanal:
+
+```
+ðŸž **Angel-Log â€" neue Fehlermeldung**
+FÃ¤nge: 8 Â· ungesichert: 0
+```
+
+⚠️ **Das war kein Geschmacksthema, sondern ein Fehler.** `net.http_post` schickte den Kopf
+`Content-Type: application/json` **ohne Zeichensatz**. Discord liest ohne Angabe Latin-1 —
+und damit wird aus jedem Umlaut, jedem Gedankenstrich und dem Emoji Salat. Jetzt steht
+`; charset=utf-8` dabei.
+
+Dazu die Auszeichnung raus (`**fett**`, `> Zitat`, `` `Code` ``, `-# klein`): eine Meldung ist
+kein Aushang, und jedes Zeichen, das der Empfänger im Zweifel roh sieht statt gerendert, macht
+sie schlechter lesbar. Der Zeitpunkt des letzten Abgleichs steht jetzt als `10.08. 20:44` da
+statt als `2026-08-10T18:44:48.343Z`.
+
+### Der „Das geht automatisch mit"-Kasten ist raus
+
+Karls Ansage: *„nimm bei meldungen das: das wird mitgeschickt raus und wenn wir das unbedingt
+brauchen dann pack es in die Datenschutzerklärung."*
+
+Er hat recht: der Kasten war länger als das Eingabefeld darüber und bestand zur Hälfte aus
+einer User-Agent-Zeile. Wer melden will, dass etwas kaputt ist, bekam zuerst eine Wand aus
+Technik.
+
+⚠️ **Die zweite Hälfte seines Satzes ist die wichtigere.** Der Kasten war die einzige Stelle,
+an der stand, was mitgeht. Fiele er weg, ohne dass es woanders vollständig steht, würde aus
+einer offenen Erhebung eine heimliche. Die Datenschutzerklärung nennt deshalb jetzt **jede
+einzelne Angabe** — Fassung, User-Agent, Bildschirmgröße, Sprache, ob vom Home-Bildschirm
+gestartet, online/offline, Anzahl Fänge, ungesicherte Fänge, letzter Abgleich.
+**Eine Prüfung leitet die Liste aus `umfeldSammeln()` ab**: kommt später ein Feld dazu, das im
+Datenschutztext nicht vorkommt, fällt sie. Sonst wächst still mit, was niemand mehr nennt.
+
+### Am Prüfrahmen
+
+⚠️ **Das Zeitbudget stand seit 424 Prüfungen auf 20 Sekunden.** Bei 489 brach der Lauf
+**viermal in Folge** ohne Ergebnis ab — auch mit dem Stand von einer Stunde vorher, der noch
+grün durchgelaufen war. Genau daran war es zu erkennen: **nicht der Code, die Decke.** Jetzt 45
+Sekunden. Virtuelle Zeit kostet keine echte, das Budget also nichts außer Luft nach oben.
+
+Damit ist auch das „sporadische Wackeln" vom 09.08. erklärt — es war nie zufällig, sondern der
+Lauf am Rand seiner Grenze.
+
+**493 Prüfungen grün** (von 489).
+
 ## 10.08.2026 (4) — Fehlermeldungen kommen an, statt herumzuliegen
 
 Karls Frage: *„wie kann ich die reports empfangen?"* — bis hierher gar nicht. Sie lagen in

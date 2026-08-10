@@ -2664,6 +2664,44 @@ window.addEventListener('error', e => {
     return /Ohne Fehlermeldung geht dabei nichts|Without a report nothing leaves/.test(s)
         || 'die Einschraenkung fehlt';
   });
+  /* ---- Karls Ansage vom 10.08.2026: Umfeld-Kasten raus aus dem Formular ----
+     "nimm bei meldungen das: das wird mitgeschickt raus und wenn wir das unbedingt
+     brauchen dann pack es in die datenschutzerklaerung."
+
+     ⚠️ Die zweite Haelfte des Satzes ist die wichtigere. Der Kasten war die einzige
+     Stelle, an der stand, was mitgeht. Faellt er weg, ohne dass es woanders
+     vollstaendig steht, wird aus einer offenen Erhebung eine heimliche. */
+  t('Der Umfeld-Kasten ist raus aus dem Meldeformular', () =>
+    (!document.querySelector('#bug-umfeld')) || 'der Kasten steht noch da');
+  t('Mitgeschickt wird trotzdem dasselbe', () => {
+    const u = umfeldSammeln();
+    return !!(u.fassung && u.geraet && u.bildschirm) || JSON.stringify(u);
+  });
+  t('Der Datenschutztext nennt jede einzelne Angabe, die mitgeht', () => {
+    /* ⚠️ Abgeleitet aus umfeldSammeln(), nicht aus einer Liste von Hand: kommt
+       spaeter ein Feld dazu, das hier keinen Eintrag hat, faellt diese Pruefung.
+       Sonst waechst still mit, was niemand mehr nennt. */
+    const wort = {
+      fassung:         /Fassung der App/,
+      geraet:          /User-Agent/,
+      bildschirm:      /Bildschirmgröße/,
+      netz:            /online oder offline/,
+      sprache:         /Spracheinstellung/,
+      installiert:     /Home-Bildschirm/,
+      faenge:          /Anzahl deiner Fänge/,
+      ungesichert:     /nicht gesicherter Fänge/,
+      letzterAbgleich: /letzten Abgleichs/
+    };
+    const s = datenschutzDE();
+    const fehlt = Object.keys(umfeldSammeln())
+      .filter(k => !wort[k] || !wort[k].test(s));
+    return fehlt.length === 0 || ('im Datenschutztext nicht genannt: ' + fehlt.join(', '));
+  });
+  t('und das Formular verweist auf ihn', () => {
+    // Sonst muss man raten, wo es steht -- und rät nicht, sondern schickt einfach ab.
+    const box = document.querySelector('#bug-form');
+    return /Datenschutzerklärung/.test(box.textContent) || box.textContent.slice(0, 120);
+  });
   t('Die Webhook-Adresse steht nirgends im Quelltext', () => {
     /* ⚠️ Das Repo ist oeffentlich. Wer die Adresse hat, kann in Karls Kanal
        schreiben. Sie gehoert in die Tabelle angel_konfig, die per API fuer
@@ -3369,8 +3407,14 @@ if ANKER not in html:
     html.replace(ANKER, ANKER + " throw new Error('absichtlich kaputt');", 1),
     encoding='utf-8')
 
+# ⚠️ Zeitbudget: 20000 stammt aus der Zeit mit 424 Pruefungen. Am 10.08.2026 brach
+# der Lauf bei 489 Pruefungen viermal in Folge ohne Ergebnis ab -- auch mit dem
+# Stand von einer Stunde vorher, der noch gruen durchgelaufen war. Das war also
+# nicht der Code, sondern die Decke: die letzten (asynchronen) Pruefungen kamen
+# nicht mehr unter die Grenze. Virtuelle Zeit kostet keine echte Zeit, ein
+# groesseres Budget also nichts ausser Luft nach oben.
 r = subprocess.run([CHROME, '--headless=new', '--disable-gpu', '--no-sandbox',
-                    '--virtual-time-budget=20000', '--allow-file-access-from-files',
+                    '--virtual-time-budget=45000', '--allow-file-access-from-files',
                     '--dump-dom', (WORK / 'test.html').as_uri()],
                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=180)
 m = re.search(r'<pre id="testout">(.*?)</pre>', r.stdout, re.S)
