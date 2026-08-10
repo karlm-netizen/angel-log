@@ -1023,7 +1023,7 @@ const EN = {
   'wird geprüft …': 'checking …',
   'Im Konto:': 'In your account:',
   'Auf diesem Gerät:': 'On this device:',
-  'Entwürfe (bleiben absichtlich lokal):': 'Drafts (deliberately kept local):',
+  'davon Entwürfe (gehen mit):': 'of which drafts (they sync too):',
   'liegen im Konto und fehlen hier.': 'are in your account and missing here.',
   'liegen hier und fehlen im Konto.': 'are here and missing from your account.',
   'Beide Seiten sind gleich.': 'Both sides match.',
@@ -1187,6 +1187,10 @@ const EN = {
   'Tipp unten auf': 'Tap',
   'sobald der Erste im Kescher liegt.': 'below as soon as the first one is in the net.',
   'Nichts gefunden.': 'Nothing found.',
+  /* „Eintrag/Einträge" statt „Fang/Fänge" im Cloud-Hinweis: seit dem 10.08.2026
+     gehen Entwürfe mit, und ein halb ausgefüllter Entwurf ist kein Fang. */
+  'Eintrag': 'entry',
+  'Einträge': 'entries',
   'Passwort anzeigen': 'Show password',
   'Passwort verbergen': 'Hide password',
   'Entwurf': 'Draft',
@@ -1380,8 +1384,8 @@ const EN = {
   'Die Fänge auf diesem Gerät bleiben.': 'The catches on this device are kept.',
   'Konto gelöscht — die Fänge auf dem Gerät bleiben': 'Account deleted — the catches on this device are kept',
   'Abgemeldet — deine Fänge bleiben auf dem Gerät': 'Signed out — your catches stay on this device',
-  '1 Fang liegt': '1 catch is',
-  'Fänge liegen': 'catches are',
+  '1 Eintrag liegt': '1 entry is',
+  'Einträge liegen': 'entries are',
   'Noch nicht im Konto gesichert. Vor dem Abmelden, Löschen oder Neuinstallieren erst abgleichen — sonst ist das weg.': 'Not backed up to your account yet. Sync before signing out, deleting or reinstalling — otherwise it is gone.',
   'Deine Fänge liegen auf diesem Gerät und in deinem Konto. Unten kannst du jederzeit alles als Datei herunterladen — das ist deine Kopie, lesbar auch ohne die App.': 'Your catches are on this device and in your account. You can download everything as a file below at any time — that is your own copy, readable without the app.',
   'Nicht angemeldet — es wird gerade nichts abgeglichen. Die Fänge auf diesem Gerät sind unverändert da.': 'Not signed in — nothing is being synced right now. The catches on this device are untouched.',
@@ -2857,14 +2861,18 @@ $('#btn-cancel').onclick = () => {
    steht der Stand einmal zu hoch, wird ein älterer Fang **stillschweigend für immer
    übersprungen** — genau der Verlust vom 08.08., nur durch eine andere Tür.
 
+   ⚠️ **Entwürfe zählen seit dem 10.08.2026 mit** (Karls Ansage, sie gehen jetzt mit
+   hoch). Vorher waren sie ausgenommen, weil sie absichtlich lokal blieben — jetzt wäre
+   dieselbe Ausnahme genau die Blindheit, die am 08.08. zwei Fänge gekostet hat: ein
+   Entwurf, der noch nirgends liegt, liegt eben nur hier.
+
    Nicht mitgezählt:
-   - **Entwürfe** — sie sind absichtlich lokal und als „Entwurf" schon gekennzeichnet.
    - **Grabsteine** (gelöschte Fänge, noch nicht gemeldet) — eine nicht gemeldete
      Löschung kann keine Daten kosten, sie kommt nur später an.
    Ohne eingerichtete Cloud gibt es nichts zu sichern, dann bleibt alles stumm. */
 function nichtGesichert(){
   if (!cloudAn()) return [];
-  return state.catches.filter(c => !c.entwurf && (c.updated || 0) > (c.cloud || 0));
+  return state.catches.filter(c => (c.updated || 0) > (c.cloud || 0));
 }
 
 function gesichertRendern(){
@@ -2873,7 +2881,10 @@ function gesichertRendern(){
   const n = nichtGesichert().length;
   pill.hidden = !n;
   if (!n) return;
-  pill.textContent = (n === 1 ? '1 ' + T('Fang') : n + ' ' + T('Fänge')) + ' ' + T('nur auf diesem Gerät');
+  /* „Einträge", nicht „Fänge": seit dem 10.08.2026 gehen Entwürfe mit, und ein
+     halb ausgefüllter Entwurf ist kein Fang. Ein Wort, das beides trägt, ist hier
+     ehrlicher als eins, das die Hälfte unterschlägt. */
+  pill.textContent = (n === 1 ? '1 ' + T('Eintrag') : n + ' ' + T('Einträge')) + ' ' + T('nur auf diesem Gerät');
   pill.title = T('Noch nicht im Konto gesichert — tippen, um jetzt abzugleichen');
 }
 
@@ -3216,7 +3227,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v28';
+const FASSUNG = 'v29';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -3436,7 +3447,13 @@ async function hochladen(){
   const raus = [];
   const gesendet = [];
   for (const c of state.catches){
-    if (c.entwurf) continue;                 // Entwürfe sind halbe Sachen, die bleiben lokal
+    /* ⚠️ Hier stand `if (c.entwurf) continue` — Entwürfe blieben absichtlich lokal.
+       Karls Ansage am Abend des 10.08.2026: „5 entwürfe die sollen bitte auch
+       synchronisiert werden." Damit ist die alte Begründung hinfällig: ein Entwurf
+       ist zwar eine halbe Sache, aber er ist getippte Arbeit, und getippte Arbeit
+       nur auf einem Gerät liegen zu lassen war schon bei den Fängen der Fehler.
+       Sichtbare Folge, gewollt: ein halb ausgefüllter Entwurf taucht auch auf dem
+       anderen Gerät auf. */
     const updated = c.updated || Date.now();
     if (updated <= (c.cloud || 0)) continue; // diese Fassung liegt nachweislich schon oben
     const fotos = [];
@@ -3528,7 +3545,8 @@ async function herunterladen(){
 
    - **im Konto, aber nicht hier** → dieses Gerät hat etwas nicht geholt
    - **hier, aber nicht im Konto** → dieses Gerät hat etwas nicht hochgeladen
-   - **Entwürfe** → liegen absichtlich lokal und gehören in keine der beiden
+   - **Entwürfe** → seit dem 10.08.2026 gehen sie mit und zählen in beiden
+     Richtungen mit; die eigene Zeile nennt nur noch, wie viele es sind
 
    ⚠️ Und es gibt ein Loch, das die Reparatur vom 08.08. nicht abdeckt. Der
    Herunterlade-Stand (`SYNC_KEY`) läuft **nur vorwärts** und wird nie
@@ -3546,12 +3564,16 @@ async function bestandImKonto(){
 
 async function abgleichPruefen(){
   const dort = new Set(await bestandImKonto());
-  const hier = state.catches.filter(c => !c.entwurf);
+  /* Entwürfe gehen seit dem 10.08.2026 mit hoch — also gehören sie auch in den
+     Vergleich. Wären sie hier ausgenommen, meldete die Prüfung „beide Seiten sind
+     gleich", während fünf Entwürfe nur auf einem Gerät liegen. Genau diese Art von
+     stiller Ausnahme war heute Abend das Problem. */
+  const hier = state.catches;
   const hierIds = new Set(hier.map(c => c.id));
   return {
     imKonto: dort.size,
     aufGeraet: hier.length,
-    entwuerfe: state.catches.length - hier.length,
+    entwuerfe: state.catches.filter(c => c.entwurf).length,
     fehltHier: [...dort].filter(id => !hierIds.has(id)).length,
     fehltDort: [...hierIds].filter(id => !dort.has(id)).length
   };
@@ -4011,7 +4033,7 @@ function renderKonto(){
   const offenN = nichtGesichert().length;
   const offenTeil = offenN ? `
     <p class="tiny" style="margin:0 0 10px; color:var(--warn); line-height:1.5">
-      <b>${offenN === 1 ? T('1 Fang liegt') : offenN + ' ' + T('Fänge liegen')} ${T('nur auf diesem Gerät.')}</b><br>
+      <b>${offenN === 1 ? T('1 Eintrag liegt') : offenN + ' ' + T('Einträge liegen')} ${T('nur auf diesem Gerät.')}</b><br>
       ${T('Noch nicht im Konto gesichert. Vor dem Abmelden, Löschen oder Neuinstallieren '
         + 'erst abgleichen — sonst ist das weg.')}
     </p>` : '';
@@ -4047,7 +4069,7 @@ function renderKonto(){
         `${T('Im Konto:')} <b style="color:var(--txt)">${z.imKonto}</b>`,
         `${T('Auf diesem Gerät:')} <b style="color:var(--txt)">${z.aufGeraet}</b>`
       ];
-      if (z.entwuerfe) zeilen.push(`${T('Entwürfe (bleiben absichtlich lokal):')} ${z.entwuerfe}`);
+      if (z.entwuerfe) zeilen.push(`${T('davon Entwürfe (gehen mit):')} ${z.entwuerfe}`);
       if (z.fehltHier) zeilen.push(`<b style="color:var(--warn)">${z.fehltHier} ${T('liegen im Konto und fehlen hier.')}</b>`);
       if (z.fehltDort) zeilen.push(`<b style="color:var(--warn)">${z.fehltDort} ${T('liegen hier und fehlen im Konto.')}</b>`);
       box.innerHTML = `<p class="tiny muted" style="margin:0 0 8px; line-height:1.6">${zeilen.join('<br>')}</p>`

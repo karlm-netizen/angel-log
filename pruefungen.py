@@ -1374,11 +1374,24 @@ window.addEventListener('error', e => {
     await hochladen();
     return (raus.length === 0) || ('zweiter Lauf schickte ' + JSON.stringify(raus.map(r => r.id)));
   });
-  ta('Entwuerfe bleiben lokal', async () => {
+  ta('Entwuerfe gehen mit hoch', async () => {
+    /* ⚠️ Hier stand bis zum 10.08.2026 das Gegenteil ("Entwuerfe bleiben lokal").
+       Karls Ansage: "5 entwuerfe die sollen bitte auch synchronisiert werden."
+       Ein Entwurf ist eine halbe Sache, aber getippte Arbeit -- und die nur auf
+       einem Geraet liegen zu lassen war schon bei den Faengen der Fehler. */
     sandbox([mkC('a', 5000, { entwurf: true }), mkC('b', 5000)]);
     let raus = null; zeilenSchreiben = async z => { raus = z; };
     await hochladen();
-    return (raus.length === 1 && raus[0].id === 'b') || JSON.stringify(raus.map(r => r.id));
+    const ids = raus.map(r => r.id).sort();
+    return (ids.length === 2 && ids[0] === 'a' && ids[1] === 'b') || JSON.stringify(ids);
+  });
+  ta('und der Entwurf bleibt drueben ein Entwurf', async () => {
+    // Sonst taucht er auf dem zweiten Geraet als fertiger Fang auf und faelscht
+    // jede Auswertung -- Entwuerfe zaehlen nirgends mit.
+    sandbox([mkC('a', 5000, { entwurf: true })]);
+    let raus = null; zeilenSchreiben = async z => { raus = z; };
+    await hochladen();
+    return (raus[0].daten.entwurf === true) || ('entwurf ist ' + raus[0].daten.entwurf);
   });
   ta('Geloeschtes geht als Grabstein hoch', async () => {
     sandbox([], [{ id: 'weg', updated: 9000, gemeldet: false }]);
@@ -1939,6 +1952,10 @@ window.addEventListener('error', e => {
        (`-push`), gegen die sich ersterAbgleich wehren musste. Die Marke gibt es
        seit dem 10.08.2026 nicht mehr -- und damit auch nichts mehr, wogegen man
        sich wehren muesste. */
+    /* ⚠️ Der Entwurf geht seit dem 10.08.2026 mit (Karls Ansage). Vorher erwartete
+       diese Pruefung hier genau zwei Zeilen; dass sie beim Umbau angeschlagen hat,
+       ist die Pruefung, die ihre Arbeit tut -- die Regel hat sich geaendert, nicht
+       der Code hat sich verlaufen. */
     sandbox([mkC('alt1', 5000), mkC('alt2', 6000), mkC('entw', 7000, { entwurf: true })]);
     let raus = null; zeilenSchreiben = async z => { raus = z; };
     api = async () => ({ ok: true, json: async () => [] });
@@ -1946,7 +1963,7 @@ window.addEventListener('error', e => {
     await ersterAbgleich();
     konto = null;
     const ids = (raus || []).map(r => r.id).sort();
-    return (ids.length === 2 && ids[0] === 'alt1' && ids[1] === 'alt2') || JSON.stringify(ids);
+    return (ids.length === 3 && ids.join(',') === 'alt1,alt2,entw') || JSON.stringify(ids);
   });
 
   /* ==================== Der Datenverlust vom 08.08.2026 ====================
@@ -2053,9 +2070,17 @@ window.addEventListener('error', e => {
     const n = nichtGesichert().length;
     return n === 2 || ('gezaehlt: ' + n);
   });
-  t('ein Entwurf zaehlt nicht als ungesichert', () => {
-    // Entwuerfe bleiben absichtlich lokal und sind schon als Entwurf markiert.
+  t('ein ungesicherter Entwurf zaehlt mit', () => {
+    /* ⚠️ Hier stand bis zum 10.08.2026 das Gegenteil. Solange Entwuerfe absichtlich
+       lokal blieben, war ihre Ausnahme richtig. Seit sie mitgehen, waere dieselbe
+       Ausnahme genau die Blindheit, die am 08.08. zwei Faenge gekostet hat: ein
+       Entwurf, der noch nirgends liegt, liegt eben nur hier. */
     cloudSetzen([mkC('e', 5000, { entwurf: true })], 0);
+    const n = nichtGesichert().length;
+    return n === 1 || ('gezaehlt: ' + n);
+  });
+  t('ein gesicherter Entwurf zaehlt nicht mit', () => {
+    cloudSetzen([mkC('e', 5000, { entwurf: true })], 9000);
     const n = nichtGesichert().length;
     return n === 0 || ('gezaehlt: ' + n);
   });
@@ -2096,12 +2121,14 @@ window.addEventListener('error', e => {
   t('der Hinweis steht in der Liste, wenn etwas offen ist', () => {
     cloudSetzen([mkC('neu', 5000)], 1000);
     const p = document.querySelector('#st-cloud');
-    return (!p.hidden && /1 Fang nur auf diesem Ger/.test(p.textContent))
+    // „Eintrag", nicht „Fang": seit dem 10.08.2026 gehen Entwuerfe mit, und ein
+    // halb ausgefuellter Entwurf ist kein Fang.
+    return (!p.hidden && /1 Eintrag nur auf diesem Ger/.test(p.textContent))
         || ('hidden=' + p.hidden + ' text=' + p.textContent);
   });
   t('und er nennt die richtige Mehrzahl', () => {
     cloudSetzen([mkC('a', 5000), mkC('b', 6000)], 1000);
-    return /2 F.nge nur auf diesem Ger/.test(document.querySelector('#st-cloud').textContent)
+    return /2 Eintr.ge nur auf diesem Ger/.test(document.querySelector('#st-cloud').textContent)
         || document.querySelector('#st-cloud').textContent;
   });
   t('der Hinweis verschwindet, wenn alles gesichert ist', () => {
@@ -2296,15 +2323,17 @@ window.addEventListener('error', e => {
     konto = null;
     return (z.fehltDort === 2 && z.fehltHier === 0) || JSON.stringify(z);
   });
-  ta('Entwuerfe zaehlen in keiner der beiden Richtungen mit', async () => {
-    // Sie bleiben absichtlich lokal -- als "fehlt im Konto" waeren sie ein
-    // Fehlalarm, der die echten Faelle unsichtbar macht.
+  ta('Ein Entwurf, der nur hier liegt, wird als fehlend gemeldet', async () => {
+    /* ⚠️ Hier stand bis zum 10.08.2026 das Gegenteil ("zaehlen in keiner der beiden
+       Richtungen mit"). Seit Entwuerfe mitgehen, waere das Verschweigen der
+       Fehlalarm mit umgekehrtem Vorzeichen: die Pruefung meldete "beide Seiten sind
+       gleich", waehrend fuenf Entwuerfe nur auf einem Geraet liegen. */
     sandbox([mkC('a', 1000), mkC('e', 2000, { entwurf: true })]);
     api = async () => ({ ok: true, json: async () => [{ id: 'a' }] });
     konto = { access_token: 'tok' };
     const z = await abgleichPruefen();
     konto = null;
-    return (z.fehltDort === 0 && z.entwuerfe === 1 && z.aufGeraet === 1) || JSON.stringify(z);
+    return (z.fehltDort === 1 && z.entwuerfe === 1 && z.aufGeraet === 2) || JSON.stringify(z);
   });
   ta('"Alles neu laden" setzt den Herunterlade-Stand zurueck', async () => {
     /* ⚠️ Der Grund, warum es das gibt. Der Herunterlade-Stand laeuft nur

@@ -6,6 +6,32 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 10.08.2026 (3) — Entwürfe gehen jetzt mit
+
+Karls Ansage: *„5 entwürfe die sollen bitte auch synchronisiert werden."*
+
+Entwürfe blieben bis heute **absichtlich** lokal — „halbe Sachen bleiben hier". Diese
+Begründung ist hinfällig: ein Entwurf ist getippte Arbeit, und getippte Arbeit nur auf
+einem Gerät liegen zu lassen war schon bei den Fängen der Fehler.
+
+- Entwürfe gehen mit hoch und kommen auf dem anderen Gerät an — **als Entwurf**, nicht als
+  fertiger Fang. Sie zählen weiterhin in keiner Auswertung mit.
+- Sie zählen jetzt in **„⇄ Abgleich prüfen"** mit. Vorher stand dort „Entwürfe (bleiben
+  absichtlich lokal)"; jetzt „davon Entwürfe (gehen mit)".
+  ⚠️ Wären sie weiter ausgenommen, meldete die Prüfung „beide Seiten sind gleich", während
+  fünf Entwürfe nur auf einem Gerät liegen — derselbe Fehlalarm, nur mit umgekehrtem
+  Vorzeichen.
+- Der Cloud-Hinweis zählt sie mit und heißt deshalb **„… Einträge nur auf diesem Gerät"**
+  statt „Fänge". Ein halb ausgefüllter Entwurf ist kein Fang.
+
+⚠️ **Gewollte sichtbare Folge:** ein Entwurf, den du am PC halb ausfüllst, taucht auch am
+Handy auf. Wer denselben Entwurf auf zwei Geräten anfasst, bekommt die jüngere Fassung —
+dieselbe Regel wie bei den Fängen.
+
+**486 Prüfungen grün** (von 484). Drei Prüfungen mussten umgedreht werden, weil sich die
+Regel geändert hat; eine vierte hat den Umbau von selbst gefunden („Erster Abgleich schiebt
+vorhandene Fänge hoch" erwartete zwei Zeilen, es waren drei).
+
 ## 10.08.2026 (2) — Der Anmelde-Schirm
 
 Zwei Ansagen von Karl, beide auf demselben Bildschirm.
