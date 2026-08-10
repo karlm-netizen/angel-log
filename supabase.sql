@@ -250,11 +250,23 @@ begin
 
   perform net.http_post(
     url     := ziel,
-    /* ⚠️ `charset=utf-8` ist hier kein Zierrat, sondern der Unterschied zwischen
-       "Fänge" und "FÃ¤nge". Ohne die Angabe liest Discord die Bytes als Latin-1,
-       und jeder Umlaut, jeder Gedankenstrich und das Emoji kommen als Buchstabensalat
-       an. Am 10.08.2026 genau so passiert. */
-    headers := '{"Content-Type": "application/json; charset=utf-8"}'::jsonb,
+    /* ⚠️ Genau `application/json`, ohne Zeichensatz dahinter. pg_net prueft den Kopf
+       selbst und bricht bei allem anderen mit einer Ausnahme ab
+       ("Content-Type header must be application/json").
+
+       ⚠️ Und weil diese Ausnahme in einem Trigger geworfen wird, faellt die ganze
+       INSERT-Anweisung mit -- die Meldung landet dann nicht einmal in der Tabelle.
+       Aus einem Zustellweg, der nicht funktioniert, wird so eine Meldefunktion, die
+       nichts mehr annimmt. Am 10.08.2026 genau so passiert.
+
+       ⚠️ Der Umlaut-Salat, gegen den hier kurzzeitig "; charset=utf-8" stand, kam
+       nie von hier. Er kam daher, dass der SQL-Text auf dem Weg in die Zwischenablage
+       als Windows-1252 statt UTF-8 gelesen wurde -- er stand also schon verdorben im
+       Quelltext dieser Funktion, und die Nachricht gab nur wieder, was hier stand.
+       Wer diese Datei kopiert, kopiert sie als UTF-8. Sonst wandert derselbe Salat
+       beim naechsten Mal wieder herein, und man sucht ihn wieder an der falschen
+       Stelle. */
+    headers := '{"Content-Type": "application/json"}'::jsonb,
     -- Discord nimmt hoechstens 2000 Zeichen. Lieber gekuerzt ankommen als
     -- vollstaendig abgewiesen werden.
     body    := jsonb_build_object('content', left(txt, 1900))

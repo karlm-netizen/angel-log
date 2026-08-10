@@ -18,10 +18,31 @@ Nachgesehen — die Nachricht stand so im Kanal:
 FÃ¤nge: 8 Â· ungesichert: 0
 ```
 
-⚠️ **Das war kein Geschmacksthema, sondern ein Fehler.** `net.http_post` schickte den Kopf
-`Content-Type: application/json` **ohne Zeichensatz**. Discord liest ohne Angabe Latin-1 —
-und damit wird aus jedem Umlaut, jedem Gedankenstrich und dem Emoji Salat. Jetzt steht
-`; charset=utf-8` dabei.
+⚠️ **Das war kein Geschmacksthema, sondern ein Fehler — aber nicht der, den ich zuerst
+diagnostiziert habe.** Erste These: der Kopf `Content-Type: application/json` habe keine
+Zeichensatz-Angabe, also lese Discord Latin-1. Falsch, und der „Fix" hat alles lahmgelegt
+(siehe unten).
+
+**Die echte Ursache stand in Karls Fehlermeldung**, in meinem eigenen Kommentar:
+
+```
+CONTEXT: PL/pgSQL function http_post(...)
+    /* âš ï¸ ... "FÃ¤nge" ... */
+```
+
+Der Salat stand **schon im Quelltext der Funktion in der Datenbank**. Discord hat nur
+wiedergegeben, was dort stand. Hereingekommen ist er auf dem Weg in die Zwischenablage:
+`Get-Content` ohne `-Encoding UTF8` liest unter Windows PowerShell als Windows-1252, und
+damit war jedes deutsche Zeichen zerlegt, **bevor** Karl überhaupt eingefügt hat.
+
+⚠️ **Und der falsche Fix war schlimmer als der Fehler.** `pg_net` prüft den Kopf selbst und
+wirft bei allem außer exakt `application/json` eine Ausnahme. Die fliegt in einem Trigger —
+**damit fällt die ganze INSERT-Anweisung mit.** Zwanzig Minuten lang nahm die App keine
+Meldung mehr an, nicht einmal in die Tabelle. Aus einem kaputten Zustellweg war eine kaputte
+Meldefunktion geworden. Beides steht jetzt als Warnung im SQL.
+
+**Merksatz für alles Weitere hier:** eine Ausnahme in einem AFTER-INSERT-Trigger ist kein
+Nebenweg, der ausfällt — sie nimmt die Hauptsache mit.
 
 Dazu die Auszeichnung raus (`**fett**`, `> Zitat`, `` `Code` ``, `-# klein`): eine Meldung ist
 kein Aushang, und jedes Zeichen, das der Empfänger im Zweifel roh sieht statt gerendert, macht
