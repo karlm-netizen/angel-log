@@ -176,6 +176,83 @@ create policy "eigene meldungen anlegen" on public.angel_meldungen
   for insert with check (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------
+--  3b. Meldungen zustellen statt nachsehen  (10.08.2026)
+--
+--  Karls Frage: "wie kann ich die reports empfangen?" -- bis hierher gar nicht.
+--  Sie lagen in der Tabelle und man musste von sich aus nachschauen. Eine
+--  Meldung, von der niemand erfaehrt, ist so gut wie keine.
+--
+--  Jede neue Zeile geht deshalb als Nachricht an einen Discord-Webhook.
+--
+--  ⚠️ Die Webhook-Adresse steht NICHT in dieser Datei. Dieses Repo ist
+--  oeffentlich; wer die Adresse hat, kann in den Kanal schreiben. Sie liegt in
+--  einer eigenen Tabelle, die per API fuer niemanden lesbar ist (RLS an, keine
+--  einzige Policy -- damit kommt nur das Dashboard bzw. die service_role dran).
+--  Eingetragen wird sie einmal von Hand:
+--
+--      insert into public.angel_konfig (schluessel, wert)
+--      values ('discord_webhook', 'https://discord.com/api/webhooks/...')
+--      on conflict (schluessel) do update set wert = excluded.wert;
+--
+--  Ohne Eintrag passiert schlicht nichts -- die App laeuft unveraendert weiter.
+--
+--  ⚠️ net.http_post() aus pg_net ist ASYNCHRON: es legt die Anfrage in eine
+--  Warteschlange und kehrt sofort zurueck. Das ist hier keine Feinheit, sondern
+--  der Grund, warum es ueberhaupt in einem Trigger stehen darf. Wuerde der
+--  Versand auf Discord warten, haenge das Abschicken einer Meldung an der
+--  Erreichbarkeit eines fremden Servers -- und ausgerechnet die Fehlermeldung
+--  waere das Erste, was bei Stoerungen nicht mehr durchkommt.
+-- ---------------------------------------------------------------------
+create extension if not exists pg_net;
+
+create table if not exists public.angel_konfig (
+  schluessel text primary key,
+  wert       text not null
+);
+alter table public.angel_konfig enable row level security;
+-- Absichtlich keine Policy. Kein Nutzer, auch kein angemeldeter, kommt hier ran.
+
+create or replace function public.angel_meldung_zustellen()
+returns trigger
+language plpgsql
+security definer                      -- der Melder darf angel_konfig nicht lesen
+set search_path = public, net, extensions
+as $$
+declare
+  ziel text;
+  txt  text;
+begin
+  select wert into ziel from public.angel_konfig where schluessel = 'discord_webhook';
+  if ziel is null or ziel = '' then return new; end if;
+
+  -- Zitat-Zeichen vor jede Zeile, damit ein mehrzeiliger Text in Discord als
+  -- ein Block steht und nicht mit dem Umfeld verschwimmt.
+  txt := '🐞 **Angel-Log — neue Fehlermeldung**' || E'\n'
+      || '> ' || replace(coalesce(new.text, ''), E'\n', E'\n> ') || E'\n'
+      || '`' || coalesce(new.umfeld->>'fassung', '?')
+      || '` · ' || coalesce(new.umfeld->>'bildschirm', '?')
+      || ' · ' || coalesce(new.umfeld->>'netz', '?')
+      || ' · Fänge: ' || coalesce(new.umfeld->>'faenge', '?')
+      || ' · ungesichert: ' || coalesce(new.umfeld->>'ungesichert', '?')
+      || ' · letzter Abgleich: ' || coalesce(new.umfeld->>'letzterAbgleich', '?')
+      || E'\n-# ' || coalesce(new.umfeld->>'geraet', '?');
+
+  perform net.http_post(
+    url     := ziel,
+    headers := '{"Content-Type": "application/json"}'::jsonb,
+    -- Discord nimmt hoechstens 2000 Zeichen. Lieber gekuerzt ankommen als
+    -- vollstaendig abgewiesen werden.
+    body    := jsonb_build_object('content', left(txt, 1900))
+  );
+  return new;
+end $$;
+
+drop trigger if exists angel_meldungen_zustellen on public.angel_meldungen;
+create trigger angel_meldungen_zustellen
+  after insert on public.angel_meldungen
+  for each row execute function public.angel_meldung_zustellen();
+
+-- ---------------------------------------------------------------------
 --  4. Konto löschen
 --
 --  Muss es geben, sobald fremde Daten im Spiel sind: Art. 17 DSGVO gibt

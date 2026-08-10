@@ -6,6 +6,34 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 10.08.2026 (4) — Fehlermeldungen kommen an, statt herumzuliegen
+
+Karls Frage: *„wie kann ich die reports empfangen?"* — bis hierher gar nicht. Sie lagen in
+der Tabelle und man musste von sich aus nachsehen. **Eine Meldung, von der niemand erfährt,
+ist so gut wie keine.**
+
+Jede neue Meldung geht jetzt als **Discord-Nachricht** hinaus — Text als Zitatblock, darunter
+Fassung, Bildschirm, Netz, Anzahl Fänge, ungesicherte Fänge, letzter Abgleich und das Gerät.
+Gebaut als Auslöser in der Datenbank (`supabase.sql`, Abschnitt 3b), nicht in der App: so
+greift er auch bei einer Meldung, die Tage später aus der Warteschlange eines Handys kommt.
+
+⚠️ **`net.http_post` ist asynchron, und das ist der Grund, warum es überhaupt in einem
+Trigger stehen darf.** Würde der Versand auf Discord warten, hinge das Abschicken einer
+Meldung an der Erreichbarkeit eines fremden Servers — und ausgerechnet die Fehlermeldung wäre
+das Erste, was bei Störungen nicht mehr durchkommt.
+
+⚠️ **Die Webhook-Adresse steht nicht im Repo.** Das Repo ist öffentlich; wer die Adresse hat,
+kann in den Kanal schreiben. Sie liegt in `angel_konfig` — RLS an, **keine einzige Policy**,
+damit kommt nur das Dashboard dran. Ohne Eintrag passiert schlicht nichts. Eine Prüfung wacht
+darüber, dass keine Webhook-Adresse in den ausgelieferten Quelltext gerät.
+
+⚠️ **Damit verlässt ein Meldungstext die EU** (Discord Inc., USA). Dieselbe Lage wie beim
+Essens-Foto in Gym-Log und dieselbe Regel: **es steht ehrlich in der Datenschutzerklärung
+oder es passiert nicht.** Steht jetzt drin, deutsch und englisch, mit der Einschränkung, dass
+ohne abgeschickte Meldung nichts auf diesem Weg hinausgeht.
+
+**489 Prüfungen grün** (von 486).
+
 ## 10.08.2026 (3) — Entwürfe gehen jetzt mit
 
 Karls Ansage: *„5 entwürfe die sollen bitte auch synchronisiert werden."*

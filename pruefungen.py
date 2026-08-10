@@ -2646,6 +2646,32 @@ window.addEventListener('error', e => {
     return (/OpenStreetMap/.test(s) && /Open-Meteo/.test(s) && /PEGELONLINE/.test(s)) || 'ein Dienst fehlt';
   });
   t('Text nennt die Betroffenenrechte', () => /Art. 15/.test(datenschutzText()) || 'fehlt');
+  /* ============ Fehlermeldungen gehen nach Discord (10.08.2026) ============
+     Karls Frage "wie kann ich die reports empfangen?" hat einen Auslöser in der
+     Datenbank ergeben, der jede Meldung an einen Discord-Webhook schiebt.
+
+     ⚠️ Damit verlaesst ein Meldungstext samt Geraeteangaben die EU. Das ist
+     dieselbe Lage wie beim Essens-Foto in Gym-Log, und es gilt dieselbe Regel:
+     es steht ehrlich drin oder es passiert nicht. Diese Pruefung ist der Grund,
+     warum es nicht stillschweigend passieren kann. */
+  t('Text nennt die Weitergabe der Fehlermeldungen', () => {
+    const s = datenschutzText();
+    return (/Discord/.test(s) && /USA/.test(s)) || 'Discord/USA fehlt im Datenschutztext';
+  });
+  t('und sagt dazu, dass ohne Meldung nichts hinausgeht', () => {
+    // Sonst liest es sich, als ginge staendig etwas an Discord.
+    const s = datenschutzText();
+    return /Ohne Fehlermeldung geht dabei nichts|Without a report nothing leaves/.test(s)
+        || 'die Einschraenkung fehlt';
+  });
+  t('Die Webhook-Adresse steht nirgends im Quelltext', () => {
+    /* ⚠️ Das Repo ist oeffentlich. Wer die Adresse hat, kann in Karls Kanal
+       schreiben. Sie gehoert in die Tabelle angel_konfig, die per API fuer
+       niemanden lesbar ist -- nie in eine Datei, die auf GitHub landet. */
+    const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
+    return (!/discord(app)?\.com\/api\/webhooks/.test(js + document.body.innerHTML))
+        || 'eine Webhook-Adresse steht im Quelltext';
+  });
   t('Kontakt ist gesetzt, kein Platzhalter mehr', () =>
     (!/BITTE EINTRAGEN/.test(KONTAKT) && KONTAKT.length > 5) || KONTAKT);
   t('Kontakt nennt einen Namen und eine E-Mail', () =>
