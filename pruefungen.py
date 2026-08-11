@@ -1412,7 +1412,6 @@ window.addEventListener('error', e => {
   const antwort = daten => ({ ok: true, json: async () => daten });
   ta('Neuer Fang vom Server kommt an', async () => {
     sandbox([]);
-    localStorage.removeItem('angellog-sync');
     api = async pfad => pfad.includes('select=id,')
       ? antwort([{ id: 'neu', updated: 100, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }])
       : antwort([{ id: 'neu', updated: 100, geloescht: false, daten: { art: 'Zander' }, fotos: [] }]);
@@ -1421,7 +1420,6 @@ window.addEventListener('error', e => {
   });
   ta('Aeltere Fassung vom Server ueberschreibt nicht', async () => {
     sandbox([mkC('a', 9000, { art: 'Wels' })]);
-    localStorage.removeItem('angellog-sync');
     let vollGeholt = false;
     api = async pfad => { if (!pfad.includes('select=id,')) vollGeholt = true;
       return antwort([{ id: 'a', updated: 100, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }]); };
@@ -1430,7 +1428,6 @@ window.addEventListener('error', e => {
   });
   ta('Juengere Fassung vom Server gewinnt', async () => {
     sandbox([mkC('a', 100, { art: 'Wels' })]);
-    localStorage.removeItem('angellog-sync');
     api = async pfad => pfad.includes('select=id,')
       ? antwort([{ id: 'a', updated: 9000, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }])
       : antwort([{ id: 'a', updated: 9000, geloescht: false, daten: { art: 'Hecht' }, fotos: [] }]);
@@ -1439,7 +1436,6 @@ window.addEventListener('error', e => {
   });
   ta('Geholter Fang behaelt sein updated', async () => {
     sandbox([]);
-    localStorage.removeItem('angellog-sync');
     api = async pfad => pfad.includes('select=id,')
       ? antwort([{ id: 'n', updated: 4242, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }])
       : antwort([{ id: 'n', updated: 4242, geloescht: false, daten: { art: 'Aal' }, fotos: [] }]);
@@ -1458,7 +1454,6 @@ window.addEventListener('error', e => {
      samt Fotos sofort wieder hochgeschoben, bei jedem Abgleich aufs Neue. */
   ta('Ein geholter Fang weiss, dass er im Konto liegt', async () => {
     sandbox([]);
-    localStorage.removeItem('angellog-sync');
     api = async pfad => pfad.includes('select=id,')
       ? antwort([{ id: 'n', updated: 4242, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }])
       : antwort([{ id: 'n', updated: 4242, geloescht: false, daten: { art: 'Aal' }, fotos: [] }]);
@@ -1467,7 +1462,6 @@ window.addEventListener('error', e => {
   });
   ta('und traegt deshalb nicht "nur auf diesem Geraet"', async () => {
     sandbox([]);
-    localStorage.removeItem('angellog-sync');
     api = async pfad => pfad.includes('select=id,')
       ? antwort([{ id: 'n', updated: 4242, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }])
       : antwort([{ id: 'n', updated: 4242, geloescht: false, daten: { art: 'Aal' }, fotos: [] }]);
@@ -1478,7 +1472,6 @@ window.addEventListener('error', e => {
   });
   ta('und wird nicht sofort wieder hochgeschoben', async () => {
     sandbox([]);
-    localStorage.removeItem('angellog-sync');
     api = async pfad => pfad.includes('select=id,')
       ? antwort([{ id: 'n', updated: 4242, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }])
       : antwort([{ id: 'n', updated: 4242, geloescht: false, daten: { art: 'Aal' }, fotos: [] }]);
@@ -1490,33 +1483,88 @@ window.addEventListener('error', e => {
   });
   ta('Grabstein vom Server loescht lokal', async () => {
     sandbox([mkC('weg', 100)]);
-    localStorage.removeItem('angellog-sync');
     api = async () => antwort([{ id: 'weg', updated: 9000, geloescht: true, serverzeit: '2026-08-03T10:00:00Z' }]);
     await herunterladen();
     return (!fakeDB.has('weg')) || 'Fang ist noch da';
   });
   ta('Grabstein fuer Unbekanntes tut nichts', async () => {
     sandbox([mkC('a', 100)]);
-    localStorage.removeItem('angellog-sync');
     api = async () => antwort([{ id: 'nie-gehabt', updated: 9000, geloescht: true, serverzeit: '2026-08-03T10:00:00Z' }]);
     await herunterladen();
     return (fakeDB.size === 1 && fakeDB.has('a')) || 'Bestand veraendert';
   });
-  ta('Sync-Stand wandert mit', async () => {
-    sandbox([]);
-    localStorage.removeItem('angellog-sync');
-    api = async pfad => pfad.includes('select=id,')
-      ? antwort([{ id: 'x', updated: 1, geloescht: true, serverzeit: '2026-08-03T11:22:33Z' }])
-      : antwort([]);
-    await herunterladen();
-    return (localStorage.getItem('angellog-sync') === '2026-08-03T11:22:33Z') || localStorage.getItem('angellog-sync');
-  });
-  ta('Nichts Neues laesst den Stand stehen', async () => {
+  /* ====== Der Herunterlade-Stand ist abgeschafft (11.08.2026) ======
+     Hier standen zwei Pruefungen, die genau das Gegenteil festhielten:
+     "Sync-Stand wandert mit" und "Nichts Neues laesst den Stand stehen".
+     Sie waren richtig, solange es einen Stand gab -- und der war der letzte
+     Marker dieser Bauart in der App.
+
+     ⚠️ Dieselbe Bauart hat innerhalb von drei Tagen dreimal Loecher gehabt
+     (08.08. Push-Stand auf die Uhr gesetzt, 10.08. Push-Stand kann "kam von
+     drueben" nicht ausdruecken, 09.08. Herunterlade-Stand laeuft nur vorwaerts).
+     Der Fehler ist nicht der jeweilige Rechenfehler, sondern dass ein Stand
+     eine Behauptung ist, die falsch sein kann, ohne dass etwas auffaellt.
+     Jetzt wird nachgesehen statt behauptet. */
+  ta('Der Abgleich merkt sich keinen Stand mehr', async () => {
     sandbox([]);
     localStorage.setItem('angellog-sync', '2026-08-01T00:00:00Z');
-    api = async () => antwort([]);
-    const n = await herunterladen();
-    return (n === 0 && localStorage.getItem('angellog-sync') === '2026-08-01T00:00:00Z') || 'Stand veraendert';
+    api = async pfad => pfad.includes('select=id,')
+      ? antwort([{ id: 'x', updated: 1, geloescht: true }])
+      : antwort([]);
+    await herunterladen();
+    return (localStorage.getItem('angellog-sync') === '2026-08-01T00:00:00Z')
+        || ('der Stand wurde angefasst: ' + localStorage.getItem('angellog-sync'));
+  });
+  ta('und fragt nicht mehr "was ist seit gestern passiert?"', async () => {
+    /* ⚠️ Das ist die Gegenprobe zum Loch vom 09.08.: stand der Stand einmal zu
+       weit vorne, kam nie wieder etwas herunter -- fuer immer und ohne Anzeichen.
+       Hier steht er absichtlich in der Zukunft. Wer die Frage nicht mehr stellt,
+       kann sie auch nicht falsch stellen. */
+    sandbox([]);
+    localStorage.setItem('angellog-sync', '2999-01-01T00:00:00Z');
+    const pfade = [];
+    api = async pfad => { pfade.push(pfad);
+      return pfad.includes('select=id,')
+        ? antwort([{ id: 'alt', updated: 100, geloescht: false }])
+        : antwort([{ id: 'alt', updated: 100, geloescht: false, daten: { art: 'Aal' }, fotos: [] }]); };
+    await herunterladen();
+    if (pfade.some(p => /serverzeit/.test(p))) return 'fragt weiter nach serverzeit: ' + pfade[0];
+    return fakeDB.has('alt') || 'der Fang im Konto kam nicht herunter';
+  });
+  ta('Ein voller Block wird weitergeblaettert', async () => {
+    /* ⚠️ Ohne das haette der Umbau ein neues stilles Loch: der Server gibt je
+       Anfrage hoechstens `max-rows` Zeilen zurueck (bei Supabase ab Werk 1.000)
+       und sagt nicht dazu, dass er gekuerzt hat. Wer die erste Seite fuer den
+       ganzen Bestand haelt, sieht den Rest nie -- genau die Sorte Blindheit,
+       gegen die der ganze Umbau geht. */
+    const seite1 = Array.from({ length: 500 }, (_, i) =>
+      ({ id: 'a' + String(i).padStart(3, '0'), updated: 100, geloescht: false }));
+    let ruf = 0;
+    api = async () => { ruf++;
+      return antwort(ruf === 1 ? seite1 : [{ id: 'b', updated: 100, geloescht: false }]); };
+    const alle = await kopfzeilenHolen();
+    return (ruf === 2 && alle.length === 501) || (ruf + ' Aufrufe, ' + alle.length + ' Kopfzeilen');
+  });
+  ta('und zwar ueber die letzte id, nicht ueber offset', async () => {
+    /* ⚠️ Mit `offset` verschiebt sich das Fenster, wenn waehrend des Blaetterns
+       eine Zeile dazukommt -- dann rutscht genau ein Fang zwischen zwei Seiten
+       hindurch und fehlt, ohne dass es auffaellt. */
+    const seite1 = Array.from({ length: 500 }, (_, i) =>
+      ({ id: 'a' + String(i).padStart(3, '0'), updated: 100, geloescht: false }));
+    let ruf = 0, zweiter = '';
+    api = async pfad => { ruf++;
+      if (ruf === 1) return antwort(seite1);
+      zweiter = pfad;
+      return antwort([]); };
+    await kopfzeilenHolen();
+    return (/id=gt\.a499/.test(zweiter) && !/offset/.test(zweiter)) || ('zweite Anfrage: ' + zweiter);
+  });
+  ta('Eine kurze Seite loest keine zweite Anfrage aus', async () => {
+    // Sonst kostete jeder Abgleich eine Anfrage mehr als noetig -- bei acht Faengen.
+    let ruf = 0;
+    api = async () => { ruf++; return antwort([{ id: 'a', updated: 1, geloescht: false }]); };
+    await kopfzeilenHolen();
+    return (ruf === 1) || (ruf + ' Aufrufe fuer einen einzigen Fang');
   });
   ta('Fehler vom Server wird gemeldet, nicht verschluckt', async () => {
     sandbox([]);
@@ -1528,7 +1576,6 @@ window.addEventListener('error', e => {
     const viele = Array.from({ length: 45 }, (_, i) =>
       ({ id: 'id' + i, updated: 100, geloescht: false, serverzeit: '2026-08-03T10:00:00Z' }));
     sandbox([]);
-    localStorage.removeItem('angellog-sync');
     let vollAufrufe = 0;
     api = async pfad => {
       if (pfad.includes('select=id,')) return antwort(viele);
@@ -2335,24 +2382,88 @@ window.addEventListener('error', e => {
     konto = null;
     return (z.fehltDort === 1 && z.entwuerfe === 1 && z.aufGeraet === 2) || JSON.stringify(z);
   });
-  ta('"Alles neu laden" setzt den Herunterlade-Stand zurueck', async () => {
-    /* ⚠️ Der Grund, warum es das gibt. Der Herunterlade-Stand laeuft nur
-       vorwaerts und wurde nie zurueckgesetzt. Verliert ein Geraet seine lokale
-       Datenbank, behaelt aber den localStorage -- Safari raeumt IndexedDB nach
-       laengerer Nichtbenutzung weg --, dann fragt es "was ist seit gestern
-       passiert?" und bekommt nichts. Die Faenge liegen im Konto und kommen nie
-       wieder herunter. */
+  ta('Ein Grabstein zaehlt nicht zum Bestand im Konto', async () => {
+    /* ⚠️ Seit dem 11.08.2026 fragt der Abgleich-Test dieselben Kopfzeilen ab wie
+       der Abgleich selbst -- eine Abfrage statt zweier, die dasselbe zaehlen
+       sollen. Damit kommen aber auch die Grabsteine mit, und die sind kein
+       Bestand: wuerden sie mitgezaehlt, meldete die Anzeige nach jeder Loeschung
+       "im Konto liegt mehr als hier" und schickte den Nutzer auf die Suche nach
+       einem Fang, den er selbst weggeworfen hat. */
+    sandbox([mkC('a', 1000)]);
+    api = async () => antwort([{ id: 'a', updated: 1000, geloescht: false },
+                               { id: 'weg', updated: 2000, geloescht: true }]);
+    konto = { access_token: 'tok' };
+    const z = await abgleichPruefen();
+    konto = null;
+    return (z.imKonto === 1 && z.fehltHier === 0 && z.fehltDort === 0) || JSON.stringify(z);
+  });
+
+  /* ====== Die Notiz "liegt oben" ueberlebt das Konto nicht (11.08.2026) ======
+     ⚠️ Das war eine echte Luecke, keine Aufraeumarbeit. Bis zum 10.08. hing
+     "liegt oben" an einem Stand im localStorage, und den loeschte das Abmelden.
+     Seither haengt es als `cloud` am Fang -- und dort hat es das Abmelden
+     ueberlebt. Wer sich abmeldet und ein zweites Konto anlegt, haette ein leeres
+     Konto vor sich, waehrend jeder Fang von sich behauptet, er liege schon oben:
+     der Abgleich schickt nichts und meldet "alles schon aktuell". */
+  ta('Abmelden loest die Notiz "liegt oben" an jedem Fang', async () => {
+    sandbox([mkC('a', 5000, { cloud: 5000 }), mkC('b', 6000, { cloud: 6000 })]);
+    await cloudNotizenLoesen();
+    const uebrig = [...fakeDB.values()].filter(c => c.cloud != null).map(c => c.id);
+    return (uebrig.length === 0) || ('cloud steht noch an: ' + JSON.stringify(uebrig));
+  });
+  ta('und danach gehen die Faenge wieder mit hoch', async () => {
+    // Die Notiz zu loesen nuetzt nichts, wenn der naechste Abgleich sie trotzdem auslaesst.
+    sandbox([mkC('a', 5000, { cloud: 5000 })]);
+    await cloudNotizenLoesen();
+    state.catches = [...fakeDB.values()];
+    let raus = null; zeilenSchreiben = async z => { raus = z; };
+    await hochladen();
+    return ((raus || []).some(r => r.id === 'a')) || 'der Fang blieb liegen';
+  });
+  /* ⚠️ Gesucht wird der **Aufruf**, nicht der Name. In der Gegenprobe ist der
+     Aufruf in abmelden() durch einen Kommentar ersetzt worden -- und die
+     Pruefung blieb gruen, weil im Kommentar daneben "cloudNotizenLoesen()"
+     steht. Eine Pruefung, die den Fehler nicht faengt, ist keine. Deshalb muss
+     der Name am Anfang einer Zeile stehen und ein Semikolon dahinter. */
+  const ruftAuf = (js, ab) => /(^|\n)\s*(await\s+)?cloudNotizenLoesen\(\);/.test(js.slice(ab, ab + 900));
+  t('Abmelden ruft das auch wirklich auf', () => {
+    /* Quelltext-Pruefung: abmelden() haengt an der echten IndexedDB und am
+       Anmelde-Schirm, beides laeuft im Rahmen nicht mit. Geprueft wird deshalb
+       die Stelle selbst -- eine Funktion, die niemand aufruft, ist keine. */
+    const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
+    const a = js.indexOf('function abmelden(');
+    if (a < 0) return 'abmelden nicht gefunden';
+    return ruftAuf(js, a) || 'abmelden loest die Notizen nicht';
+  });
+  t('und das Loeschen des Kontos ebenso', () => {
+    /* ⚠️ Der haertere der beiden Faelle: nach dem Loeschen ist die Zeile oben
+       nachweislich weg, jede Notiz "liegt im Konto" also nachweislich falsch. */
+    const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
+    const a = js.indexOf("$('#k-del')");
+    if (a < 0) return 'der Loesch-Knopf nicht gefunden';
+    return ruftAuf(js, a) || 'das Loeschen laesst die Notizen stehen';
+  });
+
+  ta('"Alles neu laden" holt, was im Konto liegt und hier fehlt', async () => {
+    /* ⚠️ Hier stand "setzt den Herunterlade-Stand zurueck". Der Knopf ist am
+       09.08. genau dafuer gebaut worden: der Stand lief nur vorwaerts, und ein
+       Geraet, das seine IndexedDB verloren hatte, fragte "was ist seit gestern
+       passiert?" und bekam nichts.
+
+       Seit dem 11.08.2026 gibt es keinen Stand mehr -- also auch nichts
+       zurueckzusetzen. Geprueft wird deshalb, was der Knopf verspricht, und
+       nicht, wie er es macht. Der Stand steht hier absichtlich in der Zukunft:
+       frueher haette das genuegt, damit nichts herunterkommt. */
     sandbox([]);
-    localStorage.setItem('angellog-sync', '2026-08-09T00:00:00Z');
-    api = async () => ({ ok: true, json: async () => [] });
+    localStorage.setItem('angellog-sync', '2999-01-01T00:00:00Z');
+    api = async pfad => pfad.includes('select=id,')
+      ? antwort([{ id: 'da', updated: 100, geloescht: false }])
+      : antwort([{ id: 'da', updated: 100, geloescht: false, daten: { art: 'Aal' }, fotos: [] }]);
     zeilenSchreiben = async () => {};
     konto = { access_token: 'tok' };
     await allesNeuLaden();
     konto = null;
-    const stand = localStorage.getItem('angellog-sync');
-    // Nach dem Durchlauf darf der Stand nicht mehr der alte sein.
-    return (stand !== '2026-08-09T00:00:00Z')
-        || ('Herunterlade-Stand steht noch auf ' + stand);
+    return fakeDB.has('da') || 'der Fang aus dem Konto kam nicht herunter';
   });
   ta('und es loest auch die cloud-Vermerke, sonst bliebe die Gegenrichtung aus', async () => {
     /* Wer den Knopf drueckt, glaubt dem Abgleich gerade nicht mehr. Dann darf keine

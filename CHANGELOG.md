@@ -6,6 +6,89 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 11.08.2026 — Der letzte Gerätemarker ist weg
+
+Karls Wahl aus meinen zwei Vorschlägen. Keine neue Funktion — **eine Bauart weniger, die
+falsch stehen kann.**
+
+### Was hier stand
+
+Beim Herunterladen merkte sich jedes Gerät ein Datum (`angellog-sync`) und fragte den
+Server: *„was ist seit dem letzten Mal passiert?"* Danach rückte das Datum vor.
+
+⚠️ **Genau diese Bauart hat in drei Tagen dreimal ein Loch gehabt:**
+
+| | wo | was |
+|---|---|---|
+| 08.08. | Push-Stand | rückte auf die Uhr statt auf das Verschickte → zwei Fänge fielen durch, für immer |
+| 10.08. | Push-Stand | konnte nicht ausdrücken, dass ein Fang von drüben kam → beide Richtungen falsch |
+| 09.08. | Herunterlade-Stand | läuft nur vorwärts → verliert ein Gerät seine IndexedDB, kommt nie wieder etwas herunter |
+
+⚠️ **Der Fehler war nie der jeweilige Rechenfehler, sondern die Bauart.** Ein Stand ist eine
+**Behauptung** dieses Geräts über den Server, und sie kann falsch sein, ohne dass irgendetwas
+auffällt. Der Push-Stand ist am 10.08. abgeschafft worden; das hier war der letzte.
+
+### Was jetzt passiert
+
+Bei jedem Abgleich kommen die **Kennzahlen des ganzen Bestands** (id, updated, geloescht — keine
+Fotos), und verglichen wird Fang für Fang. **Nicht mehr behauptet, sondern nachgesehen.**
+
+Der Gewinn steckt weniger im Finden als im **Vergessen**: der Vergleich heilt sich bei jedem
+Lauf von selbst. Bricht ein Durchgang mitten im Holen ab, fehlt beim nächsten schlicht wieder
+dasselbe und wird wieder geholt. Ein Stand hätte an dieser Stelle vermerkt, er sei fertig.
+
+⚠️ **Was es kostet, ehrlich benannt:** je Abgleich einmal die Kennzahlen statt nur der
+Änderungen. Bei 8 Fängen ein paar hundert Byte, bei 1.000 rund 50 KB — weniger als **ein
+einziges** der Fotos, die ohnehin durch dieselbe Leitung gehen. Grabsteine zählen mit und
+sammeln sich an; sie sind ohne `daten` und `fotos` die kleinsten Zeilen überhaupt.
+
+⚠️ **Ein neues stilles Loch hätte dabei fast aufgemacht.** Der Server gibt je Anfrage höchstens
+`max-rows` Zeilen zurück (bei Supabase ab Werk 1.000) und **sagt nicht dazu, dass er gekürzt
+hat.** Wer die erste Seite für den ganzen Bestand hält, sieht den Rest nie — dieselbe Blindheit,
+nur eine Etage tiefer. Es wird deshalb geblättert, und zwar **über die zuletzt gesehene id, nicht
+über `offset`**: mit `offset` verschiebt sich das Fenster, wenn währenddessen eine Zeile
+dazukommt, und genau ein Fang rutscht zwischen zwei Seiten hindurch.
+
+### 🚨 Dabei gefunden: „liegt oben" überlebte das Abmelden
+
+**Das war eine echte Lücke, kein Aufräumen.** Bis zum 10.08. hing die Notiz „liegt im Konto" an
+einem Stand im localStorage, und den löschte das Abmelden. Seither hängt sie als `cloud` **am
+Fang** — und dort hat sie das Abmelden überlebt.
+
+Wer sich abmeldet und ein **zweites Konto** anlegt, hätte ein leeres Konto vor sich, während
+jeder Fang von sich behauptet, er liege schon oben: der Abgleich schickt nichts und meldet
+**„alles schon aktuell"**. Dasselbe nach *Konto löschen* — dort ist die Zeile nachweislich weg.
+Beides löst die Notizen jetzt. Kostet beim nächsten Anmelden einmal das Datenvolumen für alle
+Fotos; verlieren kann man dabei nichts.
+
+### Nebenwirkungen
+
+- **„⇄ Abgleich prüfen"** fragt dieselben Kennzahlen ab wie der Abgleich selbst — eine Abfrage
+  statt zweier, die dasselbe zählen sollen. ⚠️ Und die eigene hatte denselben stillen Rand: ohne
+  Blättern hört sie bei `max-rows` auf. Eine Prüfung, die selbst kürzt, meldet „beide Seiten sind
+  gleich", während drüben etwas liegt.
+- **„⟲ Alles neu laden"** heißt jetzt „vergisst, was dieses Gerät für gesichert hält" statt
+  „setzt beide Stände zurück". Die Herunterlade-Richtung ist bei jedem Abgleich schon
+  zurückgesetzt; übrig bleibt die Gegenrichtung. Der Knopf **bleibt** — er ist zwar für ein Loch
+  gebaut worden, das es nicht mehr gibt, aber ihn abzuschaffen hieße, auf den nächsten
+  unbekannten Fehler wieder blind zu sein.
+- ➡️ **`supabase.sql` muss *nicht* erneut ausgeführt werden.** An der Datenbank ändert sich
+  nichts. `serverzeit` bleibt stehen: sie steuert nichts mehr, ist aber die einzige Uhr hier, der
+  man trauen kann.
+
+### Prüfungen
+
+**501 grün** (von 489). Neu: der Abgleich merkt sich keinen Stand mehr; er fragt nicht mehr nach
+`serverzeit`; ein voller Block wird weitergeblättert; geblättert wird über die id, nicht über
+`offset`; eine kurze Seite löst keine zweite Anfrage aus; ein Grabstein zählt nicht zum Bestand
+im Konto; Abmelden löst die Notizen und die Fänge gehen danach wieder mit hoch.
+
+⚠️ **Gegengeprobt — und die Gegenprobe hat einen Fehler in einer Prüfung gefunden.** Alles wieder
+eingebaut: vier Prüfungen fallen wie vorgesehen. Die fünfte, „Abmelden ruft das auch wirklich
+auf", blieb **grün, obwohl der Aufruf entfernt war** — sie suchte den Namen im Quelltext, und der
+stand im Kommentar direkt daneben. Jetzt muss ein echter Aufruf dastehen (Zeilenanfang,
+Semikolon). Danach fällt sie. **Eine Prüfung, die den Fehler nicht fängt, ist keine.**
+
 ## 10.08.2026 (5) — Umlaut-Salat, und der Technik-Kasten ist raus
 
 ### Die Discord-Nachricht kam als Buchstabensalat an

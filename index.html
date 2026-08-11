@@ -1038,8 +1038,8 @@ const EN = {
   'liegen hier und fehlen im Konto.': 'are here and missing from your account.',
   'Beide Seiten sind gleich.': 'Both sides match.',
   '⟲ Alles neu laden': '⟲ Reload everything',
-  'Setzt beide Stände zurück und zieht alles einmal durch. Verloren gehen kann dabei nichts — je Fang gewinnt die jüngere Fassung. Es kostet einmal Datenvolumen für alle Fotos.':
-    'Resets both markers and pulls everything through once. Nothing can be lost — per catch the newer version wins. It costs mobile data once, for all the photos.',
+  'Vergisst, was dieses Gerät für gesichert hält, und zieht alles einmal durch. Verloren gehen kann dabei nichts — je Fang gewinnt die jüngere Fassung. Es kostet einmal Datenvolumen für alle Fotos.':
+    'Forgets what this device considers backed up and pulls everything through once. Nothing can be lost — per catch the newer version wins. It costs mobile data once, for all the photos.',
   'Pegel': 'Gauge',
   'steigend': 'rising',
   'fallend': 'falling',
@@ -3222,9 +3222,15 @@ $('#btn-export').onclick = async () => {
    2. Bei einem Konflikt gewinnt die jüngere Fassung (`updated` des Geräts).
       Für einen Angler mit zwei Geräten ist das die richtige Regel; zwei
       Leute, die denselben Fang gleichzeitig ändern, gibt es hier nicht.
-   3. Nachgeladen wird nach der **Server**-Uhr (`serverzeit`), nicht nach der
-      des Geräts. Ein Handy mit falsch gestellter Uhr würde sonst entweder
-      alles doppelt ziehen oder nie wieder etwas sehen.
+   3. Nachgeladen wird nach **gar keiner Uhr**. Hier stand bis zum 11.08.2026
+      „nach der Server-Uhr (`serverzeit`), nicht nach der des Geräts" — das
+      war schon die zweite Fassung, die erste ging nach der Geräte-Uhr und
+      hätte bei einem falsch gestellten Handy alles doppelt gezogen oder nie
+      wieder etwas gesehen. Beide Fassungen hatten denselben Kern: das Gerät
+      **merkt sich einen Stand** und fragt „was ist seither passiert?". Jetzt
+      kommen bei jedem Abgleich die Kennzahlen des ganzen Bestands, und
+      verglichen wird Fang für Fang. Es gibt nichts mehr, das falsch stehen
+      kann. Ausführlich über `kopfzeilenHolen()`.
    =================================================================== */
 
 // Supabase-Projekt. Leer = kein Konto, dann läuft die App rein lokal.
@@ -3237,7 +3243,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v31';
+const FASSUNG = 'v32';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -3362,7 +3368,12 @@ async function anmelden(kennung, passwort){
    nach dem nächsten Anmelden sofort wieder da. */
 function abmelden(){
   kontoSchreiben(null);
-  try { localStorage.removeItem(SYNC_KEY); localStorage.removeItem(SYNC_KEY + '-push'); } catch {}
+  /* ⚠️ Hier stand das Löschen zweier Stände im localStorage. Die gibt es nicht
+     mehr — die Notiz „liegt oben" sitzt seit dem 10.08. am Fang selbst, und sie
+     hat das Abmelden bis zum 11.08. überlebt. Warum das ein Loch war, steht bei
+     `cloudNotizenLoesen()`. Kostet beim nächsten Anmelden einmal das
+     Datenvolumen für alle Fotos; verlieren kann man dabei nichts. */
+  cloudNotizenLoesen();
   $('#sheet').classList.remove('on');
   gateModus = 'login';
   gateZeigen();
@@ -3385,10 +3396,12 @@ async function fotoFuerCloud(blob){
   return null;   // Canvas konnte das Format nicht (HEIC) — lieber auslassen als die Zeile sprengen
 }
 
-/* ---------- Hochladen ---------- */
+/* ---------- Hochladen ----------
+   ⚠️ `SYNC_KEY` selbst ist kein Stand mehr, sondern nur noch das Präfix für
+   `-zeit` — den Zeitpunkt des letzten Abgleichs, eine reine Anzeige. Was hier
+   einmal darunter lag (der Herunterlade-Stand), ist am 11.08.2026 abgeschafft
+   worden; die Begründung steht über `kopfzeilenHolen()`. */
 const SYNC_KEY = 'angellog-sync';
-const syncStand = () => { try { return localStorage.getItem(SYNC_KEY) || '1970-01-01T00:00:00Z'; } catch { return '1970-01-01T00:00:00Z'; } };
-const syncStandSetzen = s => { try { localStorage.setItem(SYNC_KEY, s); } catch {} };
 
 /* ---------- Der Push-Stand ist abgeschafft (10.08.2026) ----------
    Hier stand `reparaturPush()`: eine einmalige Rücksetzung von `SYNC_KEY + '-push'`
@@ -3494,20 +3507,86 @@ async function hochladen(){
 
 /* ---------- Herunterladen ----------
    In zwei Schritten. Erst nur die Kennzahlen jeder Zeile (id, updated,
-   geloescht) — das sind ein paar hundert Byte für den ganzen Bestand. Erst
+   geloescht) — das sind ein paar Dutzend Byte je Fang, ohne Fotos. Erst
    danach werden die vollen Zeilen geholt, und zwar nur für die Fänge, die
    hier wirklich fehlen oder älter sind. Ohne diesen Zwischenschritt lädt
    jeder Abgleich alle Fotos erneut herunter, auch die eigenen frisch
-   hochgeladenen. */
-async function herunterladen(){
-  const seit = syncStand();
-  const r = await api(`${TABELLE}?select=id,updated,geloescht,serverzeit`
-                    + `&serverzeit=gt.${encodeURIComponent(seit)}&order=serverzeit.asc`);
-  if (!r.ok) throw new Error(T('Abrufen fehlgeschlagen') + ' (' + r.status + ')');
-  const kopfzeilen = await r.json();
-  if (!kopfzeilen.length) return 0;
+   hochgeladenen.
 
-  const hier = new Map(state.catches.map(c => [c.id, c]));
+   ⚠️ **Der Herunterlade-Stand ist abgeschafft (11.08.2026).** Hier stand ein
+   Datum je Gerät (`SYNC_KEY`): gefragt wurde „was ist seit dem letzten Mal
+   passiert?", und danach rückte der Stand vor. Das war der letzte Marker
+   dieser Bauart in der App — und dieselbe Bauart hat innerhalb von drei Tagen
+   zweimal Löcher gehabt:
+
+   - **08.08.**: der Push-Stand rückte auf die Uhr statt auf das Verschickte
+     vor. Zwei Fänge fielen durch und wurden für immer übersprungen.
+   - **10.08.**: der Push-Stand konnte nicht ausdrücken, dass ein Fang von
+     drüben kam. Beide Richtungen falsch, beide still.
+   - **09.08.**: derselbe Fehler in dieser Richtung. Der Stand läuft nur
+     vorwärts. Verliert ein Gerät seine IndexedDB, behält aber den
+     localStorage — Safari räumt IndexedDB nach längerer Nichtbenutzung weg —,
+     dann fragt es „was ist seit gestern passiert?" und bekommt: nichts. Die
+     Fänge liegen im Konto und kommen trotzdem nie wieder herunter. Dafür gab
+     es dann den Knopf „Alles neu laden": eine Reparatur von Hand für einen
+     Zustand, den man von außen nicht sieht.
+
+   ⚠️ **Der Fehler ist nicht der jeweilige Rechenfehler, sondern die Bauart.**
+   Ein Stand ist eine Behauptung dieses Geräts über den Server, und sie kann
+   falsch sein, ohne dass irgendetwas auffällt. Jetzt wird nicht mehr
+   behauptet, sondern **nachgesehen**: bei jedem Abgleich kommen die Kennzahlen
+   des ganzen Bestands, und verglichen wird Fang für Fang. Kein Stand, kein
+   Vergessen, keine Reparatur — und der Vergleich heilt sich bei jedem Lauf von
+   selbst, statt einen einmal falschen Wert für immer mitzuschleppen.
+
+   ⚠️ **Was es kostet, ehrlich benannt:** je Abgleich einmal die Kennzahlen des
+   ganzen Bestands statt nur der Änderungen. Bei 8 Fängen sind das ein paar
+   hundert Byte, bei 1.000 rund 50 KB — weniger als ein einziges der Fotos, die
+   ohnehin durch dieselbe Leitung gehen. Grabsteine zählen mit und sammeln sich
+   an; sie sind ohne `daten` und `fotos` die kleinsten Zeilen überhaupt.
+
+   ⚠️ **`serverzeit` bleibt in der Tabelle stehen.** Die Spalte kostet nichts
+   und ist die einzige Stelle, an der eine Uhr steht, der man trauen kann —
+   falls doch einmal jemand nachsehen muss, wann eine Zeile zuletzt angefasst
+   wurde. Der Abgleich benutzt sie nicht mehr. */
+
+/* Wie viel je Anfrage. ⚠️ Muss **unter** der Obergrenze des Servers liegen
+   (`max-rows`, bei Supabase ab Werk 1.000): kommt eine Seite kürzer zurück,
+   als angefordert wurde, gilt sie als die letzte. Läge die Grenze unter der
+   Seitengröße, würde jede Antwort gekürzt und die Schleife hörte zu früh auf —
+   genau die stille Lücke, die hier gerade abgeschafft wird. */
+const SEITE = 500;
+
+/* Weitergeblättert wird über die zuletzt gesehene id, nicht über `offset`.
+   ⚠️ Mit `offset` verschiebt sich das Fenster, wenn während des Blätterns eine
+   Zeile dazukommt — dann rutscht genau ein Fang zwischen zwei Seiten hindurch
+   und fehlt, ohne dass es auffällt. Die Ordnung nach id ist dieselbe, nach der
+   verglichen wird, und sie ändert sich nicht mehr. */
+async function kopfzeilenHolen(){
+  const alle = [];
+  let letzte = null;
+  for (;;){
+    const ab = letzte == null ? '' : `&id=gt.${encodeURIComponent(letzte)}`;
+    const r = await api(`${TABELLE}?select=id,updated,geloescht&order=id.asc&limit=${SEITE}${ab}`);
+    if (!r.ok) throw new Error(T('Abrufen fehlgeschlagen') + ' (' + r.status + ')');
+    const seite = await r.json();
+    alle.push(...seite);
+    if (seite.length < SEITE) return alle;
+    letzte = seite[seite.length - 1].id;
+  }
+}
+
+async function herunterladen(){
+  const kopfzeilen = await kopfzeilenHolen();
+
+  /* ⚠️ Aus dem **Speicher**, nicht aus `state.catches`. Die Liste im
+     Hauptspeicher kann veraltet sein — wer während des Abgleichs einen Fang
+     einträgt, steht dort noch nicht drin. Vorher wurden nur die Änderungen
+     seit dem letzten Mal geprüft, heute der ganze Bestand: aus einem
+     unwahrscheinlichen Einzelfall würde damit ein Fang, den jeder Abgleich
+     aufs Neue mit einer älteren Fassung vom Server überschreibt. Derselbe
+     Grund wie bei `cloudMerken()`. */
+  const hier = new Map((await allCatches()).map(c => [c.id, c]));
   const holen = [];
   let geaendert = 0;
 
@@ -3540,7 +3619,12 @@ async function herunterladen(){
       geaendert++;
     }
   }
-  syncStandSetzen(kopfzeilen[kopfzeilen.length - 1].serverzeit);
+  /* ⚠️ Hier stand `syncStandSetzen(…)` — das Vorrücken des Herunterlade-Stands.
+     Ersatzlos weg: es gibt nichts mehr zu merken. Und genau darin liegt der
+     Gewinn — ein Stand, der nach einem abgebrochenen Lauf zu weit vorne steht,
+     überspringt still, was er übersprungen hat. Bricht dieser Durchgang mitten
+     im Holen ab, fehlt beim nächsten schlicht wieder dasselbe, und es wird
+     wieder geholt. */
   return geaendert;
 }
 
@@ -3558,18 +3642,22 @@ async function herunterladen(){
    - **Entwürfe** → seit dem 10.08.2026 gehen sie mit und zählen in beiden
      Richtungen mit; die eigene Zeile nennt nur noch, wie viele es sind
 
-   ⚠️ Und es gibt ein Loch, das die Reparatur vom 08.08. nicht abdeckt. Der
-   Herunterlade-Stand (`SYNC_KEY`) läuft **nur vorwärts** und wird nie
-   zurückgesetzt. Verliert ein Gerät seine lokale Datenbank, behält aber den
-   localStorage — das passiert wirklich: Safari räumt IndexedDB nach längerer
-   Nichtbenutzung weg, der localStorage bleibt —, dann fragt es beim nächsten Mal
-   „was ist seit gestern passiert?" und bekommt: nichts. Die Fänge liegen im
-   Konto und kommen trotzdem nie wieder herunter. Für `-push` gibt es seit dem
-   08.08. eine Reparatur, für diese Richtung gab es keine. Jetzt schon. */
+   ⚠️ **Der Anlass dieser Ansicht ist seit dem 11.08.2026 weg**, und das ist
+   der Punkt. Sie ist gebaut worden, weil der Herunterlade-Stand nur vorwärts
+   lief und ein Gerät damit dauerhaft blind sein konnte; der Stand existiert
+   nicht mehr, siehe über `kopfzeilenHolen()`. Die Ansicht bleibt trotzdem —
+   sie beantwortet die Frage „ist beides gleich?" jetzt eben mit „ja", und
+   genau darauf muss man sich verlassen können. Eine Anzeige abzuschaffen,
+   weil der bekannte Fehler behoben ist, hieße auf den nächsten unbekannten
+   wieder blind zu sein. */
 async function bestandImKonto(){
-  const r = await api(`${TABELLE}?select=id&geloescht=is.false`);
-  if (!r.ok) throw new Error(T('Abrufen fehlgeschlagen') + ' (' + r.status + ')');
-  return (await r.json()).map(z => z.id);
+  /* ⚠️ Dieselbe Abfrage wie beim Abgleich, absichtlich. Hier stand eine eigene
+     (`select=id&geloescht=is.false`) — zwei Wege, dasselbe zu zählen, und bei
+     jeder Änderung die Frage, ob sie noch übereinstimmen. Und die eigene hatte
+     denselben stillen Rand: ohne Blättern hört sie bei `max-rows` auf, ohne es
+     zu sagen. Eine Prüfung, die selbst kürzt, meldet „beide Seiten sind
+     gleich", während drüben etwas liegt. */
+  return (await kopfzeilenHolen()).filter(z => !z.geloescht).map(z => z.id);
 }
 
 async function abgleichPruefen(){
@@ -3589,19 +3677,50 @@ async function abgleichPruefen(){
   };
 }
 
-/* Beide Stände auf Anfang und einmal alles durchziehen. Gefahrlos: hochgeladen
-   wird gegen `merge-duplicates` (dieselbe Zeile wird nur überschrieben), und
-   heruntergeladen gewinnt je Fang die jüngere Fassung. Es kostet einmal
-   Datenvolumen für alle Fotos — deshalb nicht selbsttätig, sondern auf Ansage. */
+/* Alles vergessen, was dieses Gerät über die Cloud zu wissen glaubt, und einmal
+   durchziehen. Gefahrlos: hochgeladen wird gegen `merge-duplicates` (dieselbe
+   Zeile wird nur überschrieben), und heruntergeladen gewinnt je Fang die
+   jüngere Fassung. Es kostet einmal Datenvolumen für alle Fotos — deshalb nicht
+   selbsttätig, sondern auf Ansage.
+
+   ⚠️ **Seit dem 11.08.2026 räumt der Knopf nur noch in einer Richtung auf.**
+   Hier stand zuerst `localStorage.removeItem(SYNC_KEY)`, das Zurücksetzen des
+   Herunterlade-Stands. Den gibt es nicht mehr: heruntergeladen wird ohnehin bei
+   jedem Abgleich gegen den ganzen Bestand, diese Richtung ist also schon
+   zurückgesetzt. Übrig bleibt die Gegenrichtung, und die braucht ihn weiterhin —
+   `cloud` ist die letzte Notiz, die ein Gerät über den Server führt. */
 async function allesNeuLaden(){
-  try { localStorage.removeItem(SYNC_KEY); } catch {}
-  /* Und die Notiz „liegt oben" an jedem Fang löschen — sonst zieht der Knopf nur
-     herunter und lässt die Gegenrichtung aus. Wer ihn drückt, glaubt gerade dem
-     Abgleich nicht mehr; dann darf keine Notiz von ihm stehen bleiben. */
+  /* Die Notiz „liegt oben" an jedem Fang löschen. Wer den Knopf drückt, glaubt
+     dem Abgleich gerade nicht mehr; dann darf keine Notiz von ihm stehen
+     bleiben, sonst bleibt ein fälschlich als gesichert geltender Fang genau so
+     liegen wie vorher. */
   const alle = await allCatches();
   for (const c of alle){ if (c.cloud != null){ delete c.cloud; await putCatch(c, true); } }
   await reload();
   await syncJetzt(false);
+}
+
+/* Dasselbe, aber ohne Abgleich: nur die Notizen lösen. Gebraucht wird das,
+   wenn die Gegenseite eine andere wird oder verschwindet — beim Abmelden und
+   beim Löschen des Kontos.
+
+   ⚠️ **Das ist kein Aufräumen, sondern eine Lücke, die es bis heute gab.**
+   Bis zum 10.08. hing „liegt oben" an einem Stand im localStorage, und der
+   wurde beim Abmelden gelöscht. Seither hängt es als `cloud` **am Fang** — und
+   dort hat es das Abmelden überlebt. Wer sich abmeldet und mit einem zweiten
+   Konto anmeldet, hätte ein leeres Konto vor sich, während jeder Fang von sich
+   behauptet, er liege schon oben: der Abgleich schickt nichts, meldet „alles
+   schon aktuell", und niemand sieht etwas. Genau die Sorte stiller Verlust, um
+   die es hier die ganze Zeit geht. Dasselbe beim gelöschten Konto — dort ist
+   die Zeile nachweislich weg. */
+async function cloudNotizenLoesen(){
+  try {
+    for (const c of await allCatches()){
+      if (c.cloud != null){ delete c.cloud; await putCatch(c, true); }
+    }
+    await reload();
+    renderList();
+  } catch {}   // beim Abmelden darf ein Speicherfehler nichts aufhalten
 }
 
 /* ---------- Kleine Werte am Konto ----------
@@ -4087,9 +4206,9 @@ function renderKonto(){
             ? `<p class="tiny muted" style="margin:0">${T('Beide Seiten sind gleich.')}</p>`
             : `<button class="btn" id="k-neu">${T('⟲ Alles neu laden')}</button>
                <p class="tiny muted" style="margin:8px 0 0; line-height:1.5">${
-                 T('Setzt beide Stände zurück und zieht alles einmal durch. Verloren gehen '
-                 + 'kann dabei nichts — je Fang gewinnt die jüngere Fassung. Es kostet '
-                 + 'einmal Datenvolumen für alle Fotos.')}</p>`);
+                 T('Vergisst, was dieses Gerät für gesichert hält, und zieht alles einmal '
+                 + 'durch. Verloren gehen kann dabei nichts — je Fang gewinnt die jüngere '
+                 + 'Fassung. Es kostet einmal Datenvolumen für alle Fotos.')}</p>`);
       const nb = $('#k-neu');
       if (nb) nb.onclick = async () => {
         nb.disabled = true;
@@ -4107,7 +4226,11 @@ function renderKonto(){
     if (!confirm(T('Konto und alle Fänge auf dem Server löschen?') + '\n\n'
                + T('Die Fänge auf diesem Gerät bleiben.'))) return;
     try { await kontoLoeschen(); kontoSchreiben(null);
-          try { localStorage.removeItem(SYNC_KEY); localStorage.removeItem(SYNC_KEY + '-push'); } catch {}
+          /* ⚠️ Die Fänge bleiben, aber die Zeilen oben sind weg — jede Notiz
+             „liegt im Konto" ist ab hier nachweislich falsch. Bliebe sie stehen,
+             läge nach dem nächsten Anlegen eines Kontos ein leeres Konto vor
+             einem Gerät, das nichts mehr hochzuladen glaubt. */
+          await cloudNotizenLoesen();
           $('#sheet').classList.remove('on');
           gateModus = 'reg';
           gateZeigen();

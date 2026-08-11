@@ -17,9 +17,19 @@
 --
 --  Zwei Zeitstempel mit verschiedenen Aufgaben:
 --    updated    = Uhr des Geräts. Entscheidet Konflikte (jüngere gewinnt).
---    serverzeit = Uhr des Servers. Steuert, was ein Gerät nachladen muss.
---  Getrennt, weil ein Handy mit falsch gestellter Uhr sonst entweder alles
---  doppelt zieht oder nie wieder etwas zu sehen bekommt.
+--    serverzeit = Uhr des Servers. Wann diese Zeile zuletzt angefasst wurde.
+--
+--  ⚠️ Seit dem 11.08.2026 steuert serverzeit nichts mehr. Hier stand
+--  "Steuert, was ein Gerät nachladen muss" — die App merkte sich einen Stand
+--  und fragte "was ist seither passiert?". Genau diese Bauart hat in drei
+--  Tagen dreimal Löcher gehabt; sie ist abgeschafft. Die App holt jetzt bei
+--  jedem Abgleich die Kennzahlen des ganzen Bestands (id, updated, geloescht)
+--  und vergleicht Fang für Fang.
+--
+--  Die Spalte bleibt trotzdem: sie kostet nichts und ist die einzige Uhr hier,
+--  der man trauen kann — die des Geräts kann falsch gestellt sein. Wer im
+--  Dashboard nachsehen muss, wann eine Zeile zuletzt angefasst wurde, braucht
+--  genau sie. Nichts an dieser Datei muss deshalb erneut ausgeführt werden.
 -- ---------------------------------------------------------------------
 create table if not exists public.angel_faenge (
   id          text        primary key,
@@ -32,16 +42,23 @@ create table if not exists public.angel_faenge (
   fotos       jsonb
 );
 
--- Das Nachladen fragt immer "was ist seit X passiert, für mich?".
+-- ⚠️ Der Abgleich benutzt diesen Index seit dem 11.08.2026 nicht mehr — er
+-- fragte "was ist seit X passiert, für mich?", und diese Frage gibt es nicht
+-- mehr. Er bleibt stehen: ihn zu entfernen hieße, dass Karl diese Datei erneut
+-- ausführen muss, und ein ungenutzter Index auf einem Bestand dieser Größe
+-- kostet nichts Messbares. Sortiert wird jetzt nach id, dafür trägt schon der
+-- Primärschlüssel.
 create index if not exists angel_faenge_sync_idx
   on public.angel_faenge (user_id, serverzeit);
 
 -- ---------------------------------------------------------------------
 --  2. serverzeit bei jeder Änderung neu setzen
 --
---  Ohne diesen Trigger bleibt serverzeit auf dem Wert vom Anlegen stehen.
---  Eine Änderung wäre dann für das zweite Gerät unsichtbar: es fragt nach
---  allem, was neuer als sein letzter Stand ist — und bekäme nichts.
+--  Ohne diesen Trigger bleibt serverzeit auf dem Wert vom Anlegen stehen und
+--  hieße dann "angelegt am" statt "zuletzt angefasst am".
+--  ⚠️ Bis zum 11.08.2026 hing daran der ganze Abgleich: eine Änderung wäre für
+--  das zweite Gerät unsichtbar gewesen. Das ist vorbei — heute ist es nur noch
+--  eine Angabe zum Nachsehen, und der Trigger hält sie ehrlich.
 -- ---------------------------------------------------------------------
 create or replace function public.angel_serverzeit()
 returns trigger language plpgsql as $$
