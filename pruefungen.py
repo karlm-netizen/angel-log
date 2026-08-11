@@ -3250,10 +3250,11 @@ window.addEventListener('error', e => {
     // erste Muster gescheitert. Geprueft wird schlicht das Ende des Ausdrucks.
     return /SPLASH_MINDESTENS \* 100, 96\)/.test(js) || 'kein Deckel bei 96 %';
   });
-  t('der Notausstieg raeumt den Ticker mit ab', () => {
+  t('die Hoechstzeit raeumt den Ticker mit ab', () => {
     // Sonst zaehlt alle 60 ms etwas weiter, das niemand mehr sieht -- fuer immer.
     const js = Array.from(document.scripts).map(s => s.textContent).join(' ');
-    const ab = js.indexOf('}, 4500)');
+    const ab = js.indexOf('}, SPLASH_HOECHSTENS)');
+    if (ab < 0) return 'der Wecker haengt nicht an SPLASH_HOECHSTENS';
     const block = js.slice(Math.max(0, ab - 500), ab);
     return /clearInterval\(splashTicker\)/.test(block) || 'Ticker laeuft weiter';
   });
@@ -3360,31 +3361,42 @@ window.addEventListener('error', e => {
       return s.classList.contains('weg') || 'steht nach 2,4 s immer noch da';
     });
   });
-  t('die Mindestzeit liegt unter dem Notausstieg', () => {
-    /* ⚠️ Laege sie darueber, raeumte der Notausstieg den Schirm weg, waehrend die
+  t('die Mindestzeit liegt unter der Hoechstzeit', () => {
+    /* ⚠️ Laege sie darueber, raeumte die Hoechstzeit den Schirm weg, waehrend die
        Mindestzeit ihn noch halten will -- zwei Uhren, die gegeneinander laufen. */
     const js = Array.from(document.scripts).map(s => s.textContent).join(' ');
-    const m = js.match(/SPLASH_MINDESTENS\s*=\s*(\d+)/);
-    if (!m) return 'SPLASH_MINDESTENS nicht gefunden';
-    return Number(m[1]) < 4500 || ('Mindestzeit ' + m[1] + ' ms >= Notausstieg 4500 ms');
+    const a = js.match(/SPLASH_MINDESTENS\s*=\s*(\d+)/);
+    const b = js.match(/SPLASH_HOECHSTENS\s*=\s*(\d+)/);
+    if (!a) return 'SPLASH_MINDESTENS nicht gefunden';
+    if (!b) return 'SPLASH_HOECHSTENS nicht gefunden';
+    return Number(a[1]) < Number(b[1])
+        || ('Mindestzeit ' + a[1] + ' ms >= Hoechstzeit ' + b[1] + ' ms');
   });
-  t('er wartet nicht auf den Speicher', () => {
-    // ⚠️ Der Fall, der den Umbau ausgeloest hat: hing das Wegnehmen hinter "await reload()",
-    // stand der Schirm, bis die Faenge geladen waren — im Testrahmen bis zum Notausstieg bei
-    // 4500 ms, in einem privaten Safari-Fenster genauso lang, und bei einem vollen Fangbuch
-    // entsprechend der Datenmenge. Geprueft wird die Reihenfolge im Quelltext, weil sich der
-    // Unterschied im Verhalten nur bei klemmender Datenbank zeigt — und die laesst sich hier
-    // nicht herstellen: die Pruefungen ersetzen putCatch, die echte IndexedDB laeuft nie mit.
-    // Nur der init-Block zaehlt — "await reload()" steht auch anderswo im Skript, etwa
-    // nach dem Speichern eines Fangs.
+  t('er wartet auf den ersten Abgleich', () => {
+    /* ⚠️ Hier stand das Gegenteil ("er wartet nicht auf den Speicher"): das Wegnehmen
+       musste VOR "await reload()" stehen, damit der Schirm an nichts haengt.
+
+       Karls Ansage vom 11.08.2026 dreht das um -- "mach das bitte waehrenddessen das
+       intro laedt und wenn es laenger dauert soll auch das intro laenger dauern" -- und
+       der Grund ist neu: seit demselben Tag holt der Abgleich beim Start den ganzen
+       Bestand. Ginge der Schirm vorher weg, saehe man die Liste unvollstaendig und die
+       Faenge purzelten hinterher hinein.
+
+       ⚠️ Der alte Einwand ist damit nicht erledigt, sondern nur woanders aufgehoben:
+       SPLASH_HOECHSTENS im Kopf der Datei. Die zwei Pruefungen mit haengt.html unten
+       fassen genau das an -- Quelltext-Reihenfolge allein wuerde die Sperre nicht sehen. */
     const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
     const ab = js.indexOf('(async function init(){');
     if (ab < 0) return 'init()-Block nicht gefunden';
+    /* ⚠️ Gesucht wird der Aufruf, nicht der Name -- zum zweiten Mal heute dieselbe Falle:
+       im Kommentar direkt darueber steht "Hier stand splashWeg()", und ein schlichtes
+       indexOf findet den. Die Pruefung meldete daraufhin "Wegnehmen bei 809" und faellt,
+       obwohl die Reihenfolge stimmte. Deshalb: Zeilenanfang und Semikolon. */
     const block = js.slice(ab);
-    const weg = block.indexOf('splashWeg()');
-    const rel = block.indexOf('await reload()');
-    return (weg > -1 && rel > -1 && weg < rel)
-        || ('in init(): Wegnehmen bei ' + weg + ', await reload() bei ' + rel);
+    const weg  = block.search(/\n\s*splashWeg\(\);/);
+    const sync = block.search(/\n\s*else await syncJetzt\(true\);/);
+    return (weg > -1 && sync > -1 && weg > sync)
+        || ('in init(): Wegnehmen bei ' + weg + ', await syncJetzt bei ' + sync);
   });
   ta('und er faengt keine Tipper mehr ab', async () => {
     return await imRahmenVon('index.html', 2900, (w, d) => {
@@ -3409,12 +3421,35 @@ window.addEventListener('error', e => {
     return (regeln.length > 0 && /visibility:\s*hidden/.test(regeln.join(' ')))
         || ('Regeln: ' + regeln.join(' | '));
   });
-  ta('der Notausstieg greift, wenn init() nie durchlaeuft', async () => {
+  ta('die Hoechstzeit greift, wenn init() nie durchlaeuft', async () => {
     // kaputt.html ist dieselbe App mit absichtlich geworfenem Fehler in init().
     // Ohne den Wecker im Kopf bliebe der Schirm hier fuer immer stehen.
-    return await imRahmenVon('kaputt.html', 5200, (w, d) => {
+    return await imRahmenVon('kaputt.html', 6600, (w, d) => {
       const s = d.getElementById('splash');
       return s.classList.contains('weg') || 'Schirm klebt — App waere gesperrt';
+    });
+  });
+
+  /* ====== Der Schirm wartet auf den Abgleich -- aber nicht ewig (11.08.2026) ======
+     haengt.html ist dieselbe App, in der der erste Abgleich nie fertig wird. Genau das
+     passiert in echt: kein Empfang am Wasser, ein Hotspot ohne Anmeldung, ein Server,
+     der die Verbindung offen laesst statt abzulehnen.
+
+     ⚠️ Beide Seiten muessen geprueft werden. Nur "er wartet" hiesse, eine App zu bauen,
+     die sich bei schlechtem Netz hinter einem Foto selbst sperrt. Nur "er geht weg"
+     hiesse, Karls Ansage gar nicht umgesetzt zu haben. */
+  ta('bei haengendem Abgleich steht er ueber die Mindestzeit hinaus', async () => {
+    return await imRahmenVon('haengt.html', 2400, (w, d) => {
+      const s = d.getElementById('splash');
+      return !s.classList.contains('weg')
+          || 'schon nach 2,4 s weg -- er wartet nicht auf den Abgleich';
+    });
+  });
+  ta('aber die Hoechstzeit holt ihn trotzdem weg', async () => {
+    return await imRahmenVon('haengt.html', 6600, (w, d) => {
+      const s = d.getElementById('splash');
+      return s.classList.contains('weg')
+          || 'Schirm klebt am haengenden Abgleich — die App waere gesperrt';
     });
   });
   ta('die Fangliste liegt hinter dem Schirm, nicht unter ihm', async () => {
@@ -3516,6 +3551,21 @@ if ANKER not in html:
              'Notausstieg-Fall nichts mehr.')
 (WORK / 'kaputt.html').write_text(
     html.replace(ANKER, ANKER + " throw new Error('absichtlich kaputt');", 1),
+    encoding='utf-8')
+
+# Dieselbe App, aber init() wird vor dem Wegnehmen des Schirms nie fertig — so wie bei einem
+# ersten Abgleich, der am Netz haengt. Seit dem 11.08.2026 wartet der Schirm absichtlich auf
+# diesen Abgleich (Karls Ansage); ohne SPLASH_HOECHSTENS wuerde die App sich damit bei
+# schlechtem Netz hinter einem Foto selbst sperren. Genau das prueft haengt.html.
+# ⚠️ Ein Fehler wie in kaputt.html taugt dafuer nicht: der fliegt, bevor ueberhaupt gewartet
+# wird. Gebraucht wird ein Warten, das nie zurueckkommt.
+HAENGT = '  splashWeg();\n})();'
+if HAENGT not in html:
+    sys.exit(f'Splash-Anker nicht gefunden — {HAENGT!r} am Ende von init() gesucht. '
+             'Wurde die Reihenfolge geaendert? Dann hier nachziehen, sonst prueft der '
+             'Fall "haengender Abgleich" nichts mehr.')
+(WORK / 'haengt.html').write_text(
+    html.replace(HAENGT, '  await new Promise(function(){});\n' + HAENGT, 1),
     encoding='utf-8')
 
 # ⚠️ Zeitbudget: 20000 stammt aus der Zeit mit 424 Pruefungen. Am 10.08.2026 brach

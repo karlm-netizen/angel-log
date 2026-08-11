@@ -38,11 +38,18 @@
   } catch (e) {}
 })();
 
-// ⚠️ Notausstieg für den Ladebildschirm. Er liegt über der ganzen App — bliebe er stehen,
-// wäre die App gesperrt, und zwar unbedienbar, nicht nur hässlich. Der Wecker steht
+// ⚠️ Die harte Obergrenze für den Ladebildschirm. Er liegt über der ganzen App — bliebe er
+// stehen, wäre die App gesperrt, und zwar unbedienbar, nicht nur hässlich. Der Wecker steht
 // absichtlich HIER und nicht in init(): so greift er auch dann, wenn init() nie erreicht
-// wird (Skriptfehler weiter unten, abgebrochener Download). Regulär geht der Schirm viel
-// früher weg, sobald die Fangliste steht.
+// wird (Skriptfehler weiter unten, abgebrochener Download).
+//
+// ⚠️ Seit dem 11.08.2026 ist das mehr als ein Notausstieg. Der Schirm wartet jetzt
+// absichtlich auf den ersten Abgleich (Karls Ansage), und ein Abgleich kann hängen: kein
+// Empfang am Wasser, ein Hotspot ohne Anmeldung, ein Server, der nicht antwortet. Genau
+// dann darf die App nicht hinter einem Bild verschwinden. Diese Grenze zählt ab dem Öffnen
+// der Seite und kennt weder init noch Netz — sie ist die einzige Zusage, die nichts
+// kaputtmachen kann.
+var SPLASH_HOECHSTENS = 6000;
 setTimeout(function(){
   // ⚠️ Den Ticker mit abräumen. Sonst zählt hier alle 60 ms etwas weiter, das niemand
   // mehr sieht — für immer, denn der reguläre Weg ist in diesem Fall ja nie gelaufen.
@@ -51,7 +58,7 @@ setTimeout(function(){
   }
   var s = document.getElementById('splash');
   if (s) s.classList.add('weg');
-}, 4500);
+}, SPLASH_HOECHSTENS);
 </script>
 <style>
   :root{
@@ -468,11 +475,19 @@ setTimeout(function(){
 
    ⚠️ Gezählt wird ab dem **Öffnen der Seite**, nicht ab dem Moment, in dem die App fertig
    ist. Sonst käme die Wartezeit oben drauf: eine App, die eine Sekunde zum Starten braucht,
-   stünde dann zwei Sekunden hinter dem Schirm. So ist die Zeit eine Obergrenze für das
+   stünde dann zwei Sekunden hinter dem Schirm. So ist die Zeit eine Untergrenze für das
    Warten und keine Strafe für ein langsames Gerät.
-   ⚠️ Der Notausstieg unten (4,5 s) bleibt unberührt — er ist die harte Grenze, falls init()
-   nie durchläuft. Die Mindestzeit muss deutlich darunter liegen, sonst räumt der Notausstieg
-   den Schirm weg, während die Mindestzeit ihn noch halten will. */
+
+   ⚠️ **Seit dem 11.08.2026 ist das nur noch die Untergrenze.** Karls Ansage: „mach das bitte
+   währenddessen das intro lädt und wenn es länger dauert soll auch das intro länger dauern."
+   Der Schirm geht deshalb erst, wenn der **erste Abgleich** durch ist — vorher stünde man
+   eine Sekunde nach dem Start vor einer Liste, in die noch Fänge hineinpurzeln. Zwischen
+   `SPLASH_MINDESTENS` und `SPLASH_HOECHSTENS` (oben im Kopf) richtet sich die Standzeit
+   also nach der Arbeit; die Prozentzahl bleibt so lange bei 96 %.
+
+   ⚠️ Beide Grenzen müssen auseinanderliegen: läge die Mindestzeit über der Höchstzeit,
+   räumte die Höchstzeit den Schirm weg, während die Mindestzeit ihn noch halten will —
+   zwei Uhren, die gegeneinander laufen. Eine Prüfung wacht darüber. */
 var SPLASH_MINDESTENS = 1800;
 var splashSeit = Date.now();
 
@@ -3243,7 +3258,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v32';
+const FASSUNG = 'v33';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -5242,17 +5257,21 @@ window.addEventListener('unhandledrejection', e =>
   buildStatics();
   go('log');                       // Oberfläche steht sofort, auch wenn der Speicher klemmt
 
-  /* Ladebildschirm weg. Zwei Dinge stecken hier drin:
+  /* ⚠️ **Hier stand `splashWeg()`** — vor allem, was Zeit kostet, mit der ausdrücklichen
+     Begründung, der Schirm dürfe an nichts hängen. Karls Ansage vom 11.08.2026 dreht das um:
+     „mach das bitte währenddessen das intro lädt und wenn es länger dauert soll auch das
+     intro länger dauern."
 
-     1. Er hängt **nicht** am Laden der Fänge. Der Schirm deckt das Aufblitzen beim Start ab,
-        nicht das Laden der Daten. Hing er am Speicher, stünde er bei einem vollen Fangbuch
-        sekundenlang und bei klemmender IndexedDB (privates Safari-Fenster) bis zum
-        Notausstieg — beides hinter einer Fläche, unter der die fertige App längst liegt.
-     2. Er steht aber eine **Mindestzeit** (siehe splashWeg). Karl am 08.08.: „der loading
-        screen ist nur so ne millisekunde da". Stimmt — die Oberfläche steht nach wenigen
-        Millisekunden, und damit war das Foto weg, bevor man es gesehen hatte. */
-  splashWeg();
+     Er hat recht, und der Grund ist neu: seit heute holt der Abgleich bei jedem Start den
+     ganzen Bestand statt nur der Änderungen. Ging der Schirm vorher weg, sähe man die Liste
+     einen Moment lang **unvollständig** und Fänge purzelten hinterher hinein — schlimmer als
+     eine Sekunde länger Foto. Der Schirm geht deshalb jetzt ganz unten, nach dem ersten
+     Abgleich.
 
+     ⚠️ Was daran gefährlich ist, steht nicht hier, sondern im Kopf der Datei: ein Abgleich
+     kann hängen, und dann läge ein Bild über einer gesperrten App. `SPLASH_HOECHSTENS` zählt
+     ab dem Öffnen der Seite und kennt weder init noch Netz. Ohne diese Grenze wäre Karls
+     Ansage nicht zu bauen. */
   try {
     await reload();
     renderList();
@@ -5306,11 +5325,22 @@ window.addEventListener('unhandledrejection', e =>
   if (cloudAn()){
     konto = kontoLesen();
     renderKonto();
-    if (gateNoetig()) gateZeigen();
-    else syncJetzt(true);
-    // Wer ohne Netz einträgt, soll nicht daran denken müssen.
+    /* Wer ohne Netz einträgt, soll nicht daran denken müssen.
+       ⚠️ Steht **vor** dem Warten unten. Hinge die Anmeldung hinter dem ersten Abgleich,
+       wäre sie ausgerechnet dann noch nicht da, wenn dieser Abgleich gerade am Netz hängt —
+       und das Wiederkommen der Verbindung liefe ins Leere. */
     window.addEventListener('online', () => syncJetzt(true));
+    /* ⚠️ `await`, und darin steckt Karls Ansage: der Ladebildschirm bleibt so lange stehen.
+       Gefahrlos ist das nur, weil syncJetzt seine Fehler selbst behandelt (nichts fliegt hier
+       heraus) und weil SPLASH_HOECHSTENS unabhängig davon läuft. Wer sich noch nicht
+       angemeldet hat, wartet auf gar nichts — dann liegt der Anmelde-Schirm ohnehin davor. */
+    if (gateNoetig()) gateZeigen();
+    else await syncJetzt(true);
   }
+
+  /* Ladebildschirm weg — als Letztes. Er steht mindestens SPLASH_MINDESTENS und höchstens
+     SPLASH_HOECHSTENS; dazwischen entscheidet die Arbeit, wie lange er bleibt. */
+  splashWeg();
 })();
 </script>
 </body>

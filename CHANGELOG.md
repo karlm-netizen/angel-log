@@ -6,6 +6,53 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 11.08.2026 (2) — Der Abgleich läuft jetzt hinter dem Ladebildschirm
+
+Karls Ansage direkt danach: *„mach das bitte währenddessen das intro lädt und wenn es länger
+dauert soll auch das intro länger dauern."*
+
+**Er hat recht, und der Grund ist die Änderung von eben.** Seit heute holt der Abgleich beim
+Start den ganzen Bestand statt nur der Änderungen. Der Ladebildschirm ging bisher **vor** allem
+weg, was Zeit kostet — man sah also die Liste einen Moment lang unvollständig, und Fänge
+purzelten hinterher hinein. Eine Sekunde länger Foto ist besser als eine Liste, die sich unter
+den Augen ändert.
+
+- Der Schirm steht jetzt, **bis der erste Abgleich durch ist**. Untergrenze bleibt 1,8 s.
+- Die Prozentzahl bleibt so lange bei **96 %**. Das ist keine neue Regel, sondern erst jetzt
+  wörtlich wahr: „die letzten Prozent gehören dem tatsächlichen Fertigwerden" stand seit dem
+  08.08. da, nur war das Fertigwerden bis heute eine Sache von Millisekunden.
+
+### ⚠️ Was daran gefährlich ist
+
+**Ein Abgleich kann hängen** — kein Empfang am Wasser, ein Hotspot ohne Anmeldung, ein Server,
+der die Verbindung offen lässt statt abzulehnen. Ein Schirm, der darauf wartet, würde die App
+**hinter einem Foto sperren**, und zwar genau dort, wo sie gebraucht wird.
+
+Es gibt deshalb eine **Höchstzeit von 6 Sekunden** (`SPLASH_HOECHSTENS`). Sie zählt ab dem
+Öffnen der Seite, steht im Kopf der Datei und kennt weder `init()` noch Netz — sie ist die
+einzige Zusage hier, die nichts kaputtmachen kann. Das war vorher der „Notausstieg" bei 4,5 s
+für den Fall, dass `init()` nie durchläuft; er hat jetzt zwei Aufgaben und heißt danach.
+
+⚠️ **Die Anmeldung ans Wiederkommen der Verbindung steht bewusst *vor* dem Warten.** Hinge sie
+dahinter, wäre sie ausgerechnet dann noch nicht da, wenn der erste Abgleich gerade am Netz
+hängt — und das Wiederkommen liefe ins Leere.
+
+### Prüfungen
+
+**503 grün** (von 501). Zwei davon fassen den neuen Fall an echtem Verhalten an: `haengt.html`
+ist dieselbe App mit einem ersten Abgleich, der **nie** fertig wird. Nach 2,4 s muss der Schirm
+noch stehen (sonst wartet er nicht), nach 6,6 s muss er weg sein (sonst sperrt er die App).
+**Nur eine der beiden zu prüfen wäre wertlos** — die erste allein beschriebe eine App, die sich
+bei schlechtem Netz selbst aussperrt, die zweite allein eine, die Karls Ansage gar nicht umsetzt.
+
+⚠️ **Gegengeprobt, zweimal einzeln.** Höchstzeit auf 60 s: beide Sperr-Prüfungen fallen.
+Ladebildschirm wieder nach vorn: beide Warte-Prüfungen fallen.
+
+⚠️ **Und dieselbe Falle wie eine Stunde vorher, zum zweiten Mal:** die Reihenfolge-Prüfung
+suchte `splashWeg()` im Quelltext — und fand es im Kommentar direkt darüber („Hier stand
+`splashWeg()`"). Sie meldete „Wegnehmen bei 809" und fiel, obwohl alles stimmte. Beide
+Quelltext-Prüfungen verlangen jetzt einen echten Aufruf: Zeilenanfang, Semikolon.
+
 ## 11.08.2026 — Der letzte Gerätemarker ist weg
 
 Karls Wahl aus meinen zwei Vorschlägen. Keine neue Funktion — **eine Bauart weniger, die
