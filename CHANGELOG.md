@@ -6,6 +6,29 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 12.08.2026 (6) — Konto und Abgleich stehen jetzt ganz unten
+
+Karls Ansage: *„der ganze sync konto löschen kram bitte nach ganz unten."*
+
+Der Konto-Block stand als **Drittes von oben**, direkt unter der Farbpalette. Das passte nicht
+dazu, wie die Einstellungen benutzt werden: Sprache und Palette stellt man **einmal** ein, den
+Abgleich schaut man an, **wenn etwas klemmt** — und „Konto löschen" hoffentlich **nie**.
+
+Neue Reihenfolge: Sprache · Farbpalette · Hilfe & Fehler melden · Datenschutz · **Konto & Sync**
+
+⚠️ **Der eigentliche Grund ist der Löschen-Knopf.** Ein Knopf, der alles löscht, gehört nicht
+dorthin, wo man beim Suchen nach etwas anderem vorbeikommt. Ganz unten steht er nur noch vor
+dem, der ihn sucht.
+
+### Prüfungen
+
+**536 grün** (von 534). Drei neue: der Konto-Block ist das Letzte auf der Seite, nach dem
+Download kommt nur noch er, und er steht nicht mehr vor der Hilfe.
+
+⚠️ Die Prüfung „Download ist das Letzte auf der Seite" von vorhin **stimmte damit nicht mehr**
+und ist umgeschrieben — sie war keine zwei Stunden alt. Beim Verschieben wäre sie sonst
+gefallen und hätte eine gewollte Änderung wie einen Fehler aussehen lassen.
+
 ## 12.08.2026 (5) — Die Einstellungen sind eine Seite, kein Vorhang mehr
 
 Karls Ansage: *„einstellung muss nicht mehr so ein fliegendes fenster sein, das ist jetzt eine

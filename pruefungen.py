@@ -2817,11 +2817,29 @@ window.addEventListener('error', e => {
      nicht mehr -- auf einer normalen Seite schliesst man nichts. Was die Pruefung
      eigentlich sicherte, war: der Download ist das LETZTE in den Einstellungen.
      Genau das prueft sie jetzt, ohne sich an einen Knopf zu haengen. */
-  t('Download ist das Letzte auf der Seite', () => {
+  /* ⚠️ Seit Karls Ansage vom 12.08.2026 ("der ganze sync konto loeschen kram
+     bitte nach ganz unten") ist der Konto-Block das Letzte, nicht mehr der
+     Download. Geprueft wird deshalb beides: der Download steht am Ende des
+     Datenschutz-Teils, und darunter kommt nur noch das Konto. */
+  t('nach dem Download kommt nur noch der Konto-Block', () => {
     const kinder = [...document.querySelector('#v-set .wrap').children];
-    const i = kinder.indexOf(document.querySelector('#btn-export'));
-    return (i === kinder.length - 1)
-        || ('danach kommt noch: ' + kinder.slice(i + 1).map(k => k.id || k.tagName).join(', '));
+    const danach = kinder.slice(kinder.indexOf(document.querySelector('#btn-export')) + 1)
+      .filter(k => k.nodeType === 1);
+    return (danach.length === 1 && danach[0].id === 'konto')
+        || ('danach kommt: ' + danach.map(k => k.id || k.tagName).join(', '));
+  });
+  /* ⚠️ "Konto loeschen" steckt in diesem Block. Ein Knopf, der alles loescht,
+     darf nicht dort stehen, wo man beim Suchen nach etwas anderem vorbeikommt. */
+  t('der Konto-Block steht ganz unten', () => {
+    const kinder = [...document.querySelector('#v-set .wrap').children].filter(k => k.nodeType === 1);
+    return (kinder[kinder.length - 1].id === 'konto')
+        || ('unten steht: ' + (kinder[kinder.length - 1].id || kinder[kinder.length - 1].tagName));
+  });
+  t('und nicht mehr oben zwischen Palette und Hilfe', () => {
+    const kinder = [...document.querySelector('#v-set .wrap').children].filter(k => k.nodeType === 1);
+    return (kinder.indexOf(document.getElementById('konto'))
+            > kinder.indexOf(document.getElementById('btn-hilfe')))
+        || 'steht noch vor der Hilfe';
   });
   t('Datenschutztext verweist auf den Download', () =>
     /Meine Daten herunterladen/.test(datenschutzText()) || 'Text nennt ihn nicht');

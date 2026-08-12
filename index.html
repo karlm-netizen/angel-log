@@ -959,7 +959,9 @@ function splashWeg(){
     </select>
     <label class="f">Farbpalette</label>
     <div class="pal" id="pal"></div>
-    <div id="konto" hidden></div>
+    <!-- ⚠️ Hier stand bis zum 12.08.2026 der Konto-Block. Karls Ansage: „der ganze
+         sync konto löschen kram bitte nach ganz unten." Er steht jetzt als
+         Letztes auf der Seite — die Begründung dort. -->
     <!-- Karls Ansage vom 09.08.2026: „support für bugs". Siehe meldungAnlegen(). -->
     <label class="f">Hilfe & Fehler melden</label>
     <p class="tiny muted" style="margin:0 0 8px; line-height:1.5">
@@ -1002,6 +1004,17 @@ function splashWeg(){
          gehört damit zur Datenschutzerklärung, nicht zur Datensicherung —
          gesichert wird seit dem 03.08. über das Konto. -->
     <button class="btn" id="btn-export" style="margin-bottom:16px">⬇︎ Meine Daten herunterladen</button>
+
+    <!-- ======= Konto & Abgleich — ganz unten (Karls Ansage, 12.08.2026) =======
+         Vorher stand dieser Block als Drittes von oben, direkt unter der
+         Farbpalette. Das passte nicht zu dem, wie er benutzt wird: Sprache und
+         Palette stellt man einmal ein, den Abgleich schaut man an, wenn etwas
+         klemmt — und „Konto löschen" hoffentlich nie.
+
+         ⚠️ Ein Knopf, der alles löscht, gehört nicht dorthin, wo man beim Suchen
+            nach etwas anderem vorbeikommt. Ganz unten steht er nur noch vor dem,
+            der ihn sucht. -->
+    <div id="konto" hidden></div>
   </div>
 </section>
 
@@ -3392,7 +3405,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v38';
+const FASSUNG = 'v39';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
