@@ -299,6 +299,19 @@ setTimeout(function(){
 
   /* Tableiste */
   /* deckend statt durchscheinend — sonst passt die Leiste nicht zu hellen Paletten */
+  /* Der Umschalter zwischen Liste, Karte und Auswertung (12.08.2026).
+     ⚠️ Drei gleich breite Felder statt Reitern: die drei sind gleichrangig, und
+        ein Reiter, der breiter ist als der daneben, behauptet eine Rangfolge,
+        die es nicht gibt. */
+  .seg{max-width:560px; margin:0 auto; padding:0 16px 4px; display:flex; gap:4px}
+  .seg[hidden]{display:none}
+  .segbtn{flex:1; background:var(--card); border:1px solid var(--line);
+    border-radius:10px; padding:7px 4px; font:inherit; font-size:13px;
+    font-weight:600; color:var(--muted); cursor:pointer}
+  .segbtn.on{background:var(--accent); border-color:var(--accent); color:#fff}
+  #kopf[hidden]{display:none}
+  @media (min-width:760px){ .seg{max-width:760px} }
+
   .tabs{position:fixed; left:0; right:0; bottom:0; background:var(--bg);
     border-top:1px solid var(--line); display:flex;
     padding:8px 10px calc(env(safe-area-inset-bottom) + 8px); gap:6px; z-index:900}
@@ -583,21 +596,32 @@ function splashWeg(){
 </script>
 
 <!-- ======================= LOG ======================= -->
+<!-- ======================= KOPF + UMSCHALTER =======================
+     Umgebaut am 12.08.2026 (Karls Ansage): unten stehen nur noch drei Kacheln.
+     Liste, Karte und Statistiken sind eine Sache geworden — sie zeigen alle
+     **denselben Bestand**, nur aus drei Blickwinkeln. Genau deshalb gehören sie
+     nicht in die Hauptnavigation, sondern hier in einen Umschalter darunter.
+
+     ⚠️ Kopf und Umschalter stehen jetzt **außerhalb** der drei Abschnitte. Vorher
+        hatte jeder seinen eigenen Kopf („Karte", „Statistiken"); zusammengefasst
+        wären das drei Überschriften für einen Ort. Der Umschalter sagt jetzt, wo
+        man ist — eine Überschrift daneben wäre dieselbe Auskunft zweimal.
+     ⚠️ Die Zähler `#map-count` und `#stats-pill` sind **mit hierher gezogen**, nicht
+        gelöscht: sie werden aus dem laufenden Betrieb beschrieben. Sichtbar ist
+        immer nur der zur aktuellen Ansicht. -->
+<header class="head" id="kopf">
+  <h1><img src="icon-192.png" alt="">Angel-Log</h1>
+  <span class="pill" id="map-count" hidden>—</span>
+  <span class="pill" id="stats-pill" hidden>—</span>
+</header>
+
+<div class="seg" id="seg">
+  <button class="segbtn on" data-seg="log">Liste</button>
+  <button class="segbtn" data-seg="map">Karte</button>
+  <button class="segbtn" data-seg="stats">Auswertung</button>
+</div>
+
 <section id="v-log">
-  <div class="head">
-    <h1><img src="icon-192.png" alt="">Angel-Log</h1>
-    <button class="iconbtn" id="btn-menu" aria-label="Einstellungen" style="position:relative">
-      <!-- Zahnrad. Vorher stand hier eine Sonne — die liest sich als Helligkeit
-           oder Design, nicht als Einstellungen (Karl, 03.08.).
-           ⚠️ Die rote Zahl sitzt AM Zahnrad und nicht daneben: sie soll heißen
-           „hier drin wartet etwas", nicht für sich selbst stehen. -->
-      <span class="badge" id="badge-set" hidden></span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3.1"/>
-        <path d="M19.2 13.2a7.4 7.4 0 0 0 0-2.4l2-1.5-2-3.4-2.3 1a7.4 7.4 0 0 0-2.1-1.2L14.4 3H9.6l-.4 2.7a7.4 7.4 0 0 0-2.1 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7.4 7.4 0 0 0 2.1 1.2l.4 2.7h4.8l.4-2.7a7.4 7.4 0 0 0 2.1-1.2l2.3 1 2-3.4z"/>
-      </svg>
-    </button>
-  </div>
   <div class="wrap">
     <div class="card" id="zeit-karte" style="margin-top:8px">
       <div class="row between" style="display:flex; align-items:center; gap:12px">
@@ -840,7 +864,7 @@ function splashWeg(){
 
 <!-- ======================= KARTE ======================= -->
 <section id="v-map" class="hidden">
-  <div class="head"><h1>Karte</h1><span class="pill" id="map-count">—</span></div>
+  <!-- Kopf und Zähler stehen seit dem 12.08.2026 oben im gemeinsamen Kopf. -->
   <div class="wrap">
     <div id="map"></div>
     <div id="map-error" class="hidden">
@@ -853,7 +877,7 @@ function splashWeg(){
 
 <!-- ======================= STATISTIK ======================= -->
 <section id="v-stats" class="hidden">
-  <div class="head"><h1>Statistiken</h1><span class="pill" id="stats-pill">—</span></div>
+  <!-- Kopf und Zähler stehen seit dem 12.08.2026 oben im gemeinsamen Kopf. -->
   <div class="wrap">
     <!-- ⚠️ Hier stand bis zum 08.08. eine Liste „Meine Auswertungen". Karl hat sie
          abbestellt: bearbeitet und gelöscht wird jetzt **an der Statistik selbst**, unten
@@ -1004,27 +1028,31 @@ function splashWeg(){
 <div class="toast" id="toast"></div>
 
 <!-- ======================= TABS ======================= -->
+<!-- Drei statt vier Kacheln (Karls Ansage vom 12.08.2026).
+     ⚠️ Die Leiste beantwortet jetzt „was will ich tun?" statt „welche Ansicht?".
+        Liste, Karte und Auswertung waren nie drei Aufgaben, sondern drei Blicke
+        auf denselben Bestand — die stecken oben im Umschalter.
+     ⚠️ Die Einstellungen sind vom Zahnrad oben hierher gewandert. Zwei Eingänge
+        zu derselben Schublade wären einer zu viel; die rote Zahl ist deshalb
+        mitgezogen. -->
 <nav class="tabs">
   <div>
     <button class="tab on" data-go="log">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 6h16M4 12h16M4 18h10"/>
-      </svg>Log
+      </svg>Fänge
     </button>
     <button class="tab" data-go="new">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
         <path d="M12 5v14M5 12h14"/>
       </svg>Neuer Fang
     </button>
-    <button class="tab" data-go="map">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/>
-      </svg>Karte
-    </button>
-    <button class="tab" data-go="stats">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>
-      </svg>Statistiken
+    <button class="tab" id="tab-set" style="position:relative">
+      <span class="badge" id="badge-set" hidden></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3.1"/>
+        <path d="M19.2 13.2a7.4 7.4 0 0 0 0-2.4l2-1.5-2-3.4-2.3 1a7.4 7.4 0 0 0-2.1-1.2L14.4 3H9.6l-.4 2.7a7.4 7.4 0 0 0-2.1 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7.4 7.4 0 0 0 2.1 1.2l.4 2.7h4.8l.4-2.7a7.4 7.4 0 0 0 2.1-1.2l2.3 1 2-3.4z"/>
+      </svg>Einstellungen
     </button>
   </div>
 </nav>
@@ -1410,6 +1438,10 @@ const EN = {
   'Kurze Einführung ansehen': 'View the short introduction',
   '🐞 Fehler melden': '🐞 Report a problem',
   '📬 Postfach': '📬 Mailbox',
+  'Fänge': 'Catches',
+  'Liste': 'List',
+  'Auswertung': 'Charts',
+  'Einstellungen': 'Settings',
   'Wo bist du unterwegs?': 'Where do you fish?',
   'Danach richten sich die Fische, die dir beim Eintragen vorgeschlagen werden.':
     'This decides which fish are suggested when you log a catch.',
@@ -3288,7 +3320,10 @@ function sheetZu(){
   i.style.transform = '';            // eine stehengebliebene Verschiebung zurücksetzen
   $('#sheet').classList.remove('on');
 }
-$('#btn-menu').onclick = () => { $('#sheet .inner').scrollTop = 0; $('#sheet').classList.add('on'); };
+/* ⚠️ Hier stand `$('#btn-menu').onclick` — das Zahnrad oben rechts. Es ist am
+   12.08.2026 in die untere Leiste gewandert (`#tab-set`, siehe dort). Bliebe
+   diese Zeile stehen, fiele die App **beim Start** über ein `null` und zeigte
+   gar nichts mehr. */
 $('#btn-close-sheet').onclick = sheetZu;
 $('#btn-sheet-zu').onclick    = sheetZu;
 $('#sheet').onclick = e => { if (e.target.id === 'sheet') sheetZu(); };
@@ -3407,7 +3442,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v36';
+const FASSUNG = 'v37';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -5625,13 +5660,30 @@ function renderStats(){
 }
 
 /* ---------------------------- Ansichtswechsel ---------------------------- */
+/* Die drei Ansichten, die seit dem 12.08.2026 hinter einer Kachel stecken. */
+const SAMMEL = ['log', 'map', 'stats'];
+
 function go(view){
   freeURLs();
   state.view = view;
   ['log', 'new', 'map', 'stats', 'detail'].forEach(v => $('#v-' + v).classList.toggle('hidden', v !== view));
   $('#fab-save').classList.toggle('on', view === 'new');
+
+  /* Kopf und Umschalter gehören zu den drei Sammel-Ansichten. Beim Erfassen und
+     im Fang selbst haben sie nichts zu suchen: dort hat man ein Ding vor sich,
+     keine Auswahl zwischen Blickwinkeln. */
+  const sammel = SAMMEL.indexOf(view) !== -1;
+  $('#kopf').hidden = !sammel;
+  $('#seg').hidden  = !sammel;
+  $('#map-count').hidden   = view !== 'map';
+  $('#stats-pill').hidden  = view !== 'stats';
+  $$('.segbtn').forEach(b => b.classList.toggle('on', b.dataset.seg === view));
+
+  /* ⚠️ Die Kachel „Fänge" bleibt an, solange man irgendwo in dieser Gruppe ist —
+     auch in der Karte, der Auswertung und im einzelnen Fang. Sonst leuchtete
+     unten nichts, und die Leiste sähe aus, als sei man nirgends. */
   $$('.tab').forEach(t => t.classList.toggle('on',
-    t.dataset.go === view || (view === 'detail' && t.dataset.go === 'log')));
+    t.dataset.go === view || ((sammel || view === 'detail') && t.dataset.go === 'log')));
 
   if (view === 'log'){ renderList(); renderZeit(); }
   if (view === 'map')    renderMap();
@@ -5641,9 +5693,17 @@ function go(view){
   window.scrollTo(0, 0);
 }
 $$('.tab').forEach(t => t.onclick = () => {
+  if (!t.dataset.go) return;                 // die Einstellungs-Kachel, siehe unten
   if (t.dataset.go === 'new'){ state.editId = null; state.editWasSaved = false; }
   go(t.dataset.go);
 });
+
+/* ⚠️ Die Einstellungen sind **keine Ansicht**, sondern eine Schublade über allem.
+   Deshalb kein `data-go`: sie tauschen nicht aus, was man gerade sieht, sondern
+   legen sich davor. Wer sie schließt, steht wieder da, wo er war. */
+$('#tab-set').onclick = () => { $('#sheet .inner').scrollTop = 0; $('#sheet').classList.add('on'); };
+
+$$('.segbtn').forEach(b => b.onclick = () => go(b.dataset.seg));
 
 /* ---------------------------- Start ---------------------------- */
 async function reload(){

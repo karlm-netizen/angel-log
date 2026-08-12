@@ -2258,7 +2258,7 @@ window.addEventListener('error', e => {
      Pruefungen vergleichen deutsche Texte. */
   t('Umschalten uebersetzt die feste Oberflaeche', () => {
     spracheSetzen('en');
-    const txt = document.querySelector('#v-log .head h1').textContent.trim();
+    const txt = document.querySelector('#kopf h1').textContent.trim();
     const zeit = document.querySelector('#zeit-karte .f').textContent.trim();
     return (zeit === 'Total fishing time') || ('Kopfzeile: ' + txt + ' / ' + zeit);
   });
@@ -2677,7 +2677,9 @@ window.addEventListener('error', e => {
      moechte ich das man entweder oben auf ein kreuz clicken kann oder das menu
      wieder runterwischen kann." Bis dahin stand der einzige Knopf ganz unten --
      man musste erst durch alle Einstellungen scrollen, um herauszukommen. */
-  const sheetAuf = () => { document.querySelector('#btn-menu').click(); };
+  // ⚠️ Seit dem 12.08.2026 liegen die Einstellungen unten in der Leiste (#tab-set),
+  //    nicht mehr als Zahnrad oben rechts (#btn-menu).
+  const sheetAuf = () => { document.querySelector('#tab-set').click(); };
   const sheetOffen = () => document.querySelector('#sheet').classList.contains('on');
 
   t('das Kreuz steht oben im Blatt', () => {
@@ -3364,7 +3366,10 @@ window.addEventListener('error', e => {
     return (s > -1 && l > -1 && s < l) || ('splash bei ' + s + ', v-log bei ' + l);
   });
   t('das Zeichen steht in der Kopfzeile', () => {
-    const img = document.querySelector('#v-log .head h1 img');
+    // ⚠️ Der Kopf sitzt seit dem 12.08.2026 als #kopf ueber allen drei Sammel-
+    //    Ansichten, nicht mehr in #v-log. Sonst haette er beim Umschalten auf
+    //    Karte oder Auswertung gefehlt.
+    const img = document.querySelector('#kopf h1 img');
     return (img && /icon-192/.test(img.getAttribute('src'))) || 'kein Bild in der Kopfzeile';
   });
   t('setPalette schreibt vier Farben fuers Fruehskript', () => {
@@ -3512,6 +3517,92 @@ window.addEventListener('error', e => {
           && d.documentElement.scrollWidth - w.innerWidth <= 1
           || 'Schirm schiebt das Layout';
     });
+  });
+
+  /* ====== Drei Kacheln statt vier (12.08.2026) ======
+     Karls Ansage: Liste, Karte und Statistiken zusammenwerfen, dann Neuer Fang,
+     dann Einstellungen. */
+  t('unten stehen genau drei Kacheln', () => {
+    const n = document.querySelectorAll('.tabs .tab').length;
+    return n === 3 || 'es sind ' + n;
+  });
+  t('und zwar in Karls Reihenfolge', () => {
+    /* ⚠️ Geprueft wird die Kennung, nicht die Beschriftung. Die erste Fassung las
+       `textContent` -- darin steckt die rote Zahl der Einstellungs-Kachel mit
+       drin, und uebersetzt ist die Beschriftung auch noch. Die Pruefung fiel
+       damit mit "Faenge | Neuer Fang | 0", obwohl die Reihenfolge stimmte. */
+    const b = Array.from(document.querySelectorAll('.tabs .tab'))
+      .map(t2 => t2.dataset.go || t2.id);
+    return (b.join(',') === 'log,new,tab-set') || 'Reihenfolge: ' + b.join(' | ');
+  });
+  /* ⚠️ Die wichtigste hier: keine der drei Ansichten darf beim Zusammenlegen
+     verlorengehen. Erreichbar bleiben muessen sie alle -- ueber den Umschalter. */
+  t('alle drei Ansichten sind ueber den Umschalter erreichbar', () => {
+    const fehlt = ['log', 'map', 'stats'].filter(v =>
+      !document.querySelector('.segbtn[data-seg="' + v + '"]'));
+    return fehlt.length === 0 || 'kein Schalter fuer: ' + fehlt.join(', ');
+  });
+  t('der Umschalter fuehrt wirklich zur Ansicht', () => {
+    for (const v of ['map', 'stats', 'log']){
+      document.querySelector('.segbtn[data-seg="' + v + '"]').click();
+      if (document.getElementById('v-' + v).classList.contains('hidden'))
+        return v + ' bleibt versteckt';
+      if (state.view !== v) return 'state.view steht auf ' + state.view;
+    }
+    return true;
+  });
+  /* ⚠️ Sonst leuchtet unten nichts, sobald man auf Karte oder Auswertung geht --
+     und die Leiste behauptet, man sei nirgends. */
+  t('die Kachel "Faenge" bleibt an, auch in Karte und Auswertung', () => {
+    for (const v of ['map', 'stats', 'detail']){
+      go(v);
+      const t2 = document.querySelector('.tabs .tab[data-go="log"]');
+      if (!t2.classList.contains('on')) return 'bei ' + v + ' leuchtet sie nicht';
+    }
+    go('log');
+    return true;
+  });
+  t('beim Erfassen sind Kopf und Umschalter weg', () => {
+    go('new');
+    const k = document.getElementById('kopf').hidden, s = document.getElementById('seg').hidden;
+    go('log');
+    return (k && s) || `Kopf versteckt: ${k}, Umschalter versteckt: ${s}`;
+  });
+  t('und in den drei Sammel-Ansichten sind sie da', () => {
+    for (const v of ['log', 'map', 'stats']){
+      go(v);
+      if (document.getElementById('seg').hidden) return 'bei ' + v + ' fehlt der Umschalter';
+    }
+    go('log');
+    return true;
+  });
+  /* ⚠️ Die zwei Zaehler sind beim Zusammenlegen aus ihren alten Koepfen in den
+     gemeinsamen gewandert. Waeren sie dabei verlorengegangen, schriebe der
+     laufende Betrieb ins Leere -- ohne Fehler, nur ohne Wirkung. */
+  t('die Zaehler fuer Karte und Auswertung gibt es noch', () => {
+    const da = !!document.getElementById('map-count') && !!document.getElementById('stats-pill');
+    return da || 'ein Zaehler fehlt';
+  });
+  t('und es steht immer nur der zur Ansicht passende da', () => {
+    go('map');
+    const a = !document.getElementById('map-count').hidden
+           && document.getElementById('stats-pill').hidden;
+    go('stats');
+    const b = document.getElementById('map-count').hidden
+           && !document.getElementById('stats-pill').hidden;
+    go('log');
+    return (a && b) || `Karte richtig: ${a}, Auswertung richtig: ${b}`;
+  });
+  t('die Einstellungs-Kachel tauscht die Ansicht nicht aus', () => {
+    /* Sie ist eine Schublade ueber allem, keine Ansicht: wer sie schliesst,
+       steht wieder da, wo er war. */
+    go('map');
+    document.getElementById('tab-set').click();
+    const offen = document.getElementById('sheet').classList.contains('on');
+    const geblieben = state.view === 'map';
+    sheetZu();
+    go('log');
+    return (offen && geblieben) || `Schublade offen: ${offen}, Ansicht geblieben: ${geblieben}`;
   });
 
   /* ====== Die Einrichtung im Tutorial (12.08.2026) ======

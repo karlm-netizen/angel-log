@@ -6,6 +6,61 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 12.08.2026 (4) — Drei Kacheln statt vier
+
+Karls Ansage: *„Als erstes müssen log, karte und statistiken zusammengeworfen werden irgendwie,
+dann kommt neuer fang und dann einstellungen."*
+
+```
+┌──────────────────────────────┐
+│ 🐟 Angel-Log            [8]  │  ← ein Kopf für alle drei
+├──────────────────────────────┤
+│ [ Liste ][ Karte ][Auswert.] │  ← Umschalter
+├──────────────────────────────┤
+│  Fänge   Neuer Fang    ⚙️    │  ← nur noch drei Kacheln
+└──────────────────────────────┘
+```
+
+**Das „irgendwie":** Liste, Karte und Auswertung zeigen alle **denselben Bestand**, nur aus drei
+Blickwinkeln. Sie waren nie drei Aufgaben. Deshalb stecken sie jetzt in einem Umschalter unter
+dem Kopf, und die untere Leiste beantwortet *„was will ich tun?"* statt *„welche Ansicht?"*.
+
+### Was dabei verschwunden ist, und warum
+
+- **Die Überschriften „Karte" und „Statistiken".** Zusammengelegt wären das drei Überschriften
+  für einen Ort — der Umschalter sagt schon, wo man ist.
+  ⚠️ Die **Zähler** daneben (`#map-count`, `#stats-pill`) sind **mitgezogen**, nicht gelöscht:
+  sie werden aus dem laufenden Betrieb beschrieben. Sichtbar ist immer nur der zur Ansicht
+  passende. Wären sie weggefallen, schriebe der Betrieb ins Leere — ohne Fehler, nur ohne
+  Wirkung. Eine Prüfung wacht darüber.
+- **Das Zahnrad oben rechts.** Zwei Eingänge zu derselben Schublade wären einer zu viel.
+  Die **rote Zahl ist mitgewandert** an die Einstellungs-Kachel.
+
+⚠️ **Die Einstellungs-Kachel tauscht die Ansicht nicht aus.** Sie ist eine Schublade über allem,
+keine Ansicht: wer sie schließt, steht wieder da, wo er war. Sonst wäre nach jedem Blick in die
+Einstellungen die Karte weg.
+
+⚠️ **Die Kachel „Fänge" bleibt an, solange man irgendwo in dieser Gruppe ist** — auch in Karte,
+Auswertung und im einzelnen Fang. Sonst leuchtete unten nichts und die Leiste behauptete, man
+sei nirgends.
+
+⚠️ **Beinahe-Absturz beim Umbau:** `$('#btn-menu').onclick` blieb stehen, nachdem das Zahnrad
+weg war. Das hätte die App **beim Start** über ein `null` fallen lassen — nicht irgendwo im
+Betrieb, sondern sofort und vollständig.
+
+### Prüfungen
+
+**542 grün** (von 532). Elf neue rund um den Umbau, darunter: alle drei Ansichten bleiben über
+den Umschalter erreichbar, „Fänge" leuchtet auch in Karte und Auswertung, Kopf und Umschalter
+verschwinden beim Erfassen, beide Zähler existieren noch und stehen nur zur passenden Ansicht.
+
+⚠️ **Zwei bestehende Prüfungen hingen an `#v-log .head`** und fielen, weil der Kopf
+herausgewandert ist — am geprüften Verhalten war nichts falsch. Sie zeigen jetzt auf `#kopf`.
+
+⚠️ **Und eine meiner neuen Prüfungen las die Reihenfolge über `textContent`** — darin steckte
+die rote Zahl mit drin, und übersetzt ist die Beschriftung auch noch. Sie prüft jetzt die
+Kennung statt der Beschriftung.
+
 ## 12.08.2026 (3) — Die Einführung richtet die App jetzt ein
 
 Karls Ansage: *„ich will vor allem, da ich das so aus anderen apps kenne, ein tutorial haben,
