@@ -3819,6 +3819,101 @@ window.addEventListener('error', e => {
         || 'der nachgebaute Altstand liefert kein "false" mehr — die Wache ist blind';
   });
 
+  /* ====== Die Seite darf am Handy nicht breiter sein als das Handy (12.08.2026) ======
+     Karls Meldung: "die website ist zu breit auf dem handy".
+
+     ⚠️ Breiten-Pruefungen gab es schon, aber nur fuer die **Statistik**. Die
+     Listen-Seite hatte keine -- und genau dort ist es aufgefallen. Eine Pruefung,
+     die nur die halbe App abdeckt, sagt ueber den Rest nichts, und das sieht von
+     aussen aus wie gruen.
+
+     ⚠️ Gemeldet wird der **Name des Uebeltaeters**, nicht nur "zu breit". Ohne ihn
+     sucht man ihn von Hand durch den ganzen Baum, und beim naechsten Mal wieder. */
+  const zuBreit = (w, d) => {
+    const grenze = w.innerWidth + 1;
+    const schuld = [];
+    d.querySelectorAll('body *').forEach(el => {
+      if (!el.getClientRects().length) return;            // unsichtbar zaehlt nicht
+      const r = el.getBoundingClientRect();
+      if (r.right > grenze || r.left < -1){
+        // Nur den obersten Schuldigen nennen, nicht seine ganze Verwandtschaft.
+        if (!schuld.some(s => s.contains(el))) schuld.push(el);
+      }
+    });
+    return schuld.map(el => {
+      const kl = (typeof el.className === 'string' && el.className.trim())
+        ? '.' + el.className.trim().split(/\s+/).join('.') : '';
+      return el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + kl
+           + ' bis ' + Math.round(el.getBoundingClientRect().right) + 'px';
+    });
+  };
+
+  /* ⚠️ Drei Breiten, nicht eine. 390 px ist ein heutiges iPhone, 360 ein
+     verbreitetes Android, 320 das schmalste, was noch vorkommt (iPhone SE 1.
+     Generation, und jedes Geraet mit vergroesserter Schrift). Bei 390 allein war
+     alles gruen, waehrend Karl auf seinem Geraet ein zu breites Bild sah -- eine
+     einzige Breite zu pruefen heisst, den Fall zu verpassen.
+
+     ⚠️ **Ein Rahmen je Breite, nicht einer je Seite.** Die erste Fassung machte
+     neun Rahmen mit je 2,6 s Wartezeit auf -- damit brach der ganze Lauf ohne
+     Ergebnis ab (Quelltext-Auswurf), weil das Zeitbudget von Chrome ueberschritten
+     war. Das ist dieselbe Decke wie am 09. und 11.08.: nicht der Code, das Budget.
+     Jetzt wird in einem Rahmen durch alle Seiten geschaltet. */
+  const breitPruefen = (breite) => new Promise((fertig, schief) => {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'width:' + breite + 'px;height:720px;border:0;position:absolute;left:-9999px';
+    f.src = 'index.html';
+    f.onload = () => setTimeout(() => {
+      try {
+        const w = f.contentWindow, d = f.contentDocument, klagen = [];
+        /* ⚠️ **Mit Inhalt messen, nicht leer.** Die erste Fassung lief auf einer
+           leeren App und war auf allen drei Breiten gruen -- waehrend Karl auf
+           seinem Handy ein zu breites Bild sah. Genau das war der Fall: die
+           Pillen-Zeile bricht nicht um, und erst echter Inhalt macht sie lang.
+           Eine Breiten-Pruefung ohne Inhalt prueft die Breite von nichts.
+
+           ⚠️ Gefuellt werden die Pillen direkt, nicht ueber `state`: `const state`
+           auf oberster Ebene ist keine Eigenschaft des Fensters. Gemeint ist
+           ohnehin die Zusage der Zeile -- sie muss umbrechen, **egal wie lang
+           eine Pille wird**.
+
+           ⚠️ Und gefuellt wird **nach** `go()`, nicht davor. Die zweite Fassung
+           setzte die Texte vorher -- `go('log')` zeichnet die Pillen aber neu und
+           hat sie sofort wieder auf "0 Faenge" gesetzt. Die Pruefung mass damit
+           erneut den leeren Zustand und blieb auch dann gruen, wenn man den
+           Umbruch wieder herausnahm. Aufgefallen ist es nur an der Gegenprobe. */
+        const fuellen = () => {
+          const lang = {
+            '#st-count': '128 F\u00e4nge',
+            '#st-waters': '17 Gew\u00e4sser',
+            '#st-drafts': '4 Entw\u00fcrfe',
+            '#st-cloud': '12 Eintr\u00e4ge nur auf diesem Ger\u00e4t'
+          };
+          for (const wahl of Object.keys(lang)){
+            const el = d.querySelector(wahl);
+            if (el){ el.textContent = lang[wahl]; el.hidden = false; }
+          }
+        };
+        for (const seite of ['log', 'map', 'stats', 'new', 'set']){
+          w.go(seite);
+          fuellen();
+          const raus = zuBreit(w, d);
+          if (d.documentElement.scrollWidth > w.innerWidth + 1)
+            raus.push('Seite scrollt seitlich (' + d.documentElement.scrollWidth + ')');
+          if (raus.length) klagen.push(seite + ': ' + raus.join(', '));
+        }
+        f.remove();
+        fertig(klagen.length === 0 || klagen.join('  |  '));
+      } catch (e){ f.remove(); schief(e); }
+    }, 2600);
+    f.onerror = () => { f.remove(); schief(new Error('index.html laedt nicht')); };
+    document.body.appendChild(f);
+  });
+
+  for (const breite of [320, 360, 390]){
+    ta('nichts ragt heraus auf ' + breite + ' px', async () => await breitPruefen(breite));
+  }
+
   (async function(){
     for (const [name, fn] of asyncTests){
       try { const r = await fn(); if (r === true) { ok++; out.push('OK   ' + name); }

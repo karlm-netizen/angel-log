@@ -6,6 +6,45 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 12.08.2026 (7) — Zu breit am Handy, und „Größter" ist weg
+
+Karls Meldung: *„die website ist zu breit auf dem handy, pack mal größter fisch weg auf der
+liste page."*
+
+**Beides erledigt — aber die Ursache war nicht die Pille.**
+
+Die Zeile mit den Pillen über der Liste (`0 Fänge`, `3 Gewässer`, `Größter: …`, `4 Entwürfe`,
+Cloud-Hinweis) ist ein Flex-Kasten **ohne Umbruch**, und jede Pille trägt `white-space:nowrap`.
+Mit echten Fängen wird sie länger als der Bildschirm und schiebt die ganze Seite seitlich
+heraus.
+
+- **Die Pille „Größter: 87 cm Regenbogenforelle" ist weg** (Karls Ansage). Sie war die längste
+  der Reihe — die größte Zahl steht ohnehin in der Auswertung, wo man sie sucht.
+- ⚠️ **Der eigentliche Flick ist `flex-wrap:wrap`.** Eine Pille zu entfernen behebt den Fall,
+  der Umbruch behebt die Ursache: sonst schiebt die nächste lange Pille die Zeile genauso wieder
+  heraus. Gemessen ohne Umbruch: **444 px auf einem 320-px-Bildschirm.**
+
+### Prüfungen
+
+**539 grün.** Neu sind drei, die auf **320, 360 und 390 px** durch alle fünf Seiten gehen und
+jedes Element melden, das über den Rand ragt — **mit Namen**, nicht nur „zu breit".
+
+⚠️ **Es gab schon Breiten-Prüfungen, aber nur für die Statistik.** Die Listen-Seite hatte keine,
+und genau dort ist es aufgefallen. Eine Prüfung, die nur die halbe App abdeckt, sagt über den
+Rest nichts — und das sieht von außen aus wie grün.
+
+### ⚠️ Zwei Fehlversuche auf dem Weg zu dieser Prüfung, beide lehrreich
+
+1. **Erste Fassung: leere App.** Auf allen drei Breiten grün, während Karl das Gegenteil sah.
+   Eine Breiten-Prüfung ohne Inhalt prüft die Breite von nichts.
+2. **Zweite Fassung: Inhalt vor `go()` gesetzt.** `go('log')` zeichnet die Pillen neu und hat
+   die langen Texte sofort wieder überschrieben — die Prüfung maß erneut den leeren Zustand
+   und blieb **auch dann grün, wenn man den Umbruch wieder herausnahm.**
+
+Beides ist nur aufgefallen, **weil die Gegenprobe gemacht wurde**: Fix herausnehmen, Lauf muss
+fallen. Er fiel nicht. Eine Prüfung, die den Fehler nicht fängt, ist keine — dieselbe Lehre wie
+am 11.08., diesmal zweimal hintereinander.
+
 ## 12.08.2026 (6) — Konto und Abgleich stehen jetzt ganz unten
 
 Karls Ansage: *„der ganze sync konto löschen kram bitte nach ganz unten."*

@@ -648,7 +648,12 @@ function splashWeg(){
         <button class="btn sm" id="btn-korr-set" style="margin-top:9px">Gesamtzeit übernehmen</button>
       </div>
     </div>
-    <div class="row" style="gap:8px; margin:10px 0 4px">
+    <!-- ⚠️ `flex-wrap:wrap` ist der eigentliche Flick, nicht das Entfernen der
+         Pille. Die Zeile ist ein Flex-Kasten und jede Pille trägt `white-space:
+         nowrap` -- ohne Umbruch schiebt die nächste lange Pille sie genauso
+         wieder heraus. Eine Pille zu entfernen behebt den Fall, `wrap` behebt
+         die Ursache. -->
+    <div class="row" style="gap:8px; margin:10px 0 4px; flex-wrap:wrap">
       <span class="pill" id="st-count">0 Fänge</span>
       <!-- ⚠️ Karls Meldung vom 10.08.2026: „ich habe 11 Fänge auf dem PC". Es waren
            acht. Die Liste zeigt Entwürfe mit an, die Zählung ließ sie weg — zwei
@@ -658,7 +663,6 @@ function splashWeg(){
            auch hier oben. -->
       <span class="pill warn" id="st-drafts" hidden></span>
       <span class="pill" id="st-waters">0 Gewässer</span>
-      <span class="pill" id="st-best">—</span>
       <!-- ⚠️ Der Hinweis, der am 08.08.2026 gefehlt hat. Siehe `gesichertRendern()`. -->
       <span class="pill offen" id="st-cloud" role="button" tabindex="0" hidden></span>
     </div>
@@ -1589,7 +1593,7 @@ function T(de){
 const NICHT_UEBERSETZEN = ['#list', '#stats-body', '#detail-body', '#konto', '#gate-inner',
   '#tour-inner', '#ds-text', '#g-ds-text', '#map', '#splash', '#toast',
   '#viewer', '#zeit-gesamt', '#zeit-laeuft', '#zeit-warnung', '#korr-start',
-  '#st-count', '#st-waters', '#st-best', '#st-cloud', '#map-count', '#stats-pill',
+  '#st-count', '#st-waters', '#st-cloud', '#map-count', '#stats-pill',
   '#trueb-info', '#mond-anzeige', '#geo-info', '#bug-warten', '#sicherung-text'].join(',');
 
 /* Die festen Beschriftungen einmal einsammeln, mit ihrem deutschen Urtext.
@@ -3153,7 +3157,10 @@ function renderList(){
   /* Einzahl und Mehrzahl sind im Deutschen gleich, im Englischen nicht —
      deshalb stehen hier zwei Schlüssel, obwohl links dasselbe Wort steht. */
   $('#st-waters').textContent = waters.size + ' ' + T(waters.size === 1 ? 'Gewässer (eins)' : 'Gewässer (mehrere)');
-  $('#st-best').textContent   = best ? `${T('Größter:')} ${best.laenge} cm${best.art ? ' ' + best.art : ''}` : T('Noch kein Maß');
+  /* ⚠️ Hier stand die Pille "Größter: 87 cm Regenbogenforelle". Karls Ansage
+     vom 12.08.2026: weg damit. Sie war die längste der Reihe und hat die Zeile
+     am Handy seitlich herausgeschoben -- die größte Zahl steht ohnehin in der
+     Auswertung, wo man sie sucht. */
   gesichertRendern();
 }
 /* Tippen auf den Hinweis gleicht sofort ab — nicht still, damit man eine Antwort
@@ -3405,7 +3412,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v39';
+const FASSUNG = 'v40';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
