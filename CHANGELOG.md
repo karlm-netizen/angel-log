@@ -6,6 +6,100 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 12.08.2026 (2) — Tickets: Sperre, Postfach, Antwort per Discord
+
+Karls Ansage: *„Support zeitlich limitieren … und ich möchte das der user ein feedback bekommt
+wenn sich um sein ticket gekümmert wurde … ein beantwortetes ticket soll dann in den
+einstellungen auftauchen, man sieht eine rote 1 am einstellungs logo … und dann ist da neben
+dem support ein kleines postfach … da kann man dann drauf drücken und sieht alle tickets aus
+den letzten 30 tagen."*
+
+Aus einem Melde-Briefkasten wird damit ein Gespräch. Der Weg: App → Datenbank → Discord →
+Karls Antwort → Datenbank → App.
+
+### Der Rückweg
+
+Jede Meldung bekommt eine **Nummer** und steht in Discord als „Meldung #12". Karl antwortet
+dort mit der **Antworten-Funktion**; der Bot liest die Nummer aus der Nachricht, auf die
+geantwortet wurde, und trägt den Text bei genau diesem Ticket ein.
+
+⚠️ **Ohne „Antworten" passiert nichts.** Eine Nachricht, die einfach so im Kanal steht, hat
+keinen Bezug zu einem Ticket — und geraten wird nichts. Wer nur mitredet, löst nichts aus.
+
+⚠️ **Der Bot läuft nur, wenn Karls Rechner läuft**, und das ist in Ordnung: er beantwortet
+Tickets ohnehin nur am Rechner. Damit „der Bot war aus" trotzdem nichts kostet, **holt er beim
+Start die letzten 200 Nachrichten nach**. Aus einem Verlust wird eine Verzögerung.
+
+⚠️ **Eine korrigierte Antwort setzt den Gelesen-Vermerk zurück** — sonst stünde die neue
+Fassung im Postfach, ohne dass die rote Zahl noch einmal ruft.
+
+### Das Postfach
+
+Neuer Knopf direkt unter „Fehler melden" — dasselbe Thema von der anderen Seite: dort geht die
+Frage raus, hier kommt die Antwort an. Darin alle Tickets der letzten 30 Tage, offene mit ⏳,
+beantwortete mit ✅. Die **rote Zahl** steht am Zahnrad und am Postfach, aus derselben Quelle.
+
+⚠️ **Die Antworten werden beim Abgleich geholt, nicht beim Öffnen des Postfachs.** Die rote
+Zahl ist die einzige Stelle, an der jemand von einer Antwort erfährt — holte man sie erst beim
+Hineinsehen, erschiene sie nur dem, der ohnehin schon nachschaut.
+
+⚠️ **Der Bestand wird lokal gespiegelt**, sonst wäre das Postfach am Wasser leer — genau dort,
+wo die App benutzt wird.
+
+⚠️ **Markiert wird vor dem Abhaken.** Würde erst abgehakt und dann gezeichnet, wäre die
+Markierung schon weg, bevor man sie sieht.
+
+### Die Sperre — und warum sie nicht ist, was verlangt war
+
+In der App: **60 Sekunden**, mit Countdown im Knopf, genau wie angesagt.
+
+In der Datenbank steht bewusst etwas anderes: **höchstens 5 Meldungen je 10 Minuten**.
+
+⚠️ **Eine 60-Sekunden-Regel auf dem Server wäre eine Falle gewesen.** Eine Meldung liegt erst
+im Gerät und geht mit dem nächsten Abgleich raus. Wer ohne Netz zwei schreibt, schickt beim
+Wiederverbinden zwei auf einmal — die zweite ist dann zwangsläufig binnen 60 Sekunden nach der
+ersten da. Sie wäre abgewiesen worden, bei jedem weiteren Abgleich erneut, **für immer**. Aus
+einer Bremse gegen Spam wäre ein Loch geworden, in dem echte Meldungen verschwinden.
+
+⚠️ **Und deshalb geht jede Meldung jetzt einzeln raus statt als Stapel.** In PostgreSQL nimmt
+eine abgewiesene Zeile die ganze Anweisung mit — im Stapel wären die Meldungen daneben
+mitgefallen, die völlig in Ordnung waren.
+
+⚠️ **Die App-Sperre ist die sichtbare, nicht die wirksame.** Was nur der Browser verbietet,
+verbietet niemandem etwas, der den Browser umgeht. Sie ist dafür da, dass man nicht dreimal
+drückt, weil nichts passiert.
+
+### 🔴 Nebenbei geschlossen: `@everyone` in einer Fehlermeldung
+
+Gefunden bei Karls Frage nach Angriffsflächen. Der Webhook-Aufruf hatte **kein
+`allowed_mentions`**, und Discord löst Erwähnungen im Text standardmäßig auf. In diesen Text
+schreibt ein Fremder — jeder, der die App hat. Wer `@everyone` ins Meldefeld tippte, pingte
+Karls ganzen Server, so oft er wollte.
+
+Jetzt `{"parse": []}`: @everyone, @here und Rollen stehen als Text da, was sie sein sollen.
+⚠️ Der Text selbst bleibt unangetastet — entschärft wird die Wirkung, nicht der Inhalt.
+
+### ➡️ Karl muss `supabase.sql` einmal erneut ausführen
+
+Neue Spalten (`nummer`, `antwort`, `antwort_am`, `gelesen_am`), die Bremse, die
+Abhak-Funktion und der `allowed_mentions`-Flick. Der Block ist gefahrlos wiederholbar.
+
+### Prüfungen
+
+**520 grün** (von 509). Neu sind neun fürs Postfach und zwei für die Bremse.
+
+⚠️ **Die wichtigste ist „eine gebremste Meldung bleibt liegen, die davor ist durch"** — genau
+das Verschlucken, um das es bei der ganzen Änderung geht.
+
+⚠️ **HTML in Meldung und Antwort wird entschärft**, hier hart geprüft: im Postfach steht Text,
+den ein **anderer** geschrieben hat. (In der Fang-Ansicht ist dasselbe nicht entschärft — dort
+fast harmlos, weil niemand fremde Fänge sieht. Steht als offener Punkt.)
+
+⚠️ **Eine bestehende Prüfung hing an einem festen Fenster von 2600 Zeichen** und fiel, weil
+`syncJetzt` um ein paar Zeilen wuchs — mit „Stelle nicht gefunden", obwohl am geprüften
+Verhalten nichts falsch war. Eine Prüfung, die an der Länge einer Funktion hängt, meldet
+Wachstum als Fehler. Sie endet jetzt an der nächsten Funktion.
+
 ## 12.08.2026 — In der Fang-Ansicht stand „false", wo nichts eingetragen war
 
 Karls Meldung: *„Wenn ich auf einen Fang draufklicke, dann steht bei allem, wo ich nichts

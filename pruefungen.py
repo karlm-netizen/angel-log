@@ -2235,7 +2235,15 @@ window.addEventListener('error', e => {
     const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
     const a = js.indexOf('async function syncJetzt(');
     if (a < 0) return 'syncJetzt nicht gefunden';
-    const block = js.slice(a, a + 2600);
+    /* ⚠️ Hier stand ein festes Fenster von 2600 Zeichen. Das ist am 12.08.2026
+       gerissen, als syncJetzt um ein paar Zeilen wuchs: das Fenster reichte
+       nicht mehr bis `if (runter)`, und die Pruefung fiel mit "Stelle nicht
+       gefunden" -- ohne dass am geprueften Verhalten irgendetwas falsch war.
+       Eine Pruefung, die an der Laenge einer Funktion haengt, meldet Wachstum
+       als Fehler. Jetzt endet das Fenster an der naechsten Funktion. */
+    const rest = js.slice(a + 20);
+    const ende = rest.search(/\n(async )?function /);
+    const block = js.slice(a, ende < 0 ? js.length : a + 20 + ende);
     const zweig = block.indexOf('if (runter)');
     const rl    = block.indexOf('renderList();', zweig);
     const zu    = block.indexOf('\n    }', zweig);     // Ende des runter-Zweigs
@@ -2510,16 +2518,23 @@ window.addEventListener('error', e => {
     meldungAnlegen('x'.repeat(9000));
     return meldungenLesen()[0].text.length === 4000 || meldungenLesen()[0].text.length;
   });
-  ta('eine wartende Meldung geht beim naechsten Abgleich raus', async () => {
+  /* ⚠️ Seit dem 12.08.2026 geht jede Meldung EINZELN hinaus, nicht als Stapel.
+     Der Grund ist die Bremse in der Datenbank: eine abgewiesene Zeile nimmt in
+     PostgreSQL die ganze Anweisung mit. Im Stapel waeren damit auch die
+     Meldungen daneben gefallen, die in Ordnung waren -- und beim naechsten
+     Abgleich waeren sie wieder zusammen gegangen und wieder zusammen gefallen.
+     Ein Stapel, der einmal haengt, haengt fuer immer. */
+  ta('wartende Meldungen gehen einzeln raus, nicht als Stapel', async () => {
     localStorage.removeItem('angellog-meldungen');
     meldungAnlegen('Fehler A'); meldungAnlegen('Fehler B');
-    let geschickt = null;
-    api = async (pfad, opt) => { geschickt = JSON.parse(opt.body); return { ok: true }; };
+    const rufe = [];
+    api = async (pfad, opt) => { rufe.push(JSON.parse(opt.body)); return { ok: true, text: async () => '' }; };
     konto = { access_token: 'tok' };
     const n = await meldungenNachreichen();
     konto = null;
-    return (n === 2 && geschickt.length === 2 && meldungenLesen().length === 0)
-        || `verschickt ${n}, Rest ${meldungenLesen().length}`;
+    return (n === 2 && rufe.length === 2 && !Array.isArray(rufe[0])
+            && rufe[0].text === 'Fehler A' && meldungenLesen().length === 0)
+        || `verschickt ${n}, Rufe ${rufe.length}, Rest ${meldungenLesen().length}`;
   });
   ta('schlaegt das Verschicken fehl, bleibt die Meldung liegen', async () => {
     /* ⚠️ Dieselbe Regel wie beim Push-Stand der Faenge: nie einen Stand
@@ -2528,12 +2543,50 @@ window.addEventListener('error', e => {
        glaubt, sie sei angekommen. */
     localStorage.removeItem('angellog-meldungen');
     meldungAnlegen('Fehler A');
-    api = async () => ({ ok: false, status: 500 });
+    api = async () => ({ ok: false, status: 500, text: async () => 'kaputt' });
     konto = { access_token: 'tok' };
     let geflogen = false;
     try { await meldungenNachreichen(); } catch { geflogen = true; }
     konto = null;
     return (geflogen && meldungenLesen().length === 1)
+        || `geflogen ${geflogen}, Rest ${meldungenLesen().length}`;
+  });
+
+  /* ====== Die Bremse darf nichts verschlucken (12.08.2026) ======
+     ⚠️ Das ist die Pruefung, um die es bei der ganzen Aenderung geht. Die Bremse
+     soll Spam abweisen, nicht Meldungen fressen. Wird eine abgewiesen, muss sie
+     liegenbleiben und beim naechsten Mal mitgehen -- und die davor, die
+     durchgekommen ist, darf nicht ein zweites Mal rausgehen. */
+  ta('eine gebremste Meldung bleibt liegen, die davor ist durch', async () => {
+    localStorage.removeItem('angellog-meldungen');
+    meldungAnlegen('Fehler A'); meldungAnlegen('Fehler B'); meldungAnlegen('Fehler C');
+    let nr = 0;
+    api = async () => {
+      nr++;
+      return nr === 1 ? { ok: true, text: async () => '' }
+                      : { ok: false, status: 400,
+                          text: async () => '{"message":"ANGEL_BREMSE:42"}' };
+    };
+    konto = { access_token: 'tok' };
+    const n = await meldungenNachreichen();
+    konto = null;
+    const rest = meldungenLesen();
+    return (n === 1 && rest.length === 2 && rest[0].text === 'Fehler B')
+        || `durch ${n}, Rest ${rest.length}: ${rest.map(m => m.text).join(',')}`;
+  });
+  ta('die Bremse wirft keinen Fehler in den Abgleich', async () => {
+    /* Eine Bremse ist kein Fehlschlag, sondern eine Auskunft ("spaeter nochmal").
+       Wuerde sie fliegen, meldete die App dem Angler einen Fehler fuer etwas,
+       das voellig in Ordnung ist. */
+    localStorage.removeItem('angellog-meldungen');
+    meldungAnlegen('Fehler A');
+    api = async () => ({ ok: false, status: 400,
+                         text: async () => '{"message":"ANGEL_BREMSE:9"}' });
+    konto = { access_token: 'tok' };
+    let geflogen = false;
+    try { await meldungenNachreichen(); } catch { geflogen = true; }
+    konto = null;
+    return (!geflogen && meldungenLesen().length === 1)
         || `geflogen ${geflogen}, Rest ${meldungenLesen().length}`;
   });
   ta('ohne Konto wird nichts verschickt und nichts verworfen', async () => {
@@ -3459,6 +3512,89 @@ window.addEventListener('error', e => {
           && d.documentElement.scrollWidth - w.innerWidth <= 1
           || 'Schirm schiebt das Layout';
     });
+  });
+
+  /* ====== Das Postfach und die rote Zahl (12.08.2026) ======
+     Karls Ansage: eine beantwortete Meldung soll in den Einstellungen auftauchen,
+     rote Zahl am Zahnrad und am Postfach, darin alle Tickets der letzten 30 Tage. */
+  const postSetzen = l => { localStorage.setItem('angellog-postfach', JSON.stringify(l)); };
+  const T_OFFEN = { id: 'm1', nummer: 1, text: 'Karte laedt nicht',
+                    erstellt: '2026-08-11T10:00:00.000Z' };
+  const T_NEU   = { id: 'm2', nummer: 2, text: 'Fotos verdreht',
+                    erstellt: '2026-08-11T11:00:00.000Z',
+                    antwort: 'Ist behoben, bitte neu laden.',
+                    antwort_am: '2026-08-12T09:00:00.000Z' };
+  const T_ALT   = { ...T_NEU, id: 'm3', nummer: 3, gelesen_am: '2026-08-12T09:30:00.000Z' };
+
+  t('die rote Zahl zaehlt nur beantwortete und ungelesene', () => {
+    postSetzen([T_OFFEN, T_NEU, T_ALT]);
+    return postfachUngelesen() === 1 || 'gezaehlt: ' + postfachUngelesen();
+  });
+  t('ohne Antwort bleibt die rote Zahl weg', () => {
+    postSetzen([T_OFFEN]);
+    badgesZeichnen();
+    return (document.getElementById('badge-set').hidden === true
+         && document.getElementById('badge-post').hidden === true)
+        || 'Zahl steht da, obwohl nichts beantwortet ist';
+  });
+  t('mit Antwort steht sie an beiden Stellen und zeigt dieselbe Zahl', () => {
+    postSetzen([T_NEU, { ...T_NEU, id: 'm9', nummer: 9 }]);
+    badgesZeichnen();
+    const a = document.getElementById('badge-set'), b = document.getElementById('badge-post');
+    return (!a.hidden && !b.hidden && a.textContent === '2' && b.textContent === '2')
+        || `Zahnrad "${a.textContent}" (hidden ${a.hidden}), Postfach "${b.textContent}"`;
+  });
+
+  t('das Postfach zeigt Frage und Antwort', () => {
+    postSetzen([T_NEU]);
+    postfachRendern();
+    const txt = document.getElementById('postfach').textContent;
+    return (txt.indexOf('Fotos verdreht') !== -1
+         && txt.indexOf('Ist behoben') !== -1 && txt.indexOf('#2') !== -1)
+        || 'Postfach zeigt: ' + txt;
+  });
+  t('eine unbeantwortete Meldung steht als offen da', () => {
+    postSetzen([T_OFFEN]);
+    postfachRendern();
+    const txt = document.getElementById('postfach').textContent;
+    return txt.indexOf('offen') !== -1 || 'Postfach zeigt: ' + txt;
+  });
+  t('ohne Tickets steht dort ein Satz und keine leere Flaeche', () => {
+    postSetzen([]);
+    postfachRendern();
+    return document.getElementById('postfach').textContent.trim().length > 20
+        || 'Postfach ist leer';
+  });
+
+  /* ⚠️ Der eigene Text geht durch esc(). In der Fang-Ansicht ist dasselbe nicht
+     entschaerft (Befund vom 12.08.), dort ist es fast harmlos, weil niemand
+     fremde Faenge sieht. Hier waere es das NICHT: in diesem Kasten steht Text,
+     den ein anderer geschrieben hat -- Karls Antwort. Deshalb hier hart geprueft. */
+  t('HTML in Meldung und Antwort wird entschaerft', () => {
+    postSetzen([{ ...T_NEU, text: '<img src=x onerror=alert(1)>',
+                  antwort: '<script>alert(2)<\/script>' }]);
+    postfachRendern();
+    const html = document.getElementById('postfach').innerHTML;
+    return (html.indexOf('<img src=x') === -1 && html.indexOf('<script>alert(2)') === -1
+         && html.indexOf('&lt;img') !== -1)
+        || 'ungefiltertes HTML im Postfach';
+  });
+
+  /* ⚠️ Reihenfolge: erst zeichnen, dann abhaken. Andersherum waere die rote
+     Markierung schon weg, bevor sie jemand gesehen hat -- die Zahl haette einen
+     dann umsonst gerufen. */
+  t('das Neue ist beim Aufschlagen noch als neu markiert', () => {
+    postSetzen([T_NEU]);
+    postfachRendern();
+    return document.getElementById('postfach').textContent.indexOf('neu') !== -1
+        || 'nichts als neu markiert';
+  });
+  t('und danach ist es abgehakt, die rote Zahl weg', () => {
+    postSetzen([T_NEU]);
+    postfachRendern();          // haakt im Anschluss ab
+    return (postfachUngelesen() === 0
+         && document.getElementById('badge-set').hidden === true)
+        || 'noch ungelesen: ' + postfachUngelesen();
   });
 
   /* ====== Die Fang-Ansicht: leere Felder (12.08.2026) ======

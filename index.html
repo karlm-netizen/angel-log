@@ -404,6 +404,18 @@ setTimeout(function(){
   .tour .weg{background:none; border:0; color:var(--muted); font-size:13px;
     width:100%; text-align:center; margin-top:12px; padding:8px}
 
+  /* Die rote Zahl — am Zahnrad oben und am Postfach-Knopf in den Einstellungen.
+     ⚠️ Feste Farben, kein Palettenwert: sie muss auf allen zwölf Paletten gleich
+     laut sein. Eine Palettenfarbe wäre auf der einen schreiend und auf der
+     nächsten kaum zu sehen — und dann meldet sie nichts mehr. */
+  .badge{position:absolute; top:-2px; right:-2px; min-width:17px; height:17px;
+    padding:0 4px; border-radius:999px; background:#e5484d; color:#fff;
+    font-size:11px; font-weight:700; line-height:17px; text-align:center;
+    box-shadow:0 0 0 2px var(--bg); pointer-events:none}
+  .badge[hidden]{display:none}
+  /* Im Knopf steht sie in der Zeile mit, nicht darüber. */
+  .badge.inline{position:static; box-shadow:none; margin-left:6px; display:inline-block}
+
   .sheet{position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:1000; display:none;
     align-items:flex-end}
   .sheet.on{display:flex}
@@ -556,9 +568,12 @@ function splashWeg(){
 <section id="v-log">
   <div class="head">
     <h1><img src="icon-192.png" alt="">Angel-Log</h1>
-    <button class="iconbtn" id="btn-menu" aria-label="Einstellungen">
+    <button class="iconbtn" id="btn-menu" aria-label="Einstellungen" style="position:relative">
       <!-- Zahnrad. Vorher stand hier eine Sonne — die liest sich als Helligkeit
-           oder Design, nicht als Einstellungen (Karl, 03.08.). -->
+           oder Design, nicht als Einstellungen (Karl, 03.08.).
+           ⚠️ Die rote Zahl sitzt AM Zahnrad und nicht daneben: sie soll heißen
+           „hier drin wartet etwas", nicht für sich selbst stehen. -->
+      <span class="badge" id="badge-set" hidden></span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3.1"/>
         <path d="M19.2 13.2a7.4 7.4 0 0 0 0-2.4l2-1.5-2-3.4-2.3 1a7.4 7.4 0 0 0-2.1-1.2L14.4 3H9.6l-.4 2.7a7.4 7.4 0 0 0-2.1 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7.4 7.4 0 0 0 2.1 1.2l.4 2.7h4.8l.4-2.7a7.4 7.4 0 0 0 2.1-1.2l2.3 1 2-3.4z"/>
@@ -917,6 +932,11 @@ function splashWeg(){
     </p>
     <button class="btn" id="btn-hilfe" style="margin-bottom:8px">Kurze Einführung ansehen</button>
     <button class="btn" id="btn-bug" style="margin-bottom:8px">🐞 Fehler melden</button>
+    <!-- Das Postfach steht direkt unter dem Melden-Knopf, weil es dasselbe Thema
+         von der anderen Seite ist: hier geht die Frage raus, dort kommt die
+         Antwort an. Getrennt voneinander wäre beides halb. -->
+    <button class="btn" id="btn-postfach" style="margin-bottom:8px">📬 Postfach<span class="badge inline" id="badge-post" hidden></span></button>
+    <div id="postfach" hidden style="margin-bottom:12px"></div>
     <div id="bug-form" hidden style="margin-bottom:12px">
       <label class="f" for="bug-text">Was ist passiert?</label>
       <textarea class="in" id="bug-text" rows="4"
@@ -1364,6 +1384,16 @@ const EN = {
   'Etwas geht nicht oder sieht falsch aus? Schreib es auf — auch ohne Netz. Die Meldung wartet dann im Gerät und geht beim nächsten Abgleich raus.': 'Something not working or looking wrong? Write it down — offline too. The report then waits on your device and goes out with the next sync.',
   'Kurze Einführung ansehen': 'View the short introduction',
   '🐞 Fehler melden': '🐞 Report a problem',
+  '📬 Postfach': '📬 Mailbox',
+  'Noch kurz warten': 'Just a moment',
+  'Hier stehen deine Meldungen der letzten 30 Tage — und die Antworten darauf.':
+    'Your reports from the last 30 days — and the replies to them.',
+  'Du hast in diesem Zeitraum noch nichts gemeldet.':
+    'You have not reported anything in that period.',
+  'offen': 'open',
+  'neu': 'new',
+  'beantwortet': 'answered',
+  'Antwort': 'Reply',
   'Was ist passiert?': 'What happened?',
   'Was wolltest du tun, und was ist stattdessen passiert?': 'What were you trying to do, and what happened instead?',
   'Das geht automatisch mit:': 'This is sent along automatically:',
@@ -3270,7 +3300,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v34';
+const FASSUNG = 'v35';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -3908,19 +3938,97 @@ function meldungAnlegen(text){
   return l.length;
 }
 
+/* ⚠️ Verschickt wird **einzeln, nicht als Stapel** (geändert am 12.08.2026).
+   Vorher ging alles Wartende in einer einzigen Anfrage hinaus. Mit der Bremse in
+   der Datenbank wäre das eine Falle geworden: eine abgewiesene Zeile nimmt in
+   PostgreSQL die ganze Anweisung mit, also auch die Meldungen daneben, die
+   völlig in Ordnung waren. Sie lägen weiter im Gerät, gingen beim nächsten
+   Abgleich wieder zusammen raus und würden wieder zusammen abgewiesen —
+   **für immer**. Einzeln heißt: was durchgeht, ist durch. */
 async function meldungenNachreichen(){
   if (!cloudAn() || !konto) return 0;
   const l = meldungenLesen();
   if (!l.length) return 0;
-  const r = await api(MELD_TABELLE, { method: 'POST',
-    headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify(l.map(m => ({ id: m.id, text: m.text, umfeld: m.umfeld }))) });
-  if (!r.ok) throw new Error(T('Melden fehlgeschlagen') + ' (' + r.status + ')');
-  /* Erst nach dem OK leeren. Bricht es vorher ab, liegt die Meldung noch da und
-     geht beim nächsten Mal mit — dieselbe Regel wie beim Push-Stand der Fänge:
-     nie einen Stand behaupten, für den nichts verschickt wurde. */
-  meldungenSchreiben([]);
-  return l.length;
+
+  let durch = 0;
+  for (const m of l){
+    const r = await api(MELD_TABELLE, { method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ id: m.id, text: m.text, umfeld: m.umfeld }) });
+
+    if (r.ok){ durch++; continue; }
+
+    /* Die Bremse ist kein Fehler, sondern eine Auskunft: „später nochmal".
+       Die Meldung bleibt liegen und geht beim nächsten Abgleich mit. Alles
+       andere ist ein echter Fehlschlag und wird gemeldet. */
+    const txt = await r.text().catch(() => '');
+    if (txt.indexOf('ANGEL_BREMSE') !== -1) break;
+    /* Erst nach dem OK aus der Warteschlange nehmen. Bricht es vorher ab, liegt
+       die Meldung noch da — dieselbe Regel wie beim Push-Stand der Fänge: nie
+       einen Stand behaupten, für den nichts verschickt wurde. */
+    meldungenSchreiben(l.slice(durch));
+    throw new Error(T('Melden fehlgeschlagen') + ' (' + r.status + ')');
+  }
+  meldungenSchreiben(l.slice(durch));
+  return durch;
+}
+
+/* ---------- Das Postfach: Antworten auf eigene Meldungen (12.08.2026) ----------
+   Karls Ansage: eine beantwortete Meldung soll in den Einstellungen auftauchen,
+   mit roter Zahl am Zahnrad und am Postfach, und dort stehen alle Tickets der
+   letzten 30 Tage.
+
+   ⚠️ Der Bestand wird **lokal gespiegelt**. Ohne das wäre das Postfach am Wasser
+   leer — genau dort, wo die App benutzt wird. Es ist eine Kopie zum Anschauen,
+   keine zweite Wahrheit: geschrieben wird nur, was vom Server kam. */
+const POST_KEY = 'angellog-postfach';
+const POST_TAGE = 30;
+
+function postfachLesen(){
+  try { return JSON.parse(localStorage.getItem(POST_KEY) || '[]'); } catch { return []; }
+}
+function postfachSchreiben(l){
+  try { localStorage.setItem(POST_KEY, JSON.stringify(l)); } catch {}
+}
+/* Wie viele beantwortete Meldungen hat der Melder noch nicht gesehen? Das ist
+   die rote Zahl — an beiden Stellen dieselbe, aus derselben Quelle. */
+function postfachUngelesen(){
+  return postfachLesen().filter(m => m.antwort && !m.gelesen_am).length;
+}
+
+async function postfachHolen(){
+  if (!cloudAn() || !konto) return 0;
+  const seit = new Date(Date.now() - POST_TAGE * 864e5).toISOString();
+  const r = await api(MELD_TABELLE
+    + '?select=id,nummer,text,erstellt,antwort,antwort_am,gelesen_am'
+    + '&erstellt=gte.' + encodeURIComponent(seit)
+    + '&order=erstellt.desc&limit=100');
+  if (!r.ok) return 0;
+  const rows = await r.json().catch(() => null);
+  if (!Array.isArray(rows)) return 0;
+  postfachSchreiben(rows);
+  badgesZeichnen();
+  return rows.filter(m => m.antwort && !m.gelesen_am).length;
+}
+
+/* Hakt alle beantworteten Meldungen ab, die gerade gezeigt wurden.
+   ⚠️ Serverseitig über eine eigene Funktion, nicht per UPDATE: eine abgeschickte
+   Meldung soll sich sonst nicht ändern lassen (steht so in supabase.sql). */
+async function postfachAbhaken(ids){
+  const offen = ids || postfachLesen().filter(m => m.antwort && !m.gelesen_am).map(m => m.id);
+  if (!offen.length) return;
+  const jetzt = new Date().toISOString();
+  postfachSchreiben(postfachLesen().map(m =>
+    offen.indexOf(m.id) === -1 ? m : { ...m, gelesen_am: m.gelesen_am || jetzt }));
+  badgesZeichnen();
+  if (!cloudAn() || !konto) return;
+  for (const id of offen){
+    try {
+      await api('/rest/v1/rpc/meldung_gelesen', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mid: id }) });
+    } catch {}
+  }
 }
 
 /* Angelzeit und Auswertungen ändern sich beim Tippen, nicht beim Speichern
@@ -3962,6 +4070,13 @@ async function syncJetzt(still){
        liegen und geht beim nächsten Mal mit. Still, weil das niemanden mitten
        beim Angeln interessiert. */
     try { await meldungenNachreichen(); } catch {}
+
+    /* Und in dieselbe Richtung zurück: gibt es Antworten auf frühere Meldungen?
+       ⚠️ Das muss **hier** stehen und nicht erst beim Öffnen des Postfachs. Die
+       rote Zahl ist die einzige Stelle, an der jemand von einer Antwort erfährt —
+       holte man sie erst beim Hineinsehen, erschiene sie nur dem, der ohnehin
+       schon nachschaut. Dann hätte sie gar keine Aufgabe mehr. */
+    try { await postfachHolen(); } catch {}
 
     /* ⚠️ Hier stand nur `renderList()`. Wer gerade auf der **Karte** stand, während
        der Abgleich lief, sah die neuen Fänge nicht: die Liste wurde aufgefrischt, die
@@ -4495,6 +4610,87 @@ function bugWartendZeigen(){
     : n + ' ' + T('Meldungen warten noch auf Netz und gehen beim nächsten Abgleich raus.');
 }
 
+/* ---------- Die Sperre zwischen zwei Meldungen (12.08.2026) ----------
+   Karls Ansage: „man soll zb nur alle 60 sec ein ticket abschicken können."
+
+   ⚠️ Diese hier ist die **sichtbare** Sperre, nicht die wirksame. Wirksam ist die
+   Mengengrenze in der Datenbank (siehe supabase.sql) — was nur der Browser
+   verbietet, verbietet niemandem etwas, der den Browser umgeht. Hier geht es um
+   etwas anderes: dass man nicht dreimal auf „Abschicken" drückt, weil nichts
+   passiert. Deshalb ein Countdown und keine stumme Absage. */
+const MELDE_SPERRE = 60000;
+const MELDE_ZULETZT = 'angellog-melde-zuletzt';
+let sperrTimer = null;
+
+function sperreRest(){
+  const t = Number(localStorage.getItem(MELDE_ZULETZT) || 0);
+  return Math.max(0, MELDE_SPERRE - (Date.now() - t));
+}
+function sperreZeichnen(){
+  const b = $('#btn-bug-ab');
+  if (!b) return;
+  const rest = sperreRest();
+  clearTimeout(sperrTimer);
+  if (rest <= 0){
+    b.disabled = false;
+    b.textContent = T('Abschicken');
+    return;
+  }
+  b.disabled = true;
+  b.textContent = T('Abschicken') + ' (' + Math.ceil(rest / 1000) + ' s)';
+  /* ⚠️ Der Wecker läuft nur, solange das Formular offen ist — sonst tickt im
+     Hintergrund für immer ein Timer, den niemand mehr sieht. */
+  if (!$('#bug-form').hidden) sperrTimer = setTimeout(sperreZeichnen, 250);
+}
+
+/* ---------- Das Postfach ---------- */
+function badgesZeichnen(){
+  const n = postfachUngelesen();
+  for (const id of ['#badge-set', '#badge-post']){
+    const el = $(id);
+    if (!el) continue;
+    el.hidden = !n;
+    el.textContent = n > 9 ? '9+' : String(n);
+  }
+}
+
+function postfachRendern(){
+  const box = $('#postfach');
+  const alle = postfachLesen()
+    .slice()
+    .sort((a, b) => String(b.erstellt).localeCompare(String(a.erstellt)));
+
+  if (!alle.length){
+    box.innerHTML = `<p class="tiny muted" style="line-height:1.5">${
+      T('Hier stehen deine Meldungen der letzten 30 Tage — und die Antworten darauf.')
+      }<br>${T('Du hast in diesem Zeitraum noch nichts gemeldet.')}</p>`;
+    return;
+  }
+
+  /* ⚠️ Die neuen werden **vor** dem Abhaken markiert. Würde erst abgehakt und
+     dann gezeichnet, wäre die Zahl weg und man sähe nicht mehr, welche der
+     Antworten die neue war — die rote Zahl hätte einen dann umsonst gerufen. */
+  const neu = alle.filter(m => m.antwort && !m.gelesen_am).map(m => m.id);
+
+  box.innerHTML = alle.map(m => {
+    const offen = !m.antwort;
+    return `<div class="card" style="margin-bottom:8px; padding:12px">
+      <div class="tiny muted" style="display:flex; justify-content:space-between; gap:8px">
+        <span>#${m.nummer} · ${fmtDate(m.erstellt)}</span>
+        <span>${offen ? '⏳ ' + T('offen')
+                : (neu.indexOf(m.id) !== -1 ? '🔴 ' + T('neu') : '✅ ' + T('beantwortet'))}</span>
+      </div>
+      <div style="font-size:14px; line-height:1.5; margin-top:6px">${esc(m.text)}</div>
+      ${m.antwort ? `<div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--line)">
+        <div class="tiny muted">${T('Antwort')}${m.antwort_am ? ' · ' + fmtDate(m.antwort_am) : ''}</div>
+        <div style="font-size:14px; line-height:1.55; margin-top:4px">${esc(m.antwort)}</div>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+
+  if (neu.length) postfachAbhaken(neu);
+}
+
 /* ⚠️ Die beiden Namen im Auswahlfeld werden NICHT übersetzt. „Deutsch" heißt auf
    Englisch „German" — wer die App gerade auf Deutsch stehen hat und kein Deutsch
    kann, sucht aber nach „English", nicht nach „Englisch". Sprachnamen stehen
@@ -4510,14 +4706,32 @@ $('#btn-bug').onclick = () => {
   /* Das Umfeld wird beim Abschicken erhoben, nicht mehr beim Aufklappen angezeigt
      (Karls Ansage vom 10.08.2026) — es steht jetzt in der Datenschutzerklärung. */
   bugWartendZeigen();
+  sperreZeichnen();
   $('#bug-text').focus();
+};
+
+$('#btn-postfach').onclick = async () => {
+  const box = $('#postfach');
+  box.hidden = !box.hidden;
+  if (box.hidden) return;
+  /* Erst zeichnen, was da ist — dann nachfragen. Ohne Netz steht das Postfach
+     damit trotzdem sofort da, statt leer zu bleiben, bis eine Anfrage scheitert. */
+  postfachRendern();
+  try { await postfachHolen(); postfachRendern(); } catch {}
 };
 
 $('#btn-bug-ab').onclick = async () => {
   const feld = $('#bug-text');
   const text = feld.value.trim();
   if (text.length < 5) return toast(T('Bitte kurz beschreiben, was passiert ist'));
+
+  const rest = sperreRest();
+  if (rest > 0){
+    return toast(T('Noch kurz warten') + ' — ' + Math.ceil(rest / 1000) + ' s');
+  }
+
   meldungAnlegen(text);
+  localStorage.setItem(MELDE_ZULETZT, String(Date.now()));
   feld.value = '';
   $('#bug-form').hidden = true;
   /* ⚠️ Die Rückmeldung sagt bewusst „ist notiert" und nicht „ist abgeschickt".
@@ -4526,6 +4740,7 @@ $('#btn-bug-ab').onclick = async () => {
   toast(T('Danke — ist notiert und geht mit dem nächsten Abgleich raus'));
   try { await meldungenNachreichen(); } catch {}
   bugWartendZeigen();
+  sperreZeichnen();
 };
 
 $('#btn-datenschutz').onclick = () => {
@@ -5267,6 +5482,10 @@ window.addEventListener('unhandledrejection', e =>
   setPalette(pal, false);
   state.auswertungen = auswertungenLesen().liste;
   buildStatics();
+  /* Die rote Zahl aus dem lokalen Spiegel, bevor irgendein Netz gefragt wird —
+     eine Antwort, die gestern schon da war, soll nicht erst nach dem Abgleich
+     wieder auftauchen. Den frischen Stand holt syncJetzt() gleich hinterher. */
+  badgesZeichnen();
   go('log');                       // Oberfläche steht sofort, auch wenn der Speicher klemmt
 
   /* ⚠️ **Hier stand `splashWeg()`** — vor allem, was Zeit kostet, mit der ausdrücklichen

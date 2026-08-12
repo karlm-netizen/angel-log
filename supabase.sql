@@ -179,8 +179,32 @@ create table if not exists public.angel_meldungen (
   umfeld   jsonb
 );
 
+-- ---------------------------------------------------------------------
+--  Nachtrag 12.08.2026: Ticket-Nummer, Antwort, Gelesen-Vermerk
+--
+--  ⚠️ `create table if not exists` oben fasst eine BESTEHENDE Tabelle nicht an.
+--     Neue Spalten muessen deshalb als `alter table` danebenstehen, sonst
+--     bekaeme sie nur, wer die Datenbank neu aufsetzt -- und bei allen anderen
+--     fehlten sie stillschweigend.
+--
+--  `nummer` ist die kurze Zahl, unter der eine Meldung in Discord steht. Die `id`
+--  ist im Geraet erzeugt und zum Vorlesen viel zu lang; auf "#12" kann Karl
+--  antworten, ohne etwas zu kopieren. Sie ist ausserdem das Band, an dem der Bot
+--  eine Antwort wieder ihrem Ticket zuordnet.
+-- ---------------------------------------------------------------------
+create sequence if not exists public.angel_meldungen_nr_seq;
+alter table public.angel_meldungen
+  add column if not exists nummer     bigint not null
+                                      default nextval('public.angel_meldungen_nr_seq'),
+  add column if not exists antwort    text,
+  add column if not exists antwort_am timestamptz,
+  add column if not exists gelesen_am timestamptz;
+
 create index if not exists angel_meldungen_zeit_idx
   on public.angel_meldungen (erstellt desc);
+-- Die App fragt bei jedem Abgleich "gibt es Antworten fuer mich?".
+create index if not exists angel_meldungen_antwort_idx
+  on public.angel_meldungen (user_id, antwort_am desc);
 
 alter table public.angel_meldungen enable row level security;
 
@@ -191,6 +215,102 @@ create policy "eigene meldungen lesen"   on public.angel_meldungen
   for select using (auth.uid() = user_id);
 create policy "eigene meldungen anlegen" on public.angel_meldungen
   for insert with check (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------
+--  3a. Die Bremse: hoechstens eine Meldung je 60 Sekunden  (12.08.2026)
+--
+--  Karls Ansage: "Support zeitlich limitieren, dh man soll zb nur alle 60 sec
+--  ein ticket abschicken koennen."
+--
+--  ⚠️ Die Bremse muss HIER stehen und nicht nur in der App. Was die App sperrt,
+--     sperrt nur die App: der Zugang zur Datenbank steht jedem offen, der den
+--     oeffentlichen Schluessel aus dem Quelltext liest -- und der steht dort
+--     bauartbedingt. Eine Sperre im Browser ist eine Bitte, keine Grenze.
+--
+--  ⚠️ Sie ist aber NICHT "60 Sekunden seit der letzten", obwohl genau das
+--     verlangt war. Der Grund ist eine Falle, die beim Anschliessen aufgefallen
+--     ist: eine Meldung wird zuerst im Geraet abgelegt und geht erst mit dem
+--     naechsten Abgleich hinaus (dieselbe Bauart wie bei den Faengen). Wer ohne
+--     Netz zwei Meldungen schreibt, schickt beim Wiederverbinden zwei auf einmal
+--     -- und die zweite ist dann zwangslaeufig binnen 60 Sekunden nach der
+--     ersten da. Eine 60-Sekunden-Regel wuerde sie abweisen, bei jedem weiteren
+--     Abgleich erneut, **fuer immer**. Aus einer Bremse gegen Spam waere ein
+--     Loch geworden, in dem echte Meldungen verschwinden.
+--
+--  Deshalb hier eine Mengengrenze statt eines Abstands: **hoechstens 5 Meldungen
+--  je 10 Minuten und Konto.** Ein Nachzuegler-Stapel geht durch, ein Skript in
+--  Dauerschleife nicht. Die 60 Sekunden, die Karl gemeint hat, sitzen dort, wo
+--  man sie sieht: als sichtbare Sperre samt Countdown in der App.
+--
+--  ⚠️ Gezaehlt wird je Konto, nicht insgesamt -- sonst bremsten sich zwei Melder
+--     gegenseitig aus, und der Kollege am Wasser kaeme nicht durch, weil Karl
+--     gerade getippt hat.
+-- ---------------------------------------------------------------------
+create or replace function public.angel_meldung_bremse()
+returns trigger
+language plpgsql
+security definer            -- zaehlt auch Zeilen, die dem Melder nicht gehoeren
+set search_path = public
+as $$
+declare
+  wieviele int;
+  frei     timestamptz;
+  rest     int;
+begin
+  /* ⚠️ Gezaehlt wird ueber `erstellt`, und das ist hier zulaessig, weil die App
+     die Spalte NICHT mitschickt -- sie faellt auf `default now()` zurueck und ist
+     damit der Eingangszeitpunkt auf dem Server, nicht eine Zahl vom Geraet. Eine
+     Bremse, die auf einen vom Melder gelieferten Zeitstempel hoert, bremst nur
+     den Ehrlichen. Schickt die App die Spalte irgendwann doch mit, gehoert hier
+     eine eigene Eingangsspalte hin. */
+  select count(*), min(erstellt)
+    into wieviele, frei
+    from public.angel_meldungen
+   where user_id = new.user_id
+     and erstellt > now() - interval '10 minutes';
+
+  if wieviele >= 5 then
+    rest := ceil(extract(epoch from (frei + interval '10 minutes' - now())));
+    /* ⚠️ Die verbleibende Zahl gehoert in die Meldung. Ohne sie steht in der App
+       "zu schnell" und niemand weiss, ob er 2 oder 500 Sekunden warten soll --
+       dann tippt man alle zwei Sekunden erneut, und die Bremse erzeugt genau
+       den Ansturm, den sie verhindern soll. */
+    raise exception 'ANGEL_BREMSE:%', greatest(rest, 1)
+      using errcode = 'check_violation';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists angel_meldungen_bremse on public.angel_meldungen;
+create trigger angel_meldungen_bremse
+  before insert on public.angel_meldungen
+  for each row execute function public.angel_meldung_bremse();
+
+-- ---------------------------------------------------------------------
+--  3c. Eine Antwort als gelesen abhaken  (12.08.2026)
+--
+--  ⚠️ Bewusst eine Funktion und keine UPDATE-Policy. Oben steht als Grundsatz:
+--     eine abgeschickte Meldung soll nicht nachtraeglich verschwinden oder sich
+--     aendern koennen. Eine allgemeine UPDATE-Policy haette genau das erlaubt --
+--     RLS kann Zeilen einschraenken, aber keine einzelnen Spalten. Diese Funktion
+--     fasst ausschliesslich `gelesen_am` an und nur an eigenen Zeilen.
+-- ---------------------------------------------------------------------
+create or replace function public.meldung_gelesen(mid text)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.angel_meldungen
+     set gelesen_am = now()
+   where id = mid
+     and user_id = auth.uid()
+     and antwort is not null
+     and gelesen_am is null;
+$$;
+
+revoke all on function public.meldung_gelesen(text) from public;
+grant execute on function public.meldung_gelesen(text) to authenticated;
 
 -- ---------------------------------------------------------------------
 --  3b. Meldungen zustellen statt nachsehen  (10.08.2026)
@@ -264,7 +384,11 @@ begin
      kein Aushang -- und jedes Zeichen, das der Empfaenger im Zweifel roh sieht
      statt gerendert, macht sie schlechter lesbar statt besser. Leerzeile statt
      Zitatblock trennt genauso gut und kann nicht schiefgehen. */
-  txt := '🐞 Angel-Log — neue Fehlermeldung' || E'\n\n'
+  /* ⚠️ Die Nummer gehoert in die ERSTE Zeile. Der Bot liest sie dort wieder aus,
+     wenn Karl mit Discords Antworten-Funktion auf die Meldung antwortet -- ohne
+     sie gibt es kein Band zwischen Antwort und Ticket, und die Antwort weiss
+     nicht, zu wem sie gehoert. Format genau "#<zahl>", daran haengt der Bot. */
+  txt := '🐞 Angel-Log — Meldung #' || new.nummer || E'\n\n'
       || coalesce(new.text, '') || E'\n\n'
       || 'Fassung ' || coalesce(new.umfeld->>'fassung', '?')
       || ' · ' || coalesce(new.umfeld->>'netz', '?')
@@ -295,7 +419,18 @@ begin
     headers := '{"Content-Type": "application/json"}'::jsonb,
     -- Discord nimmt hoechstens 2000 Zeichen. Lieber gekuerzt ankommen als
     -- vollstaendig abgewiesen werden.
-    body    := jsonb_build_object('content', left(txt, 1900))
+    /* ⚠️ `allowed_mentions: {"parse": []}` ist kein Schoenheitsflicken, sondern
+       ein Loch, das ohne ihn offensteht (gefunden am 12.08.2026). Ein Webhook
+       loest Erwaehnungen im Text standardmaessig auf. In diesen Text schreibt
+       ein FREMDER -- jeder, der die App hat. Wer "@everyone" ins Meldefeld
+       tippt, pingt damit Karls ganzen Server, und zwar so oft er will.
+       Mit leerem `parse` wird nichts mehr aufgeloest: @everyone, @here und
+       Rollen stehen dann als Text da, was sie auch sein sollen.
+       ⚠️ Der Text selbst bleibt unangetastet -- eine Meldung soll ankommen,
+       wie sie getippt wurde. Entschaerft wird die Wirkung, nicht der Inhalt. */
+    body    := jsonb_build_object(
+                 'content', left(txt, 1900),
+                 'allowed_mentions', jsonb_build_object('parse', '[]'::jsonb))
   );
   return new;
 end $$;
