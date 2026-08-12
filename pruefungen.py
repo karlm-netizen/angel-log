@@ -2621,26 +2621,59 @@ window.addEventListener('error', e => {
     const txt = document.querySelector('#tour-inner').textContent;
     return (auf && txt.indexOf(TOUR[0].titel) >= 0) || ('auf=' + auf);
   });
-  t('sie laesst sich ueberspringen', () => {
-    /* ⚠️ Der wichtigere Teil. Eine Einfuehrung, die man nicht wegklicken kann,
-       macht niemanden neugierig, sondern ungeduldig. */
+  /* ⚠️ Hier stand "sie laesst sich ueberspringen" mit der Begruendung, eine
+     Einfuehrung, die man nicht wegklicken kann, mache ungeduldig. Karls Ansage
+     vom 12.08.2026 dreht das um: "ueberspringen soll man das nicht". Die Pruefung
+     ist deshalb umgedreht, nicht geloescht -- der Knopf soll nachweislich WEG
+     sein, sonst kaeme er beim naechsten Umbau unbemerkt zurueck. */
+  t('sie laesst sich NICHT mehr ueberspringen', () => {
     tourZeigen();
-    document.querySelector('#tour-weg').click();
-    return document.querySelector('#tour').classList.contains('on') === false
-        || 'bleibt stehen';
+    const weg = document.querySelector('#tour-weg');
+    const zu = document.querySelector('#tour').classList.contains('on');
+    return (!weg && zu) || (weg ? 'Ueberspringen-Knopf ist noch da' : 'Tour steht nicht');
   });
+  /* Karls Ansage: "ich will keine punkte, ich brauche eine progress leiste". */
+  t('statt Punkten steht ein Fortschrittsbalken da', () => {
+    tourZeigen();
+    const punkte = document.querySelector('#tour .punkte');
+    const balken = document.querySelector('#tour .fortschritt');
+    return (!punkte && !!balken) || (punkte ? 'Punkte sind noch da' : 'kein Balken');
+  });
+  t('und der Balken waechst mit jeder Karte', () => {
+    tourZeigen();
+    const breit = () => parseFloat(document.querySelector('#tour .fortschritt i').style.width);
+    const a = breit();
+    document.querySelector('#tour-weiter').click();
+    const b = breit();
+    return (b > a) || `von ${a}% auf ${b}%`;
+  });
+  t('die Zielfisch-Karte ist raus', () =>
+    !TOUR.some(k => k.feld === 'ziele') || 'sie ist noch drin');
+  /* ⚠️ Karls Ansage: "in der einfuehrung steht immer fischen es ist angeln".
+     Geprueft ueber alle Karten samt ihrer Auswahl-Beschriftungen. */
+  t('in der Einfuehrung steht angeln, nicht fischen', () => {
+    const alles = TOUR.map(k => [k.titel, k.text,
+      (k.optionen || []).map(o => o.join(' ')).join(' ')].join(' ')).join(' ');
+    const treffer = alles.match(/\w*[Ff]ischen/g) || [];
+    // "Spinnangeln"/"Fliegenangeln" sind gewollt; blosses "fischen" nicht.
+    return treffer.length === 0 || 'steht noch drin: ' + treffer.join(', ');
+  });
+  t('die Support-Karte verspricht ein bis zwei Tage', () => {
+    const k = TOUR[TOUR.length - 1];
+    return (/ein bis zwei Tagen/.test(k.text) && /Fehler melden/.test(k.text))
+        || 'Karte: ' + k.titel;
+  });
+
   t('durchklicken fuehrt bis zur letzten Karte und schliesst', () => {
     tourZeigen();
     for (let i = 0; i < TOUR.length; i++) document.querySelector('#tour-weiter').click();
     return document.querySelector('#tour').classList.contains('on') === false
         || 'bleibt nach der letzten Karte stehen';
   });
-  t('auf der letzten Karte steht kein Ueberspringen mehr', () => {
-    tourZeigen();
-    for (let i = 0; i < TOUR.length - 1; i++) document.querySelector('#tour-weiter').click();
-    const weg = document.querySelector('#tour-weg');
-    return weg.hidden === true || 'Ueberspringen steht noch da';
-  });
+  /* ⚠️ "auf der letzten Karte steht kein Ueberspringen mehr" ist seit dem
+     12.08.2026 gegenstandslos: es gibt gar keinen Ueberspringen-Knopf mehr.
+     Dass er weg ist, prueft weiter oben "sie laesst sich NICHT mehr
+     ueberspringen". */
   t('die Einfuehrung kommt nur nach dem Registrieren', () => {
     /* Wer sich anmeldet, hat die App schon -- ihm die Einfuehrung noch einmal
        vorzusetzen waere eine Belaestigung. Quelltext-Pruefung, weil der Fall
@@ -3451,6 +3484,98 @@ window.addEventListener('error', e => {
           && d.documentElement.scrollWidth - w.innerWidth <= 1
           || 'Schirm schiebt das Layout';
     });
+  });
+
+  /* ====== Die Führung durch den ersten Fang (12.08.2026) ======
+     Karls Ansage: der Fang soll einmal mit Hilfe erstellt werden, mit Umkreisung,
+     der Rest abgedunkelt und nicht antippbar.
+
+     ⚠️ Die wichtigsten Pruefungen hier sind nicht "sie geht an", sondern **"sie
+     laesst wieder raus"**. Eine Fuehrung, die haengenbleibt, sperrt die App
+     genauso zu wie ein Ladebildschirm, der nicht weggeht -- und dann sitzt jemand
+     hinter einem grauen Schleier vor seiner eigenen Fangliste. */
+  const fuAus = () => { try { fuehrungBeenden(); } catch (e) {} tourSchliessen(); go('log'); };
+
+  t('die Fuehrung haengt an der Drumherum-Karte', () => {
+    const k = TOUR.filter(x => x.fuehrung);
+    return (k.length === 1 && /Drumherum/.test(k[0].titel))
+        || 'Karten mit Fuehrung: ' + k.length;
+  });
+  t('sie schaltet in das Formular und dunkelt ab', () => {
+    tourZeigen();
+    fuehrungStarten();
+    const an = document.getElementById('fuehrung').classList.contains('on');
+    const wo = state.view;
+    fuAus();
+    return (an && wo === 'new') || `an: ${an}, Ansicht: ${wo}`;
+  });
+  t('der Schleier deckt vier Seiten ab, das Loch bleibt frei', () => {
+    tourZeigen(); fuehrungStarten();
+    const teile = ['fu-oben','fu-unten','fu-links','fu-rechts','fu-loch']
+      .filter(id => !document.getElementById(id));
+    fuAus();
+    return teile.length === 0 || 'fehlt: ' + teile.join(', ');
+  });
+  /* ⚠️ Der Zweck des Schleiers ist das Abfangen von Tippern, nicht das Grau.
+     Ein `box-shadow`-Loch haette gleich ausgesehen und nichts abgefangen. */
+  t('der Schleier faengt Tipper wirklich ab', () => {
+    tourZeigen(); fuehrungStarten();
+    const s2 = window.getComputedStyle(document.getElementById('fu-oben'));
+    const l = window.getComputedStyle(document.getElementById('fu-loch'));
+    fuAus();
+    return (s2.pointerEvents !== 'none' && l.pointerEvents === 'none')
+        || `Schleier: ${s2.pointerEvents}, Loch: ${l.pointerEvents}`;
+  });
+
+  t('AUSGANG 1: durchklicken beendet sie', () => {
+    tourZeigen(); fuehrungStarten();
+    for (let i = 0; i < FUEHRUNG.length + 2; i++){
+      const b = document.getElementById('fu-weiter');
+      if (b) b.click();
+    }
+    const zu = !document.getElementById('fuehrung').classList.contains('on');
+    fuAus();
+    return zu || 'sie bleibt stehen -- die App waere gesperrt';
+  });
+  t('AUSGANG 2: "Fuehrung beenden" beendet sie sofort', () => {
+    tourZeigen(); fuehrungStarten();
+    document.getElementById('fu-ende').click();
+    const zu = !document.getElementById('fuehrung').classList.contains('on');
+    fuAus();
+    return zu || 'sie bleibt stehen';
+  });
+  t('AUSGANG 3: ein Schritt ohne Ziel wird uebersprungen, nicht gewartet', () => {
+    /* Zeigt ein Schritt auf ein Element, das es nicht gibt, darf er die ganze
+       Fuehrung nicht anhalten. Geprueft, indem ein Ziel absichtlich verbogen wird. */
+    const merk = FUEHRUNG[0].ziel;
+    FUEHRUNG[0].ziel = '#gibtesnicht';
+    tourZeigen(); fuehrungStarten();
+    const steht = document.getElementById('fuehrung').classList.contains('on');
+    const text = (document.getElementById('fu-sprech').textContent || '');
+    FUEHRUNG[0].ziel = merk;
+    fuAus();
+    return (steht && text.indexOf(FUEHRUNG[1].titel) !== -1)
+        || 'haengt beim fehlenden Ziel: ' + text.slice(0, 60);
+  });
+  t('AUSGANG 4: Speichern beendet sie ebenfalls', () => {
+    tourZeigen(); fuehrungStarten();
+    const an = document.getElementById('fuehrung').classList.contains('on');
+    fuehrungBeenden();                       // das tut der Speichern-Knopf auch
+    const zu = !document.getElementById('fuehrung').classList.contains('on');
+    fuAus();
+    return (an && zu) || `vorher an: ${an}, danach zu: ${zu}`;
+  });
+  /* ⚠️ Hinter der Fuehrung stehen noch drei Karten. Ohne dieses Weiterlaufen
+     fielen sie unter den Tisch, weil die Fuehrung mittendrin abzweigt. */
+  t('danach laeuft die Einfuehrung weiter statt zu enden', () => {
+    tourZeigen();
+    const nr = TOUR.findIndex(k => k.fuehrung);
+    tourNr = nr; tourRendern();
+    fuehrungStarten();
+    fuehrungBeenden();
+    const weiter = tourNr === nr + 1;
+    fuAus();
+    return weiter || `Tour steht auf ${tourNr}, erwartet ${nr + 1}`;
   });
 
   /* ====== Drei Kacheln statt vier (12.08.2026) ======

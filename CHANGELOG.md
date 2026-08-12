@@ -6,6 +6,67 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 12.08.2026 (8) — Die Einführung führt jetzt wirklich durch die App
+
+Karls Liste, Punkt für Punkt abgearbeitet.
+
+### 🐞 Zuerst ein echter Fehler: die rote 0 am Postfach
+
+Am Postfach klebte eine **rote 0**, obwohl nichts ungelesen war. Ursache war eine
+Reihenfolge im CSS: `.badge[hidden]{display:none}` stand **vor** `.badge.inline{…display:
+inline-block}`. Beide sind gleich stark, und bei Gleichstand gewinnt die spätere Regel — das
+Verstecken wurde also wieder aufgehoben. Am Zahnrad fiel es nicht auf, das trägt kein
+`.inline`. Die Regel steht jetzt hinten.
+
+### Die Einführung
+
+| Karls Ansage | Umgesetzt |
+|---|---|
+| „ich will keine punkte, ich brauche eine progress leiste" | Balken + „3 / 7" |
+| „überspringen soll man das nicht" | Knopf ist weg |
+| „dein fangbuch die beschreibung ist schlecht" | neu geschrieben, sagt konkret, was man tut |
+| „auf welchen fisch man es abgesehen hat kann weg" | Karte raus |
+| „in der einführung steht immer fischen, es ist angeln" | Spinnangeln, Fliegenangeln |
+| „schreib was in die richtung viele updates und aktiver support" | neue Schluss-Karte |
+
+⚠️ **Ohne „Überspringen" wird die Länge zur Zusage.** Sieben Schritte, davon zwei mit einer
+Frage — wer nicht raus kann, darf nicht lange festgehalten werden.
+
+### 🔦 Der große Punkt: der erste Fang wird geführt
+
+Karls Ansage: *„ich will das einmal ein fang erstellt werden muss mit hilfe, am besten mit so
+einer umkreisung, und der restliche teil der app ist abgedunkelt und nicht antippbar."*
+
+Die Karte „Das Drumherum kommt von allein" **behauptet** es nicht mehr, sie **zeigt** es: der
+Knopf heißt „Ersten Fang eintragen" und schaltet ins Formular. Dort läuft eine Führung in fünf
+Schritten — Fischart, Maße, Standort, Bedingungen, Speichern —, jeweils mit Ring um das
+gemeinte Element und abgedunkeltem Rest.
+
+⚠️ **Gebaut mit vier Balken um das Loch herum, nicht mit einem ausgestanzten Rechteck.** Ein
+`box-shadow: 0 0 0 9999px` wäre kürzer gewesen, **fängt aber keine Tipper ab** — und genau das
+Abfangen ist der Zweck. Die vier Balken sind antippbar und schlucken den Tipp, der Ring selbst
+ist durchlässig.
+
+⚠️ **Der gefährlichste Teil ist nicht das Abdunkeln, sondern das Wiederherauskommen.** Eine
+Führung, die hängenbleibt, sperrt die App genauso zu wie ein Ladebildschirm, der nicht weggeht.
+Es gibt deshalb **vier voneinander unabhängige Ausgänge**: durchklicken, „Führung beenden",
+Speichern — und ein Schritt, dessen Element fehlt, wird übersprungen statt zu warten.
+
+⚠️ **Nach der Führung läuft die Einführung weiter**, statt zu enden. Hinter ihr stehen noch drei
+Karten; ohne das fielen sie unter den Tisch, weil die Führung mittendrin abzweigt.
+
+⚠️ **Sie zeichnet sofort und danach noch einmal.** Mit nur dem Wecker lag 60 ms lang ein
+dunkler Schirm **ohne Text** über der App — kurz, aber ausgerechnet beim ersten Eindruck.
+
+### Prüfungen
+
+**552 grün** (von 539). Die wichtigsten sind nicht „sie geht an", sondern die vier Ausgänge.
+Gegengeprobt: sperrt man einen zu, fällt genau die Prüfung, die ihn bewacht — und die anderen
+drei bleiben grün, weil sie wirklich unabhängig sind.
+
+Die alte Prüfung „sie lässt sich überspringen" ist **umgedreht** statt gelöscht: der Knopf soll
+nachweislich weg sein, sonst käme er beim nächsten Umbau unbemerkt zurück.
+
 ## 12.08.2026 (7) — Zu breit am Handy, und „Größter" ist weg
 
 Karls Meldung: *„die website ist zu breit auf dem handy, pack mal größter fisch weg auf der

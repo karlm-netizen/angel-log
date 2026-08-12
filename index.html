@@ -429,9 +429,37 @@ setTimeout(function(){
      auch beim Angeln. Deshalb zusätzlich fett und ein Haken. */
   .tour .tour-opt.da span::after{content:' ✓'; color:var(--accent)}
 
-  .tour .punkte{display:flex; gap:7px; justify-content:center; margin-bottom:18px}
-  .tour .punkte i{width:7px; height:7px; border-radius:99px; background:var(--line)}
-  .tour .punkte i.da{background:var(--accent)}
+  /* Fortschrittsbalken statt Punkte (Karls Ansage, 12.08.2026). */
+  .tour .fortschritt{height:6px; border-radius:999px; background:var(--line);
+    overflow:hidden; margin:0 auto 8px; max-width:330px; width:100%}
+  .tour .fortschritt i{display:block; height:100%; background:var(--accent);
+    border-radius:999px; transition:width .28s ease}
+
+  /* ---- Die Führung durch den ersten Fang (12.08.2026) ----
+     Karls Ansage: „ich will das einmal ein fang erstellt werden muss mit hilfe,
+     am besten mit so einer umkreisung, und der restliche teil der app ist
+     abgedunkelt und nicht antippbar."
+
+     ⚠️ Gebaut mit **vier Balken** um das Loch herum, nicht mit einem großen
+        Rechteck und ausgestanztem Fenster. Ein `box-shadow: 0 0 0 9999px` wäre
+        kürzer, fängt aber keine Tipper ab — und genau das Abfangen ist hier der
+        Zweck. Vier Balken decken alles außerhalb ab und sind jeder für sich
+        antippbar (und schlucken den Tipp). */
+  .fuehrung{position:fixed; inset:0; z-index:2400; display:none}
+  .fuehrung.on{display:block}
+  .fuehrung .schatten{position:absolute; background:rgba(0,0,0,.72)}
+  .fuehrung .loch{position:absolute; border-radius:14px; pointer-events:none;
+    box-shadow:0 0 0 3px var(--accent), 0 0 0 7px rgba(255,255,255,.18)}
+  .fuehrung .sprech{position:absolute; left:0; right:0; padding:0 18px;
+    pointer-events:none}
+  .fuehrung .sprech .kasten{background:var(--card); border-radius:16px; padding:14px 16px;
+    max-width:420px; margin:0 auto; box-shadow:0 10px 30px rgba(0,0,0,.35);
+    pointer-events:auto}
+  .fuehrung .sprech h3{font-size:16px; margin:0 0 5px}
+  .fuehrung .sprech p{font-size:13.5px; line-height:1.5; color:var(--muted); margin:0}
+  .fuehrung .sprech .zeile{display:flex; align-items:center; justify-content:space-between;
+    gap:10px; margin-top:11px}
+  .fuehrung .sprech .btn{margin:0; width:auto; padding:8px 16px}
   .tour .weg{background:none; border:0; color:var(--muted); font-size:13px;
     width:100%; text-align:center; margin-top:12px; padding:8px}
 
@@ -443,9 +471,15 @@ setTimeout(function(){
     padding:0 4px; border-radius:999px; background:#e5484d; color:#fff;
     font-size:11px; font-weight:700; line-height:17px; text-align:center;
     box-shadow:0 0 0 2px var(--bg); pointer-events:none}
-  .badge[hidden]{display:none}
   /* Im Knopf steht sie in der Zeile mit, nicht darüber. */
   .badge.inline{position:static; box-shadow:none; margin-left:6px; display:inline-block}
+  /* ⚠️ Diese Regel muss **nach** `.badge.inline` stehen. Beide sind gleich stark
+     (Klasse+Attribut bzw. zwei Klassen), und bei Gleichstand gewinnt die spätere —
+     stand `[hidden]` davor, setzte `.inline` sein `display:inline-block` wieder
+     durch, und am Postfach klebte eine **rote 0**, obwohl `hidden` gesetzt war
+     (Karls Meldung vom 12.08.2026). Am Zahnrad fiel es nicht auf: das trägt kein
+     `.inline` und war deshalb wirklich weg. */
+  .badge[hidden]{display:none}
 
   /* ⚠️ Hier standen 14 Zeilen für den Einstellungs-Vorhang: dunkler Hintergrund,
      von unten einfahrendes Blatt mit runden Ecken, `max-height:86vh` samt
@@ -1022,6 +1056,19 @@ function splashWeg(){
   </div>
 </section>
 
+<!-- Die Führung durch den ersten Fang (12.08.2026, Karls Ansage).
+     Vier Balken decken alles ab außer dem hervorgehobenen Element; der Ring
+     zeigt, worum es geht. Der Text steht in einem Kasten darunter oder darüber,
+     je nachdem, wo Platz ist. -->
+<div class="fuehrung" id="fuehrung" aria-live="polite">
+  <div class="schatten" id="fu-oben"></div>
+  <div class="schatten" id="fu-unten"></div>
+  <div class="schatten" id="fu-links"></div>
+  <div class="schatten" id="fu-rechts"></div>
+  <div class="loch" id="fu-loch"></div>
+  <div class="sprech" id="fu-sprech"></div>
+</div>
+
 <button class="fab" id="fab-save" aria-label="Fang speichern">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
     <path d="M4 12.5l5.5 5.5L20 7"/>
@@ -1448,6 +1495,25 @@ const EN = {
   'Kurze Einführung ansehen': 'View the short introduction',
   '🐞 Fehler melden': '🐞 Report a problem',
   '📬 Postfach': '📬 Mailbox',
+  'Führung beenden': 'End walkthrough',
+  'Alles klar': 'Got it',
+  'Ersten Fang eintragen': 'Log your first catch',
+  'Fang eintragen': 'Log a catch',
+  'Trag hier ein, was gebissen hat — tippen genügt, Vorschläge kommen von selbst. Nur dieses Feld ist Pflicht, alles andere kannst du weglassen.':
+    'Type what you caught — suggestions appear as you go. This is the only required field; everything else is optional.',
+  'Maße, wenn du magst': 'Measurements, if you like',
+  'Länge und Gewicht sind freiwillig. Sie sind aber die Zahlen, aus denen später deine Auswertungen entstehen.':
+    'Length and weight are optional — but they are the numbers your charts are later built from.',
+  'Der Standort ist der Schlüssel': 'Location is the key',
+  'Ein Tipp hier, und die App weiß, wo du bist. Daraus holt sie gleich das Gewässer und die Bedingungen — und der Fang landet später auf der Karte.':
+    'One tap and the app knows where you are. From that it fetches the water and the conditions — and your catch lands on the map.',
+  'Hier holt die App Wetter, Luftdruck, Wassertemperatur und Mondphase — für den Zeitpunkt und den Ort deines Fangs. Du musst nichts davon selbst wissen.':
+    'This fetches weather, air pressure, water temperature and moon phase — for the time and place of your catch. You need to know none of it yourself.',
+  'Speichern, fertig': 'Save, and done',
+  'Damit liegt dein erster Fang im Buch. Ab dem zweiten oder dritten fangen die Auswertungen an, etwas zu zeigen.':
+    'That puts your first catch in the book. From the second or third on, the charts start to show something.',
+  'Wir bleiben dran': 'We keep at it',
+  'Wo angelst du?': 'Where do you fish?',
   'Fänge': 'Catches',
   'Liste': 'List',
   'Auswertung': 'Charts',
@@ -3013,7 +3079,10 @@ async function saveNow(){
     btn.disabled = false;
   }
 }
-$('#fab-save').onclick = saveNow;
+/* ⚠️ Die Führung endet **auch** hier, nicht nur über ihre eigenen Knöpfe. Wer den
+   Fang speichert, ist fertig — bliebe die Abdunkelung stehen, säße er hinter einem
+   grauen Schleier vor seiner eigenen Fangliste. */
+$('#fab-save').onclick = () => { if (fuNr >= 0) fuehrungBeenden(); saveNow(); };
 
 $('#btn-del').onclick = async () => {
   if (!state.editId) return;
@@ -3412,7 +3481,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v40';
+const FASSUNG = 'v41';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -4673,11 +4742,12 @@ const TOUR_KEY = 'angellog-tour';
    jeder Frage eine sichtbare Folge, und die Karte danach sagt sie an. */
 const TOUR = [
   { bild: '🎣', titel: 'Dein Fangbuch',
-    text: 'Jeder Fisch mit Foto, Länge, Gewicht und Köder — an einem Ort statt in der Kamerarolle. '
-        + 'Nach ein paar Wochen steht da eine Saison, die du wirklich nachlesen kannst.' },
+    text: 'Du trägst jeden Fang ein: Art, Länge, Gewicht, Köder und Fotos. '
+        + 'Danach steht alles an einem Ort statt verstreut in der Kamerarolle — '
+        + 'du kannst suchen, filtern und jederzeit nachlesen, was wann gebissen hat.' },
 
-  { bild: '🗺️', titel: 'Wo bist du unterwegs?',
-    text: 'Danach richten sich die Fische, die dir beim Eintragen vorgeschlagen werden.',
+  { bild: '🗺️', titel: 'Wo angelst du?',
+    text: 'Danach richtet sich, welche Fische dir beim Eintragen vorgeschlagen werden.',
     feld: 'wo', mehrfach: false,
     optionen: [['see', '🏞️ Süßwasser', 'See, Fluss, Kanal'],
                ['meer', '🌊 Meer', 'Küste, Belt, Bodden'],
@@ -4686,24 +4756,32 @@ const TOUR = [
   { bild: '🎯', titel: 'Wie angelst du am liebsten?',
     text: 'Mehrfach möglich. Danach richtet sich, welche Köder oben stehen.',
     feld: 'wie', mehrfach: true,
-    optionen: [['spinn', '🐟 Spinnfischen', 'Gummi, Wobbler, Blinker'],
+    optionen: [['spinn', '🐟 Spinnangeln', 'Gummi, Wobbler, Blinker'],
                ['ansitz', '🪑 Ansitz', 'Wurm, Mais, Boilie'],
-               ['fliege', '🪶 Fliegenfischen', 'Fliege, Streamer']] },
+               ['fliege', '🪶 Fliegenangeln', 'Fliege, Streamer']] },
 
-  { bild: '🏆', titel: 'Auf welche Fische hast du es abgesehen?',
-    text: 'Mehrfach möglich — sie stehen beim Eintragen ganz oben. Kein Muss: eintragen '
-        + 'kannst du sowieso jeden Fisch.',
-    feld: 'ziele', mehrfach: true, ausArten: true },
-
+  /* ⚠️ Diese Karte macht die Führung an. Sie ist die einzige, hinter der kein
+     „Weiter" steht — der nächste Schritt ist die App selbst. */
   { bild: '🌦️', titel: 'Das Drumherum kommt von allein',
-    text: 'Wetter, Luftdruck, Mondphase, Wasserstand und sogar das Gewässer holt die App aus '
-        + 'Zeit und Standort. Du tippst den Fisch ein — der Rest steht schon da.' },
+    text: 'Wetter, Luftdruck, Mondphase, Wasserstand und das Gewässer holt die App aus '
+        + 'Zeit und Standort. Du tippst den Fisch ein — der Rest steht schon da. '
+        + 'Am besten trägst du gleich einen Fang ein, dann siehst du es.',
+    fuehrung: true, knopf: 'Ersten Fang eintragen' },
+
   { bild: '📈', titel: 'Und dann wird es interessant',
     text: 'Beißt der Hecht wirklich bei fallendem Luftdruck? Welche Köderfarbe bringt bei dir '
-        + 'mehr? Genau solche Fragen stellst du dir selbst zusammen — aus deinen eigenen Fängen.' },
+        + 'mehr? Solche Fragen stellst du dir selbst zusammen — aus deinen eigenen Fängen.' },
   { bild: '📍', titel: 'Alles bleibt deins',
     text: 'Jeder Fang liegt auf der Karte, wo er gebissen hat. Alles ist in deinem Konto '
-        + 'gesichert und auf jedem Gerät da — und du kannst es jederzeit als Datei mitnehmen.' }
+        + 'gesichert und auf jedem Gerät da — und du kannst es jederzeit als Datei mitnehmen.' },
+
+  /* Karls Ansage vom 12.08.2026: „schreib nochmal was in die richtung das viele
+     updates kommen und wir einen sehr aktiven support haben". */
+  { bild: '🛠️', titel: 'Wir bleiben dran',
+    text: 'Die App wird laufend weiterentwickelt — oft mehrmals pro Woche. Wenn dir etwas '
+        + 'fehlt oder nicht funktioniert, schreib es über „Fehler melden" in den '
+        + 'Einstellungen. Das kommt direkt bei uns an, und Probleme sind meist in ein bis '
+        + 'zwei Tagen behoben. Die Antwort findest du danach in deinem Postfach.' }
 ];
 let tourNr = 0;
 
@@ -4767,6 +4845,13 @@ function tourRendern(){
      „Weiter" durch und bekommt die unveränderte Liste — eine Einrichtung, die
      man nicht überspringen kann, ist eine Hürde vor der App, nicht ein Weg
      hinein. */
+  /* ⚠️ Ein Balken statt Punkten (Karls Ansage, 12.08.2026: „ich will keine punkte,
+     ich brauche eine progress leiste, das wirkt besser"). Der Balken sagt
+     zusätzlich, **wie weit** es noch ist — Punkte muss man zählen.
+     ⚠️ Und **kein „Überspringen" mehr** (Karls Ansage). Wer die Einführung
+     wegklickt, steht vor einer leeren Liste und weiß nicht, was die App für ihn
+     tut. Sie ist sieben Schritte lang, davon zwei mit einer Frage. */
+  const anteil = Math.round(((tourNr + 1) / TOUR.length) * 100);
   $('#tour-inner').innerHTML = `
     <div class="mitte">
       <div class="bild" aria-hidden="true">${k.bild}</div>
@@ -4774,23 +4859,146 @@ function tourRendern(){
       <p>${T(k.text)}</p>
       ${auswahl}
     </div>
-    <div class="punkte" aria-hidden="true">
-      ${TOUR.map((_, i) => `<i class="${i === tourNr ? 'da' : ''}"></i>`).join('')}
+    <div class="fortschritt" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+         aria-valuenow="${anteil}">
+      <i style="width:${anteil}%"></i>
     </div>
-    <button class="btn primary" id="tour-weiter">${T(letzte ? 'Los geht’s' : 'Weiter')}</button>
-    <button class="weg" id="tour-weg">${letzte ? '' : T('Überspringen')}</button>`;
+    <div class="tiny muted center" style="margin-bottom:12px">${tourNr + 1} / ${TOUR.length}</div>
+    <button class="btn primary" id="tour-weiter">${
+      T(k.knopf || (letzte ? 'Los geht’s' : 'Weiter'))}</button>`;
 
   $('#tour-inner').querySelectorAll('.tour-opt').forEach(b => {
     b.onclick = () => tourWaehlen(k.feld, b.dataset.wert, k.mehrfach);
   });
 
   $('#tour-weiter').onclick = () => {
+    /* Die Karte mit `fuehrung` endet nicht in der nächsten Karte, sondern in der
+       App: von hier aus wird der erste Fang gemeinsam eingetragen. */
+    if (k.fuehrung) return fuehrungStarten();
     if (letzte) return tourSchliessen();
     tourNr++; tourRendern();
     $('#tour').scrollTop = 0;
   };
-  const weg = $('#tour-weg');
-  if (letzte) weg.hidden = true; else weg.onclick = tourSchliessen;
+}
+
+/* ---------------- Die Führung durch den ersten Fang ----------------
+   Karls Ansage vom 12.08.2026: „ich will das einmal ein fang erstellt werden muss
+   mit hilfe, am besten mit so einer umkreisung, und der restliche teil der app ist
+   abgedunkelt und nicht antippbar."
+
+   Sie hängt an der Karte „Das Drumherum kommt von allein": statt zu behaupten, dass
+   die App die Bedingungen selbst holt, wird es einmal vorgeführt.
+
+   ⚠️ **Der gefährlichste Teil ist nicht das Abdunkeln, sondern das Wiederherauskommen.**
+   Eine Führung, die hängenbleibt, sperrt die App genauso zu wie ein Ladebildschirm, der
+   nicht weggeht (siehe SPLASH_HOECHSTENS). Deshalb gibt es drei Ausgänge, die
+   unabhängig voneinander wirken:
+     1. „Weiter" bis zum Ende,
+     2. ein „Führung beenden" in jedem Schritt,
+     3. findet ein Schritt sein Element nicht, wird er übersprungen statt zu warten.
+   Und die Führung endet in jedem Fall, sobald der Fang gespeichert ist. */
+const FUEHRUNG_KEY = 'angellog-fuehrung';
+
+const FUEHRUNG = [
+  { ziel: '#f-art', titel: 'Fang eintragen',
+    text: 'Trag hier ein, was gebissen hat — tippen genügt, Vorschläge kommen von selbst. '
+        + 'Nur dieses Feld ist Pflicht, alles andere kannst du weglassen.' },
+  { ziel: '#f-laenge', titel: 'Maße, wenn du magst',
+    text: 'Länge und Gewicht sind freiwillig. Sie sind aber die Zahlen, aus denen später '
+        + 'deine Auswertungen entstehen.' },
+  { ziel: '#btn-gps', titel: 'Der Standort ist der Schlüssel',
+    text: 'Ein Tipp hier, und die App weiß, wo du bist. Daraus holt sie gleich das Gewässer '
+        + 'und die Bedingungen — und der Fang landet später auf der Karte.' },
+  { ziel: '#btn-wx', titel: 'Das Drumherum kommt von allein',
+    text: 'Hier holt die App Wetter, Luftdruck, Wassertemperatur und Mondphase — für den '
+        + 'Zeitpunkt und den Ort deines Fangs. Du musst nichts davon selbst wissen.' },
+  { ziel: '#fab-save', titel: 'Speichern, fertig',
+    text: 'Damit liegt dein erster Fang im Buch. Ab dem zweiten oder dritten fangen die '
+        + 'Auswertungen an, etwas zu zeigen.' }
+];
+let fuNr = 0;
+
+function fuehrungLief(){
+  try { return !!localStorage.getItem(FUEHRUNG_KEY); } catch { return false; }
+}
+function fuehrungBeenden(){
+  const lief = fuNr >= 0;
+  fuNr = -1;
+  $('#fuehrung').classList.remove('on');
+  try { localStorage.setItem(FUEHRUNG_KEY, String(Date.now())); } catch {}
+  window.removeEventListener('scroll', fuehrungZeichnen, true);
+  window.removeEventListener('resize', fuehrungZeichnen);
+
+  /* ⚠️ Danach läuft die Einführung weiter, statt zu enden. Hinter der Führung
+     stehen noch drei Karten (Auswertungen, „alles bleibt deins", Support) — ohne
+     das fielen sie unter den Tisch, weil die Führung mittendrin abzweigt. */
+  if (lief && tourNr < TOUR.length - 1){
+    tourNr++;
+    setTimeout(() => { $('#tour').classList.add('on'); tourRendern(); }, 260);
+  }
+}
+
+function fuehrungStarten(){
+  tourSchliessen();
+  state.editId = null; state.editWasSaved = false;
+  go('new');
+  fuNr = 0;
+  $('#fuehrung').classList.add('on');
+  window.addEventListener('scroll', fuehrungZeichnen, true);
+  window.addEventListener('resize', fuehrungZeichnen);
+  /* ⚠️ **Zweimal zeichnen, und das erste Mal sofort.** Stand hier nur der
+     Wecker, lag 60 ms lang ein dunkler Schirm ohne Text über der App — kurz,
+     aber sichtbar, und beim ersten Eindruck ausgerechnet. Der zweite Durchgang
+     korrigiert die Maße, sobald `go('new')` das Formular fertig aufgebaut hat. */
+  fuehrungZeichnen();
+  setTimeout(fuehrungZeichnen, 60);
+}
+
+function fuehrungZeichnen(){
+  if (fuNr < 0 || fuNr >= FUEHRUNG.length) return fuehrungBeenden();
+  const schritt = FUEHRUNG[fuNr];
+  const el = $(schritt.ziel);
+  /* ⚠️ Fehlt das Element, wird übersprungen statt gewartet. Ein Schritt, der auf
+     etwas zeigt, das es nicht gibt, hielte die ganze Führung an — und die App
+     mit ihr. */
+  if (!el || !el.getClientRects().length){ fuNr++; return fuehrungZeichnen(); }
+
+  const r = el.getBoundingClientRect();
+  const luft = 8;
+  const o = Math.max(0, r.top - luft), u = Math.min(innerHeight, r.bottom + luft);
+  const l = Math.max(0, r.left - luft), re = Math.min(innerWidth, r.right + luft);
+
+  const setz = (id, css) => Object.assign($(id).style, css);
+  setz('#fu-oben',   { left: '0px', top: '0px', width: '100%', height: o + 'px' });
+  setz('#fu-unten',  { left: '0px', top: u + 'px', width: '100%', height: Math.max(0, innerHeight - u) + 'px' });
+  setz('#fu-links',  { left: '0px', top: o + 'px', width: l + 'px', height: (u - o) + 'px' });
+  setz('#fu-rechts', { left: re + 'px', top: o + 'px', width: Math.max(0, innerWidth - re) + 'px', height: (u - o) + 'px' });
+  setz('#fu-loch',   { left: l + 'px', top: o + 'px', width: (re - l) + 'px', height: (u - o) + 'px' });
+
+  /* Der Kasten steht unter dem Loch, wenn dort Platz ist, sonst darüber. */
+  const untenPlatz = innerHeight - u > 190;
+  const sprech = $('#fu-sprech');
+  sprech.style.top = untenPlatz ? (u + 14) + 'px' : '';
+  sprech.style.bottom = untenPlatz ? '' : (innerHeight - o + 14) + 'px';
+  const letzter = fuNr === FUEHRUNG.length - 1;
+  sprech.innerHTML = `
+    <div class="kasten">
+      <h3>${T(schritt.titel)}</h3>
+      <p>${T(schritt.text)}</p>
+      <div class="zeile">
+        <button class="weg" id="fu-ende" style="background:none; border:0; color:var(--muted); font-size:13px">${T('Führung beenden')}</button>
+        <button class="btn primary sm" id="fu-weiter">${T(letzter ? 'Alles klar' : 'Weiter')}</button>
+      </div>
+      <div class="tiny muted" style="margin-top:8px">${fuNr + 1} / ${FUEHRUNG.length}</div>
+    </div>`;
+  $('#fu-weiter').onclick = () => { fuNr++; fuehrungZeichnen(); };
+  $('#fu-ende').onclick = fuehrungBeenden;
+
+  /* Liegt das Ziel außerhalb des Bildes, erst hinscrollen. */
+  if (r.top < 0 || r.bottom > innerHeight){
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setTimeout(fuehrungZeichnen, 260);
+  }
 }
 
 /* ---------- Fehler melden ---------- */
