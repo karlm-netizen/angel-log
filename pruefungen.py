@@ -2672,113 +2672,24 @@ window.addEventListener('error', e => {
         || 'setzt den Stempel neu: ' + block.slice(0, 400);
   });
 
-  /* ==================== Einstellungen schliessen ====================
-     Karls Ansage vom 08.08.: "wenn ich auf meinem handy auf einstellungen gehe
-     moechte ich das man entweder oben auf ein kreuz clicken kann oder das menu
-     wieder runterwischen kann." Bis dahin stand der einzige Knopf ganz unten --
-     man musste erst durch alle Einstellungen scrollen, um herauszukommen. */
-  // ⚠️ Seit dem 12.08.2026 liegen die Einstellungen unten in der Leiste (#tab-set),
-  //    nicht mehr als Zahnrad oben rechts (#btn-menu).
+  /* ============ Einstellungen: die frueheren Vorhang-Pruefungen ============
+     Hier standen rund 100 Zeilen fuer das Schliessen des Einstellungs-Vorhangs:
+     Kreuz oben, Knopf unten, Griff, Wegtippen auf der Rueckseite und fuenf
+     Pruefungen rund ums Herunterwischen samt der heiklen Abgrenzung zum Scrollen.
+
+     Alle weg am 12.08.2026. Karls Ansage: die Einstellungen sind jetzt eine
+     normale Seite wie "Neuer Fang" -- eine Seite schliesst man nicht, man geht
+     auf eine andere Kachel.
+
+     ⚠️ Diese Pruefungen sind nicht gefallen, weil etwas kaputtging, sondern weil
+        das Gepruefte abgeschafft wurde. Der Unterschied gehoert festgehalten:
+        haette man sie "repariert", prueften sie ein Verhalten, das niemand mehr
+        will -- und stuenden dem naechsten Umbau im Weg, statt ihn abzusichern.
+        Was von der Sache bleibt, steht unter "Drei Kacheln statt vier": dort
+        wacht eine Pruefung darueber, dass vom Vorhang nichts uebrigblieb.
+
+     ⚠️ Der Helfer bleibt, er wird weiter unten gebraucht. */
   const sheetAuf = () => { document.querySelector('#tab-set').click(); };
-  const sheetOffen = () => document.querySelector('#sheet').classList.contains('on');
-
-  t('das Kreuz steht oben im Blatt', () => {
-    const k = document.querySelector('#btn-sheet-zu');
-    if (!k) return 'kein Kreuz da';
-    const kopf = k.closest('.kopf');
-    return (kopf && kopf.querySelector('h2')) ? true : 'Kreuz steht nicht in der Kopfzeile';
-  });
-  t('das Kreuz schliesst', () => {
-    sheetAuf();
-    if (!sheetOffen()) return 'liess sich nicht oeffnen';
-    document.querySelector('#btn-sheet-zu').click();
-    return !sheetOffen() || 'blieb offen';
-  });
-  t('der Knopf unten schliesst weiter', () => {
-    sheetAuf(); document.querySelector('#btn-close-sheet').click();
-    return !sheetOffen() || 'blieb offen';
-  });
-  t('ein Griff zeigt, dass man wischen kann', () =>
-    !!document.querySelector('#sheet-griff') || 'kein Griff');
-
-  // Wischen nachstellen. touchstart/-move/-end von Hand, weil headless nicht wischt.
-  const wisch = (vonY, nachY, ziel) => {
-    const el = ziel || document.querySelector('#sheet .inner');
-    const tp = (y) => ({ clientY: y, target: el, identifier: 1 });
-    const ev = (name, y) => {
-      const e = new Event(name, { bubbles: true });
-      e.touches = [tp(y)];
-      Object.defineProperty(e, 'target', { value: el });
-      el.dispatchEvent(e);
-    };
-    ev('touchstart', vonY);
-    ev('touchmove', nachY);
-    const ende = new Event('touchend', { bubbles: true });
-    ende.touches = [];
-    el.dispatchEvent(ende);
-  };
-
-  t('weit runterwischen schliesst', () => {
-    sheetAuf();
-    document.querySelector('#sheet .inner').scrollTop = 0;
-    wisch(100, 260);                        // 160 px, deutlich ueber der Schwelle
-    return !sheetOffen() || 'blieb offen';
-  });
-  t('ein kurzer Wisch schliesst nicht', () => {
-    sheetAuf();
-    document.querySelector('#sheet .inner').scrollTop = 0;
-    wisch(100, 130);                        // 30 px -- ein Verrutschen, kein Schliessen
-    const offen = sheetOffen();
-    document.querySelector('#btn-sheet-zu').click();
-    return offen || 'schon bei 30 px zugegangen';
-  });
-  t('nach oben wischen schliesst nicht', () => {
-    sheetAuf();
-    document.querySelector('#sheet .inner').scrollTop = 0;
-    wisch(260, 100);
-    const offen = sheetOffen();
-    document.querySelector('#btn-sheet-zu').click();
-    return offen || 'nach oben geschlossen';
-  });
-  /* ⚠️ Der heikle Fall: das Blatt scrollt innen. Wer weiter unten steht und zum
-     Anfang zurueckscrollt, darf dabei nicht das ganze Blatt mitnehmen. */
-  t('mitten im Scrollen zieht der Wisch das Blatt nicht mit', () => {
-    sheetAuf();
-    const innen = document.querySelector('#sheet .inner');
-    innen.scrollTop = 120;                  // der Inhalt steht nicht oben
-    wisch(100, 300);
-    const offen = sheetOffen();
-    innen.scrollTop = 0;
-    document.querySelector('#btn-sheet-zu').click();
-    return offen || 'beim Zurueckscrollen zugegangen';
-  });
-  /* Am Griff gilt die Scroll-Regel ausdruecklich nicht -- er ist zum Ziehen da.
-     Geprueft mit dem Griff als Ereignis-Ziel, waehrend der Inhalt nicht oben steht. */
-  t('am Griff zieht es auch mitten im Scrollen', () => {
-    sheetAuf();
-    const innen = document.querySelector('#sheet .inner');
-    const griff = document.querySelector('#sheet-griff');
-    innen.scrollTop = 120;
-    const ev = (name, y) => {
-      const e = new Event(name, { bubbles: true });
-      e.touches = name === 'touchend' ? [] : [{ clientY: y, identifier: 1 }];
-      Object.defineProperty(e, 'target', { value: griff });
-      innen.dispatchEvent(e);
-    };
-    ev('touchstart', 100); ev('touchmove', 300); ev('touchend', 300);
-    const zu = !sheetOffen();
-    innen.scrollTop = 0;
-    if (!zu) document.querySelector('#btn-sheet-zu').click();
-    return zu || 'am Griff nicht geschlossen';
-  });
-  t('nach dem Schliessen ist die Verschiebung zurueckgesetzt', () => {
-    // Bliebe ein translateY stehen, waere das Blatt beim naechsten Oeffnen verrutscht.
-    sheetAuf();
-    document.querySelector('#sheet .inner').scrollTop = 0;
-    wisch(100, 260);
-    const st = document.querySelector('#sheet .inner').style.transform;
-    return st === '' || ('steht auf ' + st);
-  });
 
   // ---- Datenschutz ----
   t('Datenschutz-Knopf da', () => !!document.querySelector('#btn-datenschutz') || 'fehlt');
@@ -2895,17 +2806,22 @@ window.addEventListener('error', e => {
       || 'Import noch da');
   // ⚠️ Der Download setzt Art. 20 DSGVO um und gehoert deshalb zum Datenschutz,
   // nicht zur Datensicherung -- gesichert wird ueber das Konto.
+  // ⚠️ Der Behaelter heisst seit dem 12.08.2026 `#v-set .wrap` (normale Seite)
+  //    statt `#sheet .inner` (Vorhang).
   t('Download steht unter der Datenschutzerklaerung', () => {
-    const inner = document.querySelector('#sheet .inner');
-    const kinder = [...inner.children];
+    const kinder = [...document.querySelector('#v-set .wrap').children];
     return (kinder.indexOf(document.querySelector('#btn-export'))
             > kinder.indexOf(document.querySelector('#btn-datenschutz'))) || 'steht davor';
   });
-  t('Download steht vor dem Schliessen-Knopf', () => {
-    const inner = document.querySelector('#sheet .inner');
-    const kinder = [...inner.children];
-    return (kinder.indexOf(document.querySelector('#btn-export'))
-            < kinder.indexOf(document.querySelector('#btn-close-sheet'))) || 'steht dahinter';
+  /* ⚠️ Hier stand "Download steht vor dem Schliessen-Knopf". Den Knopf gibt es
+     nicht mehr -- auf einer normalen Seite schliesst man nichts. Was die Pruefung
+     eigentlich sicherte, war: der Download ist das LETZTE in den Einstellungen.
+     Genau das prueft sie jetzt, ohne sich an einen Knopf zu haengen. */
+  t('Download ist das Letzte auf der Seite', () => {
+    const kinder = [...document.querySelector('#v-set .wrap').children];
+    const i = kinder.indexOf(document.querySelector('#btn-export'));
+    return (i === kinder.length - 1)
+        || ('danach kommt noch: ' + kinder.slice(i + 1).map(k => k.id || k.tagName).join(', '));
   });
   t('Datenschutztext verweist auf den Download', () =>
     /Meine Daten herunterladen/.test(datenschutzText()) || 'Text nennt ihn nicht');
@@ -3533,7 +3449,7 @@ window.addEventListener('error', e => {
        damit mit "Faenge | Neuer Fang | 0", obwohl die Reihenfolge stimmte. */
     const b = Array.from(document.querySelectorAll('.tabs .tab'))
       .map(t2 => t2.dataset.go || t2.id);
-    return (b.join(',') === 'log,new,tab-set') || 'Reihenfolge: ' + b.join(' | ');
+    return (b.join(',') === 'log,new,set') || 'Reihenfolge: ' + b.join(' | ');
   });
   /* ⚠️ Die wichtigste hier: keine der drei Ansichten darf beim Zusammenlegen
      verlorengehen. Erreichbar bleiben muessen sie alle -- ueber den Umschalter. */
@@ -3593,16 +3509,34 @@ window.addEventListener('error', e => {
     go('log');
     return (a && b) || `Karte richtig: ${a}, Auswertung richtig: ${b}`;
   });
-  t('die Einstellungs-Kachel tauscht die Ansicht nicht aus', () => {
-    /* Sie ist eine Schublade ueber allem, keine Ansicht: wer sie schliesst,
-       steht wieder da, wo er war. */
+  /* ⚠️ Hier stand bis zum 12.08.2026, die Einstellungs-Kachel duerfe die Ansicht
+     NICHT austauschen -- sie war ein Vorhang ueber allem. Karls Ansage danach:
+     "das ist jetzt eine normale seite wie neuer fang auch". Damit ist die
+     Erwartung umgedreht, und die Pruefung muss mit, sonst haelt sie den
+     gewollten Zustand fuer einen Fehler. */
+  t('die Einstellungen sind eine Ansicht wie jede andere', () => {
     go('map');
     document.getElementById('tab-set').click();
-    const offen = document.getElementById('sheet').classList.contains('on');
-    const geblieben = state.view === 'map';
-    sheetZu();
+    const da = !document.getElementById('v-set').classList.contains('hidden');
+    const weg = document.getElementById('v-map').classList.contains('hidden');
+    const stand = state.view === 'set';
     go('log');
-    return (offen && geblieben) || `Schublade offen: ${offen}, Ansicht geblieben: ${geblieben}`;
+    return (da && weg && stand)
+        || `sichtbar: ${da}, Karte weg: ${weg}, state.view: ${state.view}`;
+  });
+  t('und dort verschwinden Kopf und Umschalter', () => {
+    go('set');
+    const k = document.getElementById('kopf').hidden, s = document.getElementById('seg').hidden;
+    go('log');
+    return (k && s) || `Kopf versteckt: ${k}, Umschalter versteckt: ${s}`;
+  });
+  /* ⚠️ Vom Vorhang darf nichts uebrigbleiben: ein zweiter Scrollbereich, ein
+     dunkler Hintergrund oder ein Griff waeren auf einer normalen Seite nicht
+     nur nutzlos, sondern im Weg. */
+  t('vom Vorhang ist nichts uebriggeblieben', () => {
+    const reste = ['#sheet', '#sheet-griff', '#btn-close-sheet', '#btn-sheet-zu']
+      .filter(s => document.querySelector(s));
+    return reste.length === 0 || 'noch da: ' + reste.join(', ');
   });
 
   /* ====== Die Einrichtung im Tutorial (12.08.2026) ======

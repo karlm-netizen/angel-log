@@ -6,6 +6,60 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 12.08.2026 (5) — Die Einstellungen sind eine Seite, kein Vorhang mehr
+
+Karls Ansage: *„einstellung muss nicht mehr so ein fliegendes fenster sein, das ist jetzt eine
+normale seite wie neuer fang auch."*
+
+Folgt direkt aus der Änderung davor: sobald die Einstellungen eine eigene Kachel unten haben,
+sind sie ein Ort wie jeder andere — und ein Ort, der über allem schwebt, passt nicht zu einer
+Kachel, die neben zwei anderen steht.
+
+### Was ersatzlos weggefallen ist
+
+Der ganze Vorhang-Apparat, rund **140 Zeilen**:
+
+- der dunkle Hintergrund und das von unten einfahrende Blatt
+- der **Griff** zum Wegwischen und die komplette Wisch-Erkennung
+- das **Schließen-Kreuz** oben und der **„Schließen"-Knopf** unten
+- das Wegtippen auf der Rückseite
+- die eigene Überschrift „Einstellungen"
+
+⚠️ **Eine Seite schließt man nicht** — man geht auf eine andere Kachel. Und die Überschrift wäre
+dieselbe Auskunft zweimal: unten leuchtet ja die Kachel.
+
+⚠️ **Der stillste Gewinn ist der eigene Scrollbereich.** Das Blatt hatte `max-height:86vh` und
+scrollte innen; damit gab es zwei Scrollbereiche ineinander. Genau daran hing der heikelste
+Teil der Wisch-Erkennung: unterscheiden, ob ein Wisch nach unten das Blatt ziehen oder den
+Inhalt scrollen soll. **Die Seite scrollt jetzt wie jede andere**, und das Problem existiert
+nicht mehr.
+
+`sheetZu()` bleibt als Einzeiler, weil mehrere Stellen es rufen (Anmelde-Schirm, Konto löschen,
+Einführung). Es heißt jetzt schlicht: geh zurück zur Liste.
+
+### Prüfungen
+
+**534 grün — und das sind acht weniger als vorher (542).**
+
+⚠️ **Die Zahl ist gesunken, weil rund 100 Zeilen Prüfungen entfernt wurden**: alles rund ums
+Schließen des Vorhangs (Kreuz, Knopf, Griff, Rückseite, fünf Wisch-Fälle). **Sie sind nicht
+gefallen — das Geprüfte gibt es nicht mehr.**
+
+Der Unterschied gehört festgehalten: hätte man sie stattdessen „repariert", prüften sie ein
+Verhalten, das niemand mehr will, und stünden dem nächsten Umbau im Weg, statt ihn abzusichern.
+Eine sinkende Zahl ist kein schlechtes Zeichen, wenn die App kleiner geworden ist.
+
+Neu dazu, damit vom Vorhang nichts unbemerkt zurückkommt:
+- die Einstellungen sind eine Ansicht wie jede andere (Kachel tauscht wirklich aus)
+- Kopf und Umschalter verschwinden auch dort
+- **vom Vorhang ist nichts übriggeblieben** — `#sheet`, `#sheet-griff`, `#btn-close-sheet` und
+  `#btn-sheet-zu` existieren nicht mehr
+
+⚠️ Zwei bestehende Prüfungen zur Reihenfolge in den Einstellungen hingen am Behälter
+`#sheet .inner`. Eine davon prüfte „Download steht vor dem Schließen-Knopf" — den Knopf gibt es
+nicht mehr, gemeint war aber „der Download ist das Letzte". Genau das prüft sie jetzt, ohne
+sich an einen Knopf zu hängen.
+
 ## 12.08.2026 (4) — Drei Kacheln statt vier
 
 Karls Ansage: *„Als erstes müssen log, karte und statistiken zusammengeworfen werden irgendwie,
