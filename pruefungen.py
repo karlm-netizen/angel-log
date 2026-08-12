@@ -3461,6 +3461,68 @@ window.addEventListener('error', e => {
     });
   });
 
+  /* ====== Die Fang-Ansicht: leere Felder (12.08.2026) ======
+     ⚠️ Diese Ansicht hatte bis heute KEINE einzige Pruefung. Genau deshalb konnte in acht
+     Zeilen woertlich "false" stehen, ohne dass irgendetwas gefallen waere -- gemeldet hat
+     es Karl, nicht der Prueflauf. Ein leeres Feld ergab in `kv()` nicht `undefined`,
+     sondern den Boolean `false` (aus `c.wasser != null && ...`), und der alte Filter
+     kannte nur null/undefined/''.
+
+     ⚠️ Geprueft wird der sichtbare Text, nicht der Quelltext der Vorlage. Eine
+     Quelltext-Pruefung haette hier genau die Falle vom 11.08. wiederholt: sie findet
+     ihren Suchbegriff im Kommentar daneben und bleibt gruen. */
+  const detailBauen = rec => {
+    const alt = { c: state.catches, id: state.detailId };
+    state.catches = [rec];
+    state.detailId = rec.id;
+    try { renderDetail(); return document.getElementById('d-body').textContent; }
+    finally { state.catches = alt.c; state.detailId = alt.id; }
+  };
+  const LEER = { id: 'pruef-leer', when: '2026-08-12T10:00:00.000Z', art: 'Hecht' };
+
+  t('leere Felder schreiben kein "false" in die Fang-Ansicht', () => {
+    const txt = detailBauen(LEER);
+    return txt.indexOf('false') === -1 || 'Ansicht enthaelt "false": ' + txt;
+  });
+  t('... und auch kein "undefined"/"null"/"NaN"', () => {
+    const txt = detailBauen(LEER);
+    const treffer = ['undefined', 'null', 'NaN'].filter(s => txt.indexOf(s) !== -1);
+    return treffer.length === 0 || 'Ansicht enthaelt: ' + treffer.join(', ');
+  });
+  t('leere Felder erscheinen gar nicht erst als Zeile', () => {
+    const txt = detailBauen(LEER);
+    const da = ['Wassertemperatur', 'Luftdruck', 'Wassertiefe']
+      .filter(s => txt.indexOf(s) !== -1);
+    return da.length === 0 || 'leere Zeilen trotzdem gezeichnet: ' + da.join(', ');
+  });
+
+  /* ⚠️ Die Gegenprobe ist hier wichtiger als die Pruefung selbst. Der naheliegende Flick
+     waere `if (!v) return ''` gewesen -- der haette "false" auch weggeraeumt und dabei
+     still die Null mitgenommen. 0 °C Wasser ist im Winter ein echter Messwert, 0 %
+     Bewoelkung ein wolkenloser Tag. Ein Flick, der Messwerte verschluckt, ist schlimmer
+     als der Fehler, den er behebt. */
+  t('Gegenprobe: gesetzte Werte stehen weiterhin da', () => {
+    const txt = detailBauen({ ...LEER, wasser: 18.5, druck: 1013, tiefe: 2.5, luft: 22,
+                              bewoelkung: 40, regen24: 1.2, koederGroesse: 7,
+                              koederGewicht: 14 });
+    const fehlt = ['18,5 °C', '1013 hPa', '2,5 m', '22 °C', '40 %', '1,2 mm',
+                   '7 cm', '14 g'].filter(s => txt.indexOf(s) === -1);
+    return fehlt.length === 0 || 'nicht gefunden: ' + fehlt.join(' | ');
+  });
+  t('Gegenprobe: 0 °C Wasser ist ein Messwert, keine Leere', () => {
+    const txt = detailBauen({ ...LEER, wasser: 0, bewoelkung: 0 });
+    return (txt.indexOf('0 °C') !== -1 && txt.indexOf('0 %') !== -1)
+        || 'die Null ist verschwunden: ' + txt;
+  });
+  t('Gegenprobe: der alte Filter liesse "false" wirklich durch', () => {
+    /* Baut den Altstand nach. Faellt diese Pruefung, prueft die erste oben nichts mehr --
+       dann waere der Fehler gar nicht mehr ausdrueckbar und die Wache haette sich selbst
+       abgeschafft, ohne dass es auffiele. */
+    const alt = v => v == null || v === '' ? '' : String(v);
+    return alt(false) === 'false'
+        || 'der nachgebaute Altstand liefert kein "false" mehr — die Wache ist blind';
+  });
+
   (async function(){
     for (const [name, fn] of asyncTests){
       try { const r = await fn(); if (r === true) { ok++; out.push('OK   ' + name); }

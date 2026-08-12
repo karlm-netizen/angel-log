@@ -3009,7 +3009,19 @@ function renderDetail(){
   $('#d-title').textContent = c.art || T('Fang');
   /* ⚠️ Übersetzt wird hier zentral — jede Beschriftung im Detail läuft durch kv().
      Der Wert dahinter bleibt unangetastet: dort stehen Fangdaten. */
-  const kv = (k, v) => v == null || v === '' ? '' : `<div class="kv"><span>${T(k)}</span><b>${v}</b></div>`;
+  /* ⚠️ `v === false` muss mit weggefiltert werden, und zwar hier und nicht bei den
+     Aufrufern. Die schreiben `c.wasser != null && dec(c.wasser) + ' °C'` — ist das Feld
+     leer, ist der ganze Ausdruck der Boolean `false`, nicht `undefined`. Der alte Filter
+     kannte nur `null`/`undefined`/`''` und hat `false` durchgelassen: acht Zeilen der
+     Fang-Ansicht standen dann wörtlich auf „false" (Karls Meldung am 12.08.2026 —
+     Wassertemperatur, Wassertiefe, Lufttemperatur, Luftdruck, Bewölkung, Regen davor,
+     Köder-Größe, Köder-Gewicht).
+     ⚠️ Nicht deutsch-spezifisch, auch wenn es dort aufgefallen ist: durch T() läuft nur
+     die Beschriftung links, der Wert rechts nie. Auf Englisch stand dort dasselbe.
+     ⚠️ Zentral geflickt, weil jeder künftige `!= null &&`-Aufrufer sonst dieselbe Falle
+     neu aufstellt. Ein anzeigbarer Wert ist nie der Boolean `false`. */
+  const kv = (k, v) => v == null || v === '' || v === false
+    ? '' : `<div class="kv"><span>${T(k)}</span><b>${v}</b></div>`;
   const dec = v => String(v).replace('.', ',');
 
   const gal = (c.photos || []).length
@@ -3258,7 +3270,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v33';
+const FASSUNG = 'v34';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);

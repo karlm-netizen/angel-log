@@ -6,6 +6,61 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 12.08.2026 — In der Fang-Ansicht stand „false", wo nichts eingetragen war
+
+Karls Meldung: *„Wenn ich auf einen Fang draufklicke, dann steht bei allem, wo ich nichts
+eingegeben habe, `false` dran."*
+
+**Acht Zeilen waren betroffen:** Wassertemperatur, Wassertiefe, Lufttemperatur, Luftdruck,
+Bewölkung, Regen davor (24 h), Köder-Größe, Köder-Gewicht.
+
+### Was passiert war
+
+Die Zeilen der Fang-Ansicht entstehen alle über einen Helfer `kv(name, wert)`, der leere Werte
+weglässt. Er kannte drei Arten von „leer": `null`, `undefined` und den leeren String.
+
+Die Aufrufer schreiben aber:
+
+```js
+kv('Wassertemperatur', c.wasser != null && dec(c.wasser) + ' °C')
+```
+
+Ist das Feld leer, ist `c.wasser != null` **falsch**, und damit ist der ganze Ausdruck der
+Boolean `false` — keine der drei bekannten Arten von leer. Er wurde also brav angezeigt.
+
+⚠️ **Nicht deutsch-spezifisch**, obwohl es dort aufgefallen ist. Durch die Übersetzung läuft
+nur die Beschriftung links, der Wert rechts nie — auf Englisch stand dort dasselbe.
+
+### Behoben
+
+`kv()` filtert `false` jetzt mit weg, **zentral statt an den acht Aufrufern**. Jeder künftige
+`!= null &&`-Aufruf stellte sonst dieselbe Falle neu auf; ein anzeigbarer Wert ist nie der
+Boolean `false`.
+
+⚠️ **Was hier fast schiefgegangen wäre:** der naheliegende Flick `if (!v) return ''` hätte
+`false` ebenfalls weggeräumt — und dabei still die **Null** mitgenommen. 0 °C Wasser ist im
+Winter ein echter Messwert, 0 % Bewölkung ein wolkenloser Tag. Ein Flick, der Messwerte
+verschluckt, wäre schlimmer gewesen als der Fehler.
+
+### Prüfungen
+
+**509 grün** (von 503). ⚠️ **Die Fang-Ansicht hatte bis heute keine einzige Prüfung** — deshalb
+konnte dort acht Zeilen lang „false" stehen, ohne dass etwas gefallen wäre. Gemeldet hat es
+Karl, nicht der Prüflauf.
+
+Neu sind sechs, davon drei Gegenproben:
+- leere Felder erzeugen kein „false", kein „undefined"/„null"/„NaN", und gar keine Zeile
+- gesetzte Werte stehen weiterhin da (alle acht, mit Einheit)
+- **0 °C und 0 % überleben** — die Gegenprobe gegen den falschen Flick
+- der nachgebaute alte Filter liefert nachweislich noch „false"; fällt diese Prüfung, prüft
+  die erste nichts mehr
+
+Gegengeprobt: mit zurückgenommenem Fix fällt die Prüfung und nennt alle acht Zeilen namentlich.
+
+⚠️ Geprüft wird der **sichtbare Text**, nicht der Quelltext der Vorlage. Eine
+Quelltext-Prüfung hätte die Falle vom 11.08. wiederholt: sie findet ihren Suchbegriff im
+Kommentar daneben und bleibt grün.
+
 ## 11.08.2026 (2) — Der Abgleich läuft jetzt hinter dem Ladebildschirm
 
 Karls Ansage direkt danach: *„mach das bitte währenddessen das intro lädt und wenn es länger
