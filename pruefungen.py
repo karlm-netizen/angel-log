@@ -3514,6 +3514,123 @@ window.addEventListener('error', e => {
     });
   });
 
+  /* ====== Die Einrichtung im Tutorial (12.08.2026) ======
+     Karls Ansage: "ein tutorial wo man sich einrichtet ... es wird abgefragt
+     wofuer man die app braucht".
+
+     ⚠️ Der Kern dieser Pruefungen ist nicht, dass die Fragen erscheinen, sondern
+     dass die Antworten **etwas aendern**. Eine Einrichtung, die nur fragt und
+     danach dieselbe App hinstellt, ist eine Umfrage -- und die merkt der
+     Benutzer beim ersten Fang, nicht der Prueflauf. */
+  const profilSetzen = p => {
+    if (p === null) localStorage.removeItem('angellog-profil');
+    else localStorage.setItem('angellog-profil', JSON.stringify(p));
+  };
+
+  t('ohne Profil bleibt die Artenliste genau die alte', () => {
+    profilSetzen(null);
+    return (artenListe().join('|') === ARTEN.join('|'))
+        || 'Liste veraendert, obwohl kein Profil gesetzt ist';
+  });
+  t('ohne Profil bleibt auch die Koederliste die alte', () => {
+    profilSetzen(null);
+    return (koederListe().join('|') === KOEDER.join('|'))
+        || 'Koederliste veraendert ohne Profil';
+  });
+
+  t('"Meer" bringt Meeresfische und laesst Karpfen weg', () => {
+    profilSetzen({ wo: 'meer' });
+    const l = artenListe();
+    return (l.indexOf('Dorsch') !== -1 && l.indexOf('Hering') !== -1
+         && l.indexOf('Karpfen') === -1)
+        || 'Liste: ' + l.slice(0, 6).join(', ');
+  });
+  t('"Beides" hat Dorsch und Karpfen', () => {
+    profilSetzen({ wo: 'beides' });
+    const l = artenListe();
+    return (l.indexOf('Dorsch') !== -1 && l.indexOf('Karpfen') !== -1)
+        || 'Liste: ' + l.slice(0, 6).join(', ');
+  });
+  t('Zielfische stehen ganz oben', () => {
+    profilSetzen({ wo: 'see', ziele: ['Karpfen', 'Schleie'] });
+    const l = artenListe();
+    return (l[0] === 'Karpfen' && l[1] === 'Schleie')
+        || 'oben steht: ' + l.slice(0, 3).join(', ');
+  });
+  /* ⚠️ Eine Wahl darf nichts wegnehmen, nur umsortieren. Wer "Spinnfischen"
+     angibt und dann doch einmal mit Wurm ansitzt, braucht den Wurm trotzdem --
+     sonst hat die Einrichtung ihm die App beschnitten statt sie einzustellen. */
+  t('kein Koeder verschwindet, er rutscht nur nach hinten', () => {
+    profilSetzen({ wo: 'see', wie: ['spinn'] });
+    const l = koederListe();
+    return (l[0] === 'Gummifisch' && l.indexOf('Tauwurm') !== -1
+         && l.indexOf('Fliege') !== -1)
+        || 'Liste: ' + l.join(', ');
+  });
+  t('am Meer stehen Pilker und Wattwurm vorn', () => {
+    profilSetzen({ wo: 'meer', wie: ['spinn'] });
+    const l = koederListe();
+    return (l.indexOf('Pilker') < l.indexOf('Gummifisch') && l.indexOf('Wattwurm') !== -1)
+        || 'Liste: ' + l.slice(0, 6).join(', ');
+  });
+  t('doppelte Eintraege gibt es nicht', () => {
+    profilSetzen({ wo: 'beides', wie: ['spinn', 'ansitz', 'fliege'], ziele: ['Dorsch'] });
+    for (const l of [artenListe(), koederListe()]){
+      if (new Set(l).size !== l.length) return 'Doppelte in: ' + l.join(', ');
+    }
+    return true;
+  });
+
+  t('eine Frage im Tutorial schreibt ins Profil', () => {
+    profilSetzen(null);
+    tourWaehlen('wo', 'meer', false);
+    return profilLesen().wo === 'meer' || 'Profil: ' + JSON.stringify(profilLesen());
+  });
+  t('bei Mehrfachauswahl schaltet dasselbe Feld wieder ab', () => {
+    profilSetzen(null);
+    tourWaehlen('wie', 'spinn', true);
+    tourWaehlen('wie', 'ansitz', true);
+    const zwei = (profilLesen().wie || []).length;
+    tourWaehlen('wie', 'spinn', true);
+    const eins = profilLesen().wie || [];
+    return (zwei === 2 && eins.length === 1 && eins[0] === 'ansitz')
+        || `nach zwei ${zwei}, danach ${JSON.stringify(eins)}`;
+  });
+  /* ⚠️ Die Zielfisch-Karte baut ihre Auswahl aus der Antwort davor. Wer "Meer"
+     gewaehlt hat und dann Karpfen vorgeschlagen bekaeme, saehe sofort, dass die
+     Frage davor folgenlos war. */
+  t('die Zielfisch-Frage folgt der Gewaesser-Antwort', () => {
+    profilSetzen({ wo: 'meer' });
+    return (artenListe().slice(0, 12).indexOf('Dorsch') !== -1
+         && artenListe().slice(0, 12).indexOf('Karpfen') === -1)
+        || 'Auswahl: ' + artenListe().slice(0, 12).join(', ');
+  });
+  t('und die Vorschlagsliste im Formular zieht wirklich nach', () => {
+    /* Der eigentliche Beweis: nicht die Hilfsfunktion, sondern das <datalist>,
+       das beim Eintragen eines Fangs aufgeht.
+       ⚠️ Es steht erst da, wenn jemand tippt (bindSuggest fuellt bei leerem Feld
+       bewusst nichts) -- deshalb wird hier getippt statt nur gebaut. Die erste
+       Fassung dieser Pruefung hat auf das leere <datalist> geschaut und ist
+       gefallen, obwohl am Code nichts falsch war. */
+    profilSetzen({ wo: 'meer' });
+    buildStatics();
+    const feld = document.getElementById('f-art');
+    const tippen = s => {
+      feld.value = s;
+      feld.dispatchEvent(new Event('input'));
+      return Array.from(document.querySelectorAll('#dl-art option')).map(o => o.value);
+    };
+    const meer = tippen('do');
+    const suess = tippen('karpf');
+    feld.value = '';
+    feld.dispatchEvent(new Event('input'));
+    return (meer.indexOf('Dorsch') !== -1 && suess.length === 0)
+        || `bei "do": ${meer.join(', ')} — bei "karpf": ${suess.join(', ')}`;
+  });
+
+  profilSetzen(null);   // ⚠️ aufraeumen, sonst laufen die folgenden Pruefungen
+  buildStatics();       //    mit einem Meer-Profil weiter
+
   /* ====== Das Postfach und die rote Zahl (12.08.2026) ======
      Karls Ansage: eine beantwortete Meldung soll in den Einstellungen auftauchen,
      rote Zahl am Zahnrad und am Postfach, darin alle Tickets der letzten 30 Tage. */

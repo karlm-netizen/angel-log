@@ -6,6 +6,71 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 12.08.2026 (3) — Die Einführung richtet die App jetzt ein
+
+Karls Ansage: *„ich will vor allem, da ich das so aus anderen apps kenne, ein tutorial haben,
+damit man gehookt wird von der app — ein tutorial wo man sich einrichtet, es wird abgefragt
+wofür man die app braucht, was man damit macht, was man am meisten nutzen wird."*
+
+Aus vier Erklärkarten werden **sieben Schritte: drei davon fragen, vier erklären.**
+
+| | Frage | Was sie ändert |
+|---|---|---|
+| 🗺️ | Süßwasser, Meer oder beides? | welche **Fischarten** vorgeschlagen werden |
+| 🎯 | Spinnfischen, Ansitz, Fliege? (mehrfach) | welche **Köder** oben stehen |
+| 🏆 | Zielfische? (mehrfach) | sie stehen beim Eintragen **ganz oben** |
+
+⚠️ **Jede Frage muss etwas ändern, sonst ist es eine Umfrage** — und das merkt der Benutzer
+beim ersten Fang, nicht der Prüflauf. Deshalb hängt an jeder eine sichtbare Folge, und die
+Zielfisch-Karte baut ihre Auswahl aus der Antwort davor: wer „Meer" gewählt hat, bekommt dort
+Dorsch und Hering zur Auswahl und nicht Karpfen.
+
+### 🌊 Dabei kam ein echter Mangel heraus: die App kannte nur Süßwasser
+
+Sie holt seit jeher Wassertemperaturen von der **Meeresoberfläche** und rechnet mit
+Küstenpegeln — aber die Vorschlagsliste bestand aus Hecht, Karpfen und Schleie. Wer damit auf
+Dorsch ging, bekam eine Liste, in der sein Fisch nicht vorkam.
+
+Neu dazu: **14 Meeresfische** (Dorsch, Hering, Makrele, Meerforelle, Scholle, Flunder, Wittling,
+Hornhecht, Seelachs, Kliesche, Steinbutt, Lachs, Knurrhahn, Seeskorpion) und **6 Meeresköder**
+(Pilker, Gummimakk, Heringspaternoster, Wattwurm, Seeringelwurm, Buttlöffel), alle mit
+englischer Fassung.
+
+⚠️ **Die Liste hat nie behauptet, vollständig zu sein — aber sie hat entschieden, was
+naheliegt, und Meeresangeln lag danach nie nahe.**
+
+### Drei Regeln, an die sich die Einrichtung hält
+
+1. ⚠️ **Sie nimmt nichts weg, sie sortiert um.** Wer „Spinnfischen" angibt und dann doch mit
+   Wurm ansitzt, findet den Wurm weiter unten in der Liste. Eine Einrichtung, die die App
+   beschneidet statt sie einzustellen, wäre schlechter als keine. (Einzige Ausnahme: „Meer"
+   blendet die Süßwasserarten aus — sonst stünden 38 Fische in einer Liste, die 12 zeigt.)
+2. ⚠️ **Keine Frage ist Pflicht.** „Weiter" ohne Auswahl geht überall, und dann bleibt alles
+   wie vorher. Eine Einrichtung, die man nicht überspringen kann, ist eine Hürde vor der App,
+   nicht ein Weg hinein.
+3. ⚠️ **Ohne Profil ändert sich gar nichts.** Wer die App schon benutzt, verliert durch die
+   Einführung nichts, was er kannte. Hart geprüft.
+
+Die Antworten werden **sofort** wirksam, nicht erst am Ende — wer mittendrin abbricht, behält,
+was er eingestellt hat. Über *Einstellungen → Kurze Einführung ansehen* lässt sich alles
+jederzeit neu setzen.
+
+⚠️ **Das Profil bleibt auf dem Gerät** und geht nicht ins Konto. Es verlässt die App nicht,
+also ändert sich am Datenschutztext nichts. Preis: auf einem zweiten Gerät wird es neu gesetzt.
+
+⚠️ **Die Auswahl hängt nicht allein an der Farbe** (Rand + Fettschrift + Haken) — auf den
+helleren Paletten wäre ein farbiger Rand sonst kaum zu sehen.
+
+### Prüfungen
+
+**532 grün** (von 520). Zwölf neue, und der Kern ist nicht, dass die Fragen erscheinen, sondern
+dass die Antworten wirken: „Meer" bringt Dorsch und lässt Karpfen weg, Zielfische stehen oben,
+kein Köder verschwindet, keine Doppelten — und zuletzt die Probe am echten `<datalist>` des
+Formulars statt an der Hilfsfunktion.
+
+⚠️ **Diese letzte Prüfung ist erst gefallen, obwohl der Code stimmte:** die Vorschlagsliste
+füllt sich absichtlich erst beim Tippen. Sie tippt jetzt, statt auf ein leeres Feld zu schauen.
+
 ## 12.08.2026 (2) — Tickets: Sperre, Postfach, Antwort per Discord
 
 Karls Ansage: *„Support zeitlich limitieren … und ich möchte das der user ein feedback bekommt

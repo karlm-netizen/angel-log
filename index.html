@@ -398,6 +398,24 @@ setTimeout(function(){
   .tour h2{font-size:23px; font-weight:800; letter-spacing:-.4px; text-align:center; margin-bottom:10px}
   .tour p{font-size:15px; line-height:1.6; color:var(--muted); text-align:center; margin:0 auto; max-width:330px}
   .tour .mitte{flex:1; display:flex; flex-direction:column; justify-content:center; padding:10px 0 24px}
+  /* Auswahl auf den Fragekarten der Einführung (12.08.2026).
+     ⚠️ Umbruch statt fester Spaltenzahl: die Zielfisch-Karte zeigt zwölf
+        Fischnamen sehr unterschiedlicher Länge („Aal" neben „Regenbogenforelle").
+        Ein starres Raster ließe entweder die Hälfte leer oder schnitte ab. */
+  .tour .tour-wahl{display:flex; flex-wrap:wrap; gap:8px; justify-content:center;
+    margin:20px auto 0; max-width:340px}
+  .tour .tour-opt{flex:1 1 auto; min-width:96px; max-width:100%;
+    background:var(--card); border:1.5px solid var(--line); border-radius:14px;
+    padding:10px 12px; color:var(--fg); font:inherit; font-size:14px;
+    font-weight:600; cursor:pointer; text-align:center; line-height:1.35}
+  .tour .tour-opt small{display:block; font-weight:400; font-size:11.5px;
+    color:var(--muted); margin-top:2px}
+  .tour .tour-opt.da{border-color:var(--accent); background:var(--accent-weich, var(--card))}
+  /* ⚠️ Die Auswahl darf nicht allein an der Farbe hängen — auf den helleren
+     Paletten ist der Rand sonst kaum zu sehen, und Rot-Grün-Sehschwäche gibt es
+     auch beim Angeln. Deshalb zusätzlich fett und ein Haken. */
+  .tour .tour-opt.da span::after{content:' ✓'; color:var(--accent)}
+
   .tour .punkte{display:flex; gap:7px; justify-content:center; margin-bottom:18px}
   .tour .punkte i{width:7px; height:7px; border-radius:99px; background:var(--line)}
   .tour .punkte i.da{background:var(--accent)}
@@ -1080,6 +1098,13 @@ const EN = {
   'fallend': 'falling',
   'gleichbleibend': 'steady',
   'Hecht': 'Pike',
+  'Dorsch': 'Cod', 'Hering': 'Herring', 'Makrele': 'Mackerel',
+  'Meerforelle': 'Sea trout', 'Scholle': 'Plaice', 'Flunder': 'Flounder',
+  'Wittling': 'Whiting', 'Hornhecht': 'Garfish', 'Seelachs': 'Pollock',
+  'Kliesche': 'Dab', 'Steinbutt': 'Turbot', 'Lachs': 'Salmon',
+  'Knurrhahn': 'Gurnard', 'Seeskorpion': 'Bull rout',
+  'Pilker': 'Pirk', 'Gummimakk': 'Shrimp rig', 'Heringspaternoster': 'Herring rig',
+  'Wattwurm': 'Lugworm', 'Seeringelwurm': 'Ragworm', 'Buttlöffel': 'Flounder spoon',
   'Zander': 'Zander',
   'Barsch': 'Perch',
   'Wels': 'Catfish',
@@ -1385,6 +1410,21 @@ const EN = {
   'Kurze Einführung ansehen': 'View the short introduction',
   '🐞 Fehler melden': '🐞 Report a problem',
   '📬 Postfach': '📬 Mailbox',
+  'Wo bist du unterwegs?': 'Where do you fish?',
+  'Danach richten sich die Fische, die dir beim Eintragen vorgeschlagen werden.':
+    'This decides which fish are suggested when you log a catch.',
+  'See, Fluss, Kanal': 'Lake, river, canal',
+  'Küste, Belt, Bodden': 'Coast, sound, lagoon',
+  'mal so, mal so': 'a bit of both',
+  'Wie angelst du am liebsten?': 'How do you like to fish?',
+  'Mehrfach möglich. Danach richtet sich, welche Köder oben stehen.':
+    'Pick as many as you like. This decides which baits come first.',
+  'Gummi, Wobbler, Blinker': 'Soft plastics, crankbaits, spoons',
+  'Wurm, Mais, Boilie': 'Worm, corn, boilie',
+  'Fliege, Streamer': 'Fly, streamer',
+  'Auf welche Fische hast du es abgesehen?': 'Which fish are you after?',
+  'Mehrfach möglich — sie stehen beim Eintragen ganz oben. Kein Muss: eintragen kannst du sowieso jeden Fisch.':
+    'Pick as many as you like — they will sit at the top when you log a catch. Not a limit: you can always log any fish.',
   'Noch kurz warten': 'Just a moment',
   'Hier stehen deine Meldungen der letzten 30 Tage — und die Antworten darauf.':
     'Your reports from the last 30 days — and the replies to them.',
@@ -1590,9 +1630,73 @@ const ARTEN = ['Hecht','Zander','Barsch','Wels','Aal','Karpfen','Schleie','Brass
   'Rotfeder','Döbel','Rapfen','Bachforelle','Regenbogenforelle','Seeforelle','Saibling','Äsche',
   'Karausche','Güster','Quappe','Hasel','Nase','Graskarpfen','Stör'];
 
-const KOEDER = ['Gummifisch','Wobbler','Blinker','Spinner','Jerkbait','Crankbait','Spinnerbait',
-  'Chatterbait','Dropshot-Gummi','Creature Bait','Fliege','Streamer','Tauwurm','Made','Mais',
-  'Boilie','Pellet','Köderfisch','Teig','Kirschmade'];
+/* ⚠️ Bis zum 12.08.2026 kannte die App **nur Süßwasser**. Sie holt seit jeher
+   Wassertemperaturen von der Meeresoberfläche und rechnet mit Küstenpegeln — wer
+   damit auf Dorsch geht, bekam trotzdem eine Vorschlagsliste voller Karpfen und
+   Schleien. Die Liste hat nie behauptet, vollständig zu sein, aber sie hat
+   entschieden, was naheliegt, und Meeresangeln lag danach nie nahe. */
+const ARTEN_MEER = ['Dorsch','Hering','Makrele','Meerforelle','Scholle','Flunder','Wittling',
+  'Hornhecht','Seelachs','Kliesche','Steinbutt','Lachs','Knurrhahn','Seeskorpion'];
+
+const KOEDER_SPINN  = ['Gummifisch','Wobbler','Blinker','Spinner','Jerkbait','Crankbait',
+  'Spinnerbait','Chatterbait','Dropshot-Gummi','Creature Bait'];
+const KOEDER_ANSITZ = ['Tauwurm','Made','Mais','Boilie','Pellet','Köderfisch','Teig','Kirschmade'];
+const KOEDER_FLIEGE = ['Fliege','Streamer'];
+const KOEDER_MEER   = ['Pilker','Gummimakk','Heringspaternoster','Wattwurm','Seeringelwurm',
+  'Buttlöffel'];
+
+const KOEDER = [...KOEDER_SPINN, ...KOEDER_FLIEGE, ...KOEDER_ANSITZ];
+
+/* ---------- Das Angelprofil (12.08.2026) ----------
+   Karls Ansage: „ein tutorial wo man sich einrichtet … es wird abgefragt wofür
+   man die app braucht, was man damit macht, was man am meisten nutzen wird."
+
+   ⚠️ Drei Fragen, und **jede muss etwas ändern**. Eine Einrichtung, die nur
+   fragt und danach dieselbe App hinstellt, ist eine Umfrage — und die merkt der
+   Benutzer beim ersten Fang. Was sie ändern: die Vorschlagslisten für Fischart
+   und Köder, und zwar sowohl den Inhalt (Meeresfische kommen dazu) als auch die
+   Reihenfolge (Zielfische zuerst).
+
+   ⚠️ Nichts davon schränkt ein. Jedes Feld bleibt frei tippbar; wer „Dorsch" in
+   ein Süßwasser-Profil einträgt, bekommt keinen Widerspruch. Vorschläge sind
+   Abkürzungen, keine Regeln. */
+const PROFIL_KEY = 'angellog-profil';
+
+function profilLesen(){
+  try { return JSON.parse(localStorage.getItem(PROFIL_KEY) || 'null') || {}; }
+  catch { return {}; }
+}
+function profilSchreiben(p){
+  try { localStorage.setItem(PROFIL_KEY, JSON.stringify(p)); } catch {}
+}
+
+/* Die Fischarten, die dieser Angler zuerst sehen soll.
+   ⚠️ Ohne Profil kommt die alte Liste unverändert heraus. Wer die App schon
+   benutzt, soll durch die Einführung nichts verlieren, was er kannte. */
+function artenListe(){
+  const p = profilLesen();
+  const basis = p.wo === 'meer'  ? ARTEN_MEER
+              : p.wo === 'beides' ? [...ARTEN_MEER, ...ARTEN]
+              : ARTEN;
+  const ziele = (p.ziele || []).filter(a => basis.indexOf(a) !== -1);
+  return [...ziele, ...basis.filter(a => ziele.indexOf(a) === -1)];
+}
+
+function koederListe(){
+  const p = profilLesen();
+  const wie = p.wie || [];
+  if (!wie.length && !p.wo) return KOEDER;
+  const teile = [];
+  if (wie.indexOf('spinn')  !== -1) teile.push(...KOEDER_SPINN);
+  if (wie.indexOf('ansitz') !== -1) teile.push(...KOEDER_ANSITZ);
+  if (wie.indexOf('fliege') !== -1) teile.push(...KOEDER_FLIEGE);
+  if (p.wo === 'meer' || p.wo === 'beides') teile.unshift(...KOEDER_MEER);
+  /* Was der Angler nicht gewählt hat, verschwindet nicht — es rutscht nur nach
+     hinten. Sonst fehlte beim ersten Ausflug der Sorte genau der Vorschlag, den
+     er dann braucht. */
+  const rest = [...KOEDER_MEER, ...KOEDER].filter(k => teile.indexOf(k) === -1);
+  return [...teile, ...rest];
+}
 
 // Mehrfachauswahl möglich — ein Köder hat selten nur eine Farbe.
 // Der zweite Eintrag ist ein CSS-Hintergrund, kein reiner Farbwert: Muster wie
@@ -2564,8 +2668,11 @@ function bindSuggest(inputSel, listSel, quelle){
 function buildStatics(){
   /* ⚠️ Nur die Vorschläge werden übersetzt, nicht das Eingetippte. Wer „Hecht"
      gespeichert hat, hat „Hecht" gespeichert — auch auf Englisch. */
-  bindSuggest('#f-art',    '#dl-art',    ARTEN.map(T));
-  bindSuggest('#f-koeder', '#dl-koeder', KOEDER.map(T));
+  /* ⚠️ Aus dem Profil abgeleitet, nicht mehr aus der festen Liste — sonst hätte
+     die Einrichtung im Tutorial keine sichtbare Folge. buildStatics() läuft nach
+     jeder Profiländerung erneut, damit die Liste sofort stimmt. */
+  bindSuggest('#f-art',    '#dl-art',    artenListe().map(T));
+  bindSuggest('#f-koeder', '#dl-koeder', koederListe().map(T));
   $('#f-windrichtung').innerHTML =
     '<option value="">—</option>' + DIRS.map(d => `<option value="${d}">${d}</option>`).join('');
   $('#ch-phase').innerHTML = PHASEN.map(([k, l]) => `<button class="chip" data-phase="${k}">${T(l)}</button>`).join('');
@@ -3300,7 +3407,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v35';
+const FASSUNG = 'v36';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -4552,10 +4659,37 @@ function datenschutzDE(){
    da. Eine Einführung, die man nicht wegklicken kann, macht niemanden neugierig,
    sondern ungeduldig. */
 const TOUR_KEY = 'angellog-tour';
+
+/* ⚠️ Zwei Sorten Karten, absichtlich abwechselnd: Karten, die sagen, **was die
+   App für einen tut**, und Karten, die **fragen**. Die alte Regel gilt weiter —
+   keine Bedienungsanleitung, Knöpfe findet man, einen Grund nicht.
+   Neu ist die zweite Sorte (Karls Ansage vom 12.08.2026): eine Einrichtung, bei
+   der man selbst etwas einstellt, statt nur durchzuklicken. Deshalb steht hinter
+   jeder Frage eine sichtbare Folge, und die Karte danach sagt sie an. */
 const TOUR = [
   { bild: '🎣', titel: 'Dein Fangbuch',
     text: 'Jeder Fisch mit Foto, Länge, Gewicht und Köder — an einem Ort statt in der Kamerarolle. '
         + 'Nach ein paar Wochen steht da eine Saison, die du wirklich nachlesen kannst.' },
+
+  { bild: '🗺️', titel: 'Wo bist du unterwegs?',
+    text: 'Danach richten sich die Fische, die dir beim Eintragen vorgeschlagen werden.',
+    feld: 'wo', mehrfach: false,
+    optionen: [['see', '🏞️ Süßwasser', 'See, Fluss, Kanal'],
+               ['meer', '🌊 Meer', 'Küste, Belt, Bodden'],
+               ['beides', '🎣 Beides', 'mal so, mal so']] },
+
+  { bild: '🎯', titel: 'Wie angelst du am liebsten?',
+    text: 'Mehrfach möglich. Danach richtet sich, welche Köder oben stehen.',
+    feld: 'wie', mehrfach: true,
+    optionen: [['spinn', '🐟 Spinnfischen', 'Gummi, Wobbler, Blinker'],
+               ['ansitz', '🪑 Ansitz', 'Wurm, Mais, Boilie'],
+               ['fliege', '🪶 Fliegenfischen', 'Fliege, Streamer']] },
+
+  { bild: '🏆', titel: 'Auf welche Fische hast du es abgesehen?',
+    text: 'Mehrfach möglich — sie stehen beim Eintragen ganz oben. Kein Muss: eintragen '
+        + 'kannst du sowieso jeden Fisch.',
+    feld: 'ziele', mehrfach: true, ausArten: true },
+
   { bild: '🌦️', titel: 'Das Drumherum kommt von allein',
     text: 'Wetter, Luftdruck, Mondphase, Wasserstand und sogar das Gewässer holt die App aus '
         + 'Zeit und Standort. Du tippst den Fisch ein — der Rest steht schon da.' },
@@ -4577,20 +4711,74 @@ function tourSchliessen(){
   $('#tour').classList.remove('on');
   try { localStorage.setItem(TOUR_KEY, String(Date.now())); } catch {}
 }
+/* Die Auswahl auf einer Fragekarte. `mehrfach` entscheidet, ob ein Antippen
+   umschaltet oder ersetzt. */
+function tourWaehlen(feld, wert, mehrfach){
+  const p = profilLesen();
+  if (!mehrfach){
+    p[feld] = wert;
+  } else {
+    const l = Array.isArray(p[feld]) ? p[feld].slice() : [];
+    const i = l.indexOf(wert);
+    if (i === -1) l.push(wert); else l.splice(i, 1);
+    p[feld] = l;
+  }
+  profilSchreiben(p);
+  /* ⚠️ Sofort neu aufbauen, nicht erst am Ende der Tour. Die Zielfisch-Karte
+     weiter hinten liest die Artenliste, die aus **dieser** Antwort folgt — wer
+     „Meer" wählt, muss auf der nächsten Frage Dorsch und Hering sehen und nicht
+     Karpfen. Und wer die Tour mittendrin abbricht, hat trotzdem, was er
+     eingestellt hat. */
+  try { buildStatics(); } catch {}
+  tourRendern();
+}
+
 function tourRendern(){
   const k = TOUR[tourNr];
   const letzte = tourNr === TOUR.length - 1;
+  const p = profilLesen();
+
+  /* Die Zielfisch-Karte hat keine feste Auswahl — sie kommt aus den Antworten
+     davor. Deshalb hier gebaut und nicht oben in der Tabelle. */
+  const optionen = k.ausArten
+    ? artenListe().slice(0, 12).map(a => [a, T(a), ''])
+    : (k.optionen || []);
+
+  const gewaehlt = w => k.mehrfach
+    ? (Array.isArray(p[k.feld]) ? p[k.feld] : []).indexOf(w) !== -1
+    : p[k.feld] === w;
+
+  const auswahl = optionen.length ? `
+    <div class="tour-wahl">
+      ${optionen.map(([w, beschriftung, dazu]) => `
+        <button type="button" class="tour-opt${gewaehlt(w) ? ' da' : ''}"
+                data-wert="${esc(w)}">
+          <span>${esc(beschriftung)}</span>
+          ${dazu ? `<small>${T(dazu)}</small>` : ''}
+        </button>`).join('')}
+    </div>` : '';
+
+  /* ⚠️ Eine Frage darf nicht zwingend sein. Wer nichts anwählt, kommt mit
+     „Weiter" durch und bekommt die unveränderte Liste — eine Einrichtung, die
+     man nicht überspringen kann, ist eine Hürde vor der App, nicht ein Weg
+     hinein. */
   $('#tour-inner').innerHTML = `
     <div class="mitte">
       <div class="bild" aria-hidden="true">${k.bild}</div>
       <h2>${T(k.titel)}</h2>
       <p>${T(k.text)}</p>
+      ${auswahl}
     </div>
     <div class="punkte" aria-hidden="true">
       ${TOUR.map((_, i) => `<i class="${i === tourNr ? 'da' : ''}"></i>`).join('')}
     </div>
     <button class="btn primary" id="tour-weiter">${T(letzte ? 'Los geht’s' : 'Weiter')}</button>
     <button class="weg" id="tour-weg">${letzte ? '' : T('Überspringen')}</button>`;
+
+  $('#tour-inner').querySelectorAll('.tour-opt').forEach(b => {
+    b.onclick = () => tourWaehlen(k.feld, b.dataset.wert, k.mehrfach);
+  });
+
   $('#tour-weiter').onclick = () => {
     if (letzte) return tourSchliessen();
     tourNr++; tourRendern();
