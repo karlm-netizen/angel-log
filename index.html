@@ -254,20 +254,47 @@ setTimeout(function(){
         als das halbe Bild. Genau so ragt am Handy etwas heraus. */
   #list{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; margin-top:10px}
   #list .empty{grid-column:1 / -1}
-  .item{display:flex; flex-direction:column; background:var(--card);
-    border:1px solid var(--line); border-radius:14px; padding:8px; min-width:0}
-  .item .th{width:100%; aspect-ratio:4/3; border-radius:10px; overflow:hidden;
-    background:var(--card2); display:grid; place-items:center; color:var(--muted); font-size:26px}
+  /* ---- Die Fangkachel (13.08.2026, zweiter Anlauf) ----
+     ⚠️ Erste Fassung war ein 4:3-Bild mit Text darunter. Karls Meldung noch am selben
+        Abend: **„hochkant fotos machen gerade probleme, das sieht sehr komisch aus."**
+        Er hat recht, und der Grund ist nicht Geschmack: ein Handyfoto ist hochkant,
+        `object-fit:cover` in einem Querformat-Rahmen schneidet ihm oben und unten je ein
+        Viertel weg — und beim Angeln steht der Fisch genau dort, wo geschnitten wird.
+     ➡️ Die Kachel ist jetzt selbst **hochkant (3:4)** und das Foto füllt sie ganz; der
+        Text liegt darauf (Karls eigener Vorschlag). Ein Querformat-Foto wird jetzt
+        beschnitten statt eines Hochformats — das ist der bessere Tausch, weil fast jedes
+        Foto hier vom Handy kommt.
+     ⚠️ Der Verlauf unter dem Text ist **nicht Dekoration**. Ohne ihn steht weiße Schrift
+        auf hellem Wasser oder Sand, und dann ist sie schlicht weg. */
+  .item{position:relative; display:block; aspect-ratio:3/4; overflow:hidden;
+    border:1px solid var(--line); border-radius:14px; background:var(--card2); min-width:0}
+  .item .th{position:absolute; inset:0; display:grid; place-items:center;
+    color:var(--muted); font-size:34px}
   .item .th img{width:100%; height:100%; object-fit:cover; display:block}
+  .item .txt{position:absolute; left:0; right:0; bottom:0; padding:8px 8px 9px; z-index:1;
+    background:linear-gradient(to top, rgba(0,0,0,.88) 0%, rgba(0,0,0,.62) 55%, rgba(0,0,0,0) 100%);
+    color:#fff}
+  /* Ohne Foto gibt es nichts abzudunkeln — dort steht der Text auf der Karte selbst,
+     sonst läge auf den hellen Paletten ein grauer Streifen ohne Anlass. */
+  .item.ohne-foto{background:var(--card)}
+  .item.ohne-foto .txt{background:none; color:var(--txt)}
+  .item.ohne-foto .t3{color:var(--muted)}
   /* ⚠️ Alle drei Textzeilen mit `overflow:hidden` + `ellipsis`. Ohne das ist ein einziger
      langer Fischname der Grund, warum die Kachel seitlich aus dem Bild läuft. */
   .item .t1, .item .t2, .item .t3{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-  .item .t1{font-size:14px; font-weight:700; margin-top:7px}
-  .item .t2{font-size:12.5px; margin-top:2px}
-  .item .t3{font-size:11.5px; color:var(--muted); margin-top:2px}
-  .item .marks{display:flex; gap:4px; margin-top:6px; flex-wrap:wrap}
-  .item .marks .pill{font-size:10px; padding:2px 6px}
-  .item.entwurf{border-color:var(--warn); box-shadow:inset 3px 0 0 var(--warn)}
+  .item .t1{font-size:14px; font-weight:700}
+  .item .t2{font-size:12.5px; margin-top:1px}
+  .item .t3{font-size:11.5px; opacity:.85; margin-top:1px}
+  /* ---- Die gelbe Leiste oben (Karls Ansage vom 13.08.2026) ----
+     „kannst du die oben sozusagen auf die gelbe linie machen wenn sie da sind."
+     Vorher war die gelbe Linie ein Streifen links **ohne Text** und die Schilder standen
+     unten in der Kachel. Jetzt trägt die Linie selbst die Beschriftung — eine Sache statt
+     zweier, die dasselbe sagen. */
+  .item .marks{position:absolute; top:0; left:0; right:0; z-index:2;
+    background:var(--warn); color:#241a02; font-size:10px; font-weight:700;
+    padding:3px 7px; letter-spacing:.2px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .item.markiert{border-color:var(--warn)}
   .pill.warn{background:var(--warn); color:#241a02; font-weight:700}
 
   /* „nur auf diesem Gerät" — umrandet statt gefüllt, anders als der Entwurf-Hinweis.
@@ -3403,27 +3430,31 @@ function renderList(){
        alle im Fang selbst, einen Tipper entfernt.
 
        ⚠️ **Zwei Schilder bleiben trotzdem, und das ist kein Übergehen der Ansage.**
-       „Entwurf" und „nur auf diesem Gerät" sind keine Fangdaten, sondern **Zustände der
-       App**: das eine sagt, dass der Eintrag halb ist, das andere, dass er nirgendwo
-       sonst liegt. Das zweite ist am 08.08. gebaut worden, nachdem zwei Fänge des
-       Kollegen verloren waren — es aus der Liste zu nehmen, hieße genau die Warnung
-       abzuschalten, die der Anlass war. Beide sind auf Kachelgröße geschrumpft. */
-    const marks = (c.entwurf ? `<span class="pill warn">${T('Entwurf')}</span>` : '')
-      + (offen.has(c.id) ? `<span class="pill offen">${T('nur hier')}</span>` : '');
+       „Entwurf" und „nur hier" sind keine Fangdaten, sondern **Zustände der App**: das
+       eine sagt, dass der Eintrag halb ist, das andere, dass er nirgendwo sonst liegt.
+       Das zweite ist am 08.08. gebaut worden, nachdem zwei Fänge des Kollegen verloren
+       waren — es aus der Liste zu nehmen hieße, genau die Warnung abzuschalten, die der
+       Anlass war.
+       ➡️ Seit dem zweiten Anlauf am 13.08. stehen sie **oben auf der gelben Leiste**
+       (Karls Ansage), nicht mehr als Pillen unten in der Kachel. */
+    const zustaende = [c.entwurf && T('Entwurf'), offen.has(c.id) && T('nur hier')]
+      .filter(Boolean);
+    if (zustaende.length) el.classList.add('markiert');
 
-    const th = (c.photos && c.photos[0])
-      ? `<img src="${objURL(c.photos[0].thumb)}" alt="">`
-      : '🐟';
+    const foto = c.photos && c.photos[0];
+    if (!foto) el.classList.add('ohne-foto');
 
     /* Datum ohne Uhrzeit. In einer Kachel von rund 130 px stünde „12.08.2026 · 10:00"
        sonst allein über die ganze Zeile und schöbe das Gewässer heraus — die Uhrzeit
        steht im Fang. */
     el.innerHTML = `
-      <div class="th">${th}</div>
-      <div class="t1">${esc(c.art || T('Fang'))}</div>
-      <div class="t2">${size || '—'}</div>
-      <div class="t3">${fmtTag(c.when)}${c.gewaesser ? ' · ' + esc(c.gewaesser) : ''}</div>
-      ${marks ? `<div class="marks">${marks}</div>` : ''}`;
+      <div class="th">${foto ? `<img src="${objURL(foto.thumb)}" alt="">` : '🐟'}</div>
+      ${zustaende.length ? `<div class="marks">${zustaende.join(' · ')}</div>` : ''}
+      <div class="txt">
+        <div class="t1">${esc(c.art || T('Fang'))}</div>
+        <div class="t2">${size || '—'}</div>
+        <div class="t3">${fmtTag(c.when)}${c.gewaesser ? ' · ' + esc(c.gewaesser) : ''}</div>
+      </div>`;
     list.appendChild(el);
   });
 
@@ -3695,7 +3726,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v44';
+const FASSUNG = 'v45';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -3921,7 +3952,23 @@ async function cloudMerken(paare){
 async function hochladen(){
   const raus = [];
   const gesendet = [];
-  for (const c of state.catches){
+  /* ⚠️ **Aus dem Speicher, nicht aus `state.catches`** — seit dem 13.08.2026, und das
+     war ein echter Fehler mit einer Schleife darin.
+
+     Karls Meldung: ein Fang am Handy trug „nur hier", lag aber längst auf dem PC. Bei
+     jedem Antippen von „Jetzt abgleichen" meldete die App „1 Fang geht hoch", und das
+     Schild blieb trotzdem stehen. **Jedes Mal aufs Neue, mit Fotos.**
+
+     Der Grund: hier wurde die Liste im **Arbeitsspeicher** durchgegangen, `cloudMerken()`
+     schreibt seinen Vermerk aber in den **Speicher**. Danach lief `reload()` nur, wenn
+     auch etwas heruntergekommen war — nach einem reinen Hochladen also nie. Damit trug
+     das Objekt im Arbeitsspeicher weiterhin kein `cloud`, der nächste Lauf hielt den Fang
+     erneut für ungesichert, und das Schild hing an derselben veralteten Fassung.
+
+     Zwei Quellen für dieselbe Wahrheit, und die ältere hat entschieden. `herunterladen()`
+     und `cloudMerken()` lesen längst aus dem Speicher, mit genau dieser Begründung —
+     diese Stelle war die letzte, die es nicht tat. */
+  for (const c of await allCatches()){
     /* ⚠️ Hier stand `if (c.entwurf) continue` — Entwürfe blieben absichtlich lokal.
        Karls Ansage am Abend des 10.08.2026: „5 entwürfe die sollen bitte auch
        synchronisiert werden." Damit ist die alte Begründung hinfällig: ein Entwurf
@@ -4486,7 +4533,12 @@ async function syncJetzt(still){
        weil alles auf einen Blick liegt. Einen eigenen Abgleich hat die Karte nicht,
        sie zeigt schlicht `state.catches`.
        Aufgefrischt wird jetzt, was gerade zu sehen ist. */
-    if (runter) {
+    /* ⚠️ `rauf ||` steht seit dem 13.08.2026 mit da. Vorher wurde nur nach einem
+       Herunterladen neu aus dem Speicher gelesen — nach einem reinen Hochladen behielt
+       der Arbeitsspeicher die Fassung **ohne** `cloud`, und das Schild „nur hier" blieb
+       stehen, obwohl der Fang oben lag. Das ist die zweite Hälfte von Karls Meldung vom
+       13.08.: der Abgleich lief, meldete Erfolg, und sichtbar änderte sich nichts. */
+    if (rauf || runter) {
       await reload();
       if (state.view === 'map')   renderMap();
       if (state.view === 'stats') renderStats();

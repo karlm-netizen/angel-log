@@ -6,6 +6,68 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 13.08.2026 (v45) — 🔴 Ein Fang ging bei jedem Abgleich neu hoch
+
+### Karls Meldung
+
+*„habe gerade einen auf dem handy bei dem steht nur hier dran, der ist aber auf meinem pc, und
+wenn ich auf jetzt abgleichen gehe steht jedes mal dran ein fang geht hoch, aber das tag
+verschwindet nicht."*
+
+**Der Befund war echt, und es war eine Schleife ohne Ende — mit Fotos, bei jedem Antippen.**
+
+`cloudMerken()` schreibt den Vermerk „diese Fassung liegt oben" in den **Speicher**
+(IndexedDB). `hochladen()` ging aber die Liste im **Arbeitsspeicher** durch — und neu gelesen
+wurde nur, wenn beim Abgleich auch etwas *heruntergekommen* war. Nach einem reinen Hochladen also
+nie. Damit trug das Objekt im Arbeitsspeicher weiterhin kein `cloud`, der nächste Lauf hielt
+denselben Fang für ungesichert, und das Schild „nur hier" hing an derselben veralteten Fassung.
+
+Zwei Quellen für dieselbe Wahrheit, und die ältere hat entschieden. Behoben an beiden Enden:
+
+- **`hochladen()` liest jetzt aus dem Speicher.** `herunterladen()` und `cloudMerken()` tun das
+  längst, mit genau dieser Begründung — diese Stelle war die letzte, die es nicht tat.
+- **Aufgefrischt wird nach `rauf || runter`**, nicht nur nach `runter`. Neuzeichnen allein hätte
+  nicht gereicht: es hätte die veraltete Fassung neu gezeichnet.
+
+### ⚠️ Und der Prüfrahmen war hier grün aus dem falschen Grund
+
+Es gab längst eine Prüfung *„und geht danach nicht ein zweites Mal hoch"* — sie war grün, während
+der Fehler auf Karls Handy lief. Grund: der Testspeicher gab **dieselben Objekte** zurück, die
+auch in `state.catches` lagen (`[...fakeDB.values()]`). Jede Änderung im „Speicher" war damit
+sofort auch im Arbeitsspeicher zu sehen. IndexedDB verhält sich nicht so: was dort herauskommt,
+ist frisch aufgebaut.
+
+**Der Testspeicher gibt jetzt Kopien zurück.** Damit fiel die bestehende Prüfung sofort — der
+Fehler war reproduziert, bevor eine Zeile Anwendungscode angefasst wurde. Ein Rahmen, der
+großzügiger ist als die Wirklichkeit, prüft nichts.
+
+Drei neue Prüfungen dazu, darunter eine, die Karls Fall wörtlich nachstellt (kein Auffrischen
+zwischen zwei Läufen). Gegenprobe gemacht: Fix zurückgenommen → beide fallen.
+
+### 📷 Hochkant-Fotos: die Kachel ist jetzt selbst hochkant
+
+Karls Meldung: *„auf dem handy machen hochkant fotos gerade probleme, das sieht sehr komisch aus,
+kriegen wir das irgendwie schöner hin, vielleicht sogar den text über dem foto."*
+
+Er hat recht, und der Grund ist nicht Geschmack: die Kachel war quer (4:3), ein Handyfoto ist
+hochkant — `object-fit:cover` schnitt oben und unten je ein Viertel weg, und **dort steht der
+Fisch**.
+
+➡️ Die Kachel ist jetzt **3:4**, das Foto füllt sie ganz, der Text liegt darauf (Karls eigener
+Vorschlag). Beschnitten wird jetzt das Querformat statt des Hochformats — der bessere Tausch, weil
+fast jedes Foto hier vom Handy kommt. Ohne Foto steht der Text auf der Karte selbst, ohne
+Abdunklung; sonst läge auf den hellen Paletten ein grauer Streifen ohne Anlass.
+
+### 🟡 „Entwurf" und „nur hier" stehen jetzt auf der gelben Leiste
+
+Karls Ansage: *„kannst du die oben sozusagen auf die gelbe linie machen wenn sie da sind."*
+Vorher war die gelbe Linie ein Streifen **links ohne Text**, und die Schilder standen unten in der
+Kachel — zwei Dinge, die dasselbe sagten. Jetzt trägt die Linie selbst die Beschriftung, oben,
+und nur wenn es etwas zu sagen gibt.
+
+**590 Prüfungen grün** (von 583). Kachelform und Leistenposition werden **gemessen**, nicht im
+CSS-Text nachgeschlagen — inklusive der Lehre, dass ein ausgeblendeter Abschnitt 0×0 groß ist.
+
 ## 13.08.2026 (v44) — Home: Angelzeit, Wetter am Wasser und eine Fangprognose
 
 Karls Ansage: *„Leiste unten neue anordnung: als erstes soll jetzt ein home button kommen wo die

@@ -1268,9 +1268,20 @@ window.addEventListener('error', e => {
       if (!vomServer || rec.updated == null) rec.updated = Date.now();
       fakeDB.set(rec.id, rec); fakeGrab.delete(rec.id); return rec;
     };
-    // cloudMerken() liest den Speicher, nicht state.catches -- sonst schriebe es
-    // eine veraltete Fassung zurueck. Im Rahmen ist der Speicher fakeDB.
-    allCatches   = async () => [...fakeDB.values()];
+    /* cloudMerken() liest den Speicher, nicht state.catches -- sonst schriebe es
+       eine veraltete Fassung zurueck. Im Rahmen ist der Speicher fakeDB.
+
+       ⚠️ **Und der Speicher gibt KOPIEN zurueck, keine Verweise.** Genau so verhaelt
+       sich IndexedDB: was dort herauskommt, ist frisch aufgebaut und hat mit dem
+       Objekt im Arbeitsspeicher nichts mehr zu tun.
+       Hier stand `[...fakeDB.values()]` -- dieselben Objekte, die auch in
+       `state.catches` liegen. Damit war jede Aenderung, die cloudMerken() im
+       "Speicher" machte, sofort auch im Arbeitsspeicher zu sehen, und die Pruefung
+       "geht danach nicht ein zweites Mal hoch" blieb gruen, **obwohl derselbe Fang in
+       der echten App bei jedem Abgleich erneut hochging**. Karls Meldung vom
+       13.08.2026: „jedes mal steht da halt wird hochgeladen ... das tag verschwindet
+       nicht." Ein Rahmen, der grosszuegiger ist als die Wirklichkeit, prueft nichts. */
+    allCatches   = async () => [...fakeDB.values()].map(c => ({ ...c, photos: [...(c.photos || [])] }));
     removeCatch  = async (id) => { fakeDB.delete(id); fakeGrab.set(id, { id, updated: Date.now(), gemeldet: false }); };
     allGraeber   = async () => [...fakeGrab.values()];
     grabMarkieren = async (ids) => ids.forEach(id => fakeGrab.set(id, { ...fakeGrab.get(id), id, gemeldet: true }));
@@ -1374,6 +1385,50 @@ window.addEventListener('error', e => {
     await hochladen();
     return (raus.length === 0) || ('zweiter Lauf schickte ' + JSON.stringify(raus.map(r => r.id)));
   });
+  /* ⚠️ **Karls Meldung vom 13.08.2026, wortgetreu nachgestellt:** „habe gerade einen auf
+     dem handy bei dem steht nur hier dran, der ist aber auf meinem pc, und wenn ich auf
+     jetzt abgleichen gehe steht jedes mal dran ein fang geht hoch, aber das tag
+     verschwindet nicht."
+
+     Der Kern ist die **Trennung von Arbeitsspeicher und Speicher**. cloudMerken()
+     schreibt seinen Vermerk in den Speicher; solange hochladen() die Liste im
+     Arbeitsspeicher durchging und nach einem reinen Hochladen nichts neu gelesen wurde,
+     sah der naechste Lauf denselben Fang erneut als ungesichert. Mit Fotos, bei jedem
+     Antippen, unbegrenzt oft.
+
+     ⚠️ Deshalb wird hier `state.catches` **absichtlich veraltet gehalten** -- kein
+     reload() zwischen den Laeufen. Genau so stand es in der App. */
+  ta('ein hochgeladener Fang geht auch dann nicht wieder hoch, wenn niemand neu liest', async () => {
+    sandbox([mkC('a', 5000)]);
+    let raus = null; zeilenSchreiben = async z => { raus = z; };
+    await hochladen();
+    // Der Arbeitsspeicher bleibt stehen, wie er war -- das ist der ganze Punkt.
+    await hochladen();
+    return (raus.length === 0)
+        || ('zweiter Lauf schickte ' + JSON.stringify(raus.map(r => r.id))
+            + ' -- die Schleife von Karls Meldung ist wieder da');
+  });
+  ta('und danach traegt er im Speicher seinen Vermerk', async () => {
+    sandbox([mkC('a', 5000)]);
+    zeilenSchreiben = async () => {};
+    await hochladen();
+    const rec = (await allCatches()).find(c => c.id === 'a');
+    return (rec.cloud === 5000) || ('cloud ist ' + rec.cloud);
+  });
+  /* Die sichtbare Haelfte: das Schild haengt an `state.catches`. Bleibt der
+     Arbeitsspeicher stehen, bleibt das Schild stehen -- deshalb muss nach einem reinen
+     Hochladen neu gelesen werden, nicht nur neu gezeichnet. */
+  ta('nach dem Auffrischen ist das Schild weg', async () => {
+    sandbox([mkC('a', 5000)]);
+    zeilenSchreiben = async () => {};
+    await hochladen();
+    const vorher = nichtGesichert().length;      // veralteter Arbeitsspeicher: noch offen
+    await reload();
+    const nachher = nichtGesichert().length;
+    return (vorher === 1 && nachher === 0)
+        || ('vor dem Auffrischen ' + vorher + ', danach ' + nachher);
+  });
+
   ta('Entwuerfe gehen mit hoch', async () => {
     /* ⚠️ Hier stand bis zum 10.08.2026 das Gegenteil ("Entwuerfe bleiben lokal").
        Karls Ansage: "5 entwuerfe die sollen bitte auch synchronisiert werden."
@@ -2186,15 +2241,16 @@ window.addEventListener('error', e => {
     return document.querySelector('#st-cloud').hidden === true
         || ('steht noch da: ' + document.querySelector('#st-cloud').textContent);
   });
-  /* ⚠️ Die Kachel heisst seit dem 13.08.2026 „nur hier" statt „nur auf diesem Geraet" —
-     auf einer halbbreiten Kachel steht der lange Text nicht. Gesucht wird deshalb nach
-     dem Schild selbst (.pill.offen) und nicht nach seinem Wortlaut: der ist Gestaltung
+  /* ⚠️ Die Markierung heisst seit dem 13.08.2026 „nur hier" statt „nur auf diesem
+     Geraet" und steht seit dem zweiten Anlauf desselben Tages **oben auf der gelben
+     Leiste** (Karls Ansage), nicht mehr als Pille unten in der Kachel. Gesucht wird
+     deshalb nach der Leiste (.marks) und nicht nach einem Wortlaut: der ist Gestaltung
      und aendert sich wieder, die Warnung darf davon nicht abhaengen. */
   t('jeder offene Fang ist in der Liste einzeln markiert', () => {
     // Die Zahl allein genuegt nicht -- man muss sehen, WELCHE Faenge es sind.
     cloudSetzen([mkC('alt', 1000), mkC('neu1', 5000), mkC('neu2', 6000)], 3000);
     const zeilen = [...document.querySelectorAll('#list .item')];
-    const markiert = zeilen.filter(z => z.querySelector('.pill.offen'))
+    const markiert = zeilen.filter(z => z.querySelector('.marks'))
                            .map(z => z.dataset.id).sort();
     return (markiert.length === 2 && markiert[0] === 'neu1' && markiert[1] === 'neu2')
         || JSON.stringify(markiert);
@@ -2202,14 +2258,14 @@ window.addEventListener('error', e => {
   t('ein gesicherter Fang traegt die Markierung nicht', () => {
     cloudSetzen([mkC('alt', 1000)], 3000);
     const z = document.querySelector('#list .item');
-    return !z.querySelector('.pill.offen') || 'faelschlich markiert';
+    return !z.querySelector('.marks') || 'faelschlich markiert';
   });
-  /* Gegenprobe zur Umbenennung: das Schild muss auch beschriftet sein. Ein leeres
-     Kaestchen bestuende die Pruefung darueber und saehe aus wie ein Gestaltungsfehler. */
-  t('und das Schild traegt einen Text', () => {
+  /* Gegenprobe: die Leiste muss auch beschriftet sein. Ein leerer gelber Balken bestuende
+     die Pruefung darueber und saehe aus wie ein Gestaltungsfehler. */
+  t('und die Leiste traegt einen Text', () => {
     cloudSetzen([mkC('alt', 1000), mkC('neu1', 5000)], 3000);
-    const p = document.querySelector('#list .item .pill.offen');
-    return (p && p.textContent.trim().length >= 4) || 'Schild ohne Text';
+    const p = document.querySelector('#list .item .marks');
+    return (p && p.textContent.trim().length >= 4) || 'Leiste ohne Text';
   });
   t('die Einstellungen warnen vor dem Abmelden und Loeschen', () => {
     /* Die Seite, auf der man landet, bevor man abmeldet, das Konto loescht oder
@@ -2240,9 +2296,14 @@ window.addEventListener('error', e => {
     /* ⚠️ Quelltext-Pruefung mit Absicht: der Fall braucht einen vollen
        syncJetzt-Durchlauf mit Netz, und im Rahmen laeuft kein Netz.
        Geprueft wird deshalb die Stelle selbst — renderList() muss NACH dem
-       `if (runter)`-Block stehen und nicht darin. Stand es darin, blieb der
+       Auffrisch-Block stehen und nicht darin. Stand es darin, blieb der
        Hinweis nach erfolgreichem Hochladen stehen, weil dabei nichts
-       heruntergeladen wird. */
+       heruntergeladen wird.
+       ⚠️ Der Block heisst seit dem 13.08.2026 `if (rauf || runter)`. Vorher stand dort
+       nur `runter` -- und genau das war die zweite Haelfte von Karls Meldung: nach einem
+       reinen Hochladen wurde der Arbeitsspeicher nie neu gelesen, das Schild „nur hier"
+       blieb stehen und der Fang ging beim naechsten Mal wieder hoch. Neuzeichnen allein
+       hat nicht gereicht, weil es die veraltete Fassung neu zeichnete. */
     const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
     const a = js.indexOf('async function syncJetzt(');
     if (a < 0) return 'syncJetzt nicht gefunden';
@@ -2255,7 +2316,7 @@ window.addEventListener('error', e => {
     const rest = js.slice(a + 20);
     const ende = rest.search(/\n(async )?function /);
     const block = js.slice(a, ende < 0 ? js.length : a + 20 + ende);
-    const zweig = block.indexOf('if (runter)');
+    const zweig = block.indexOf('if (rauf || runter)');
     const rl    = block.indexOf('renderList();', zweig);
     const zu    = block.indexOf('\n    }', zweig);     // Ende des runter-Zweigs
     if (zweig < 0 || rl < 0 || zu < 0) return 'Stelle nicht gefunden';
@@ -4146,6 +4207,57 @@ window.addEventListener('error', e => {
         return (el.classList.contains('entwurf') && /Entwurf/.test(el.textContent))
             || 'Entwurf nicht erkennbar: ' + el.textContent;
       } finally { state.catches = alt; renderList(); }
+    });
+    /* ⚠️ Karls Meldung vom 13.08.2026: „hochkant fotos machen gerade probleme, das sieht
+       sehr komisch aus." Die Kachel war quer (4:3), Handyfotos sind hochkant -- cover
+       schnitt oben und unten je ein Viertel weg, und dort steht der Fisch.
+       Gemessen wird die echte Geometrie, nicht der CSS-Text. */
+    /* ⚠️ Sichtbar messen. Die Fangliste liegt in einem Abschnitt, der ausgeblendet ist,
+       solange eine andere Ansicht offen steht -- und ein ausgeblendetes Element ist
+       0×0 gross. Die erste Fassung dieser beiden Pruefungen mass genau das und meldete
+       „Kachel ist 0×0". Gemessen wird nur, was auch zu sehen ist. */
+    const kachelSichtbar = (rec) => {
+      const alt = { c: state.catches, v: state.view };
+      state.catches = [rec || VOLL];
+      go('log');
+      return { el: document.querySelector('#list .item'),
+               zurueck: () => { state.catches = alt.c; go(alt.v); } };
+    };
+    t('die Kachel ist hochkant, nicht quer', () => {
+      const { el, zurueck } = kachelSichtbar();
+      try {
+        const r = el.getBoundingClientRect();
+        return (r.height > r.width * 1.15)
+            || ('Kachel ist ' + Math.round(r.width) + '×' + Math.round(r.height));
+      } finally { zurueck(); }
+    });
+    t('der Text liegt auf dem Foto, nicht darunter', () => {
+      const { el, zurueck } = kachelSichtbar();
+      try {
+        const rf = el.querySelector('.th').getBoundingClientRect();
+        const rt = el.querySelector('.txt').getBoundingClientRect();
+        // Der Textkasten muss im Bildbereich liegen, nicht darunter beginnen.
+        return (rt.top < rf.bottom && rt.bottom <= rf.bottom + 1)
+            || ('Foto endet bei ' + Math.round(rf.bottom) + ', Text von '
+                + Math.round(rt.top) + ' bis ' + Math.round(rt.bottom));
+      } finally { zurueck(); }
+    });
+    /* Karls Ansage: „kannst du die oben sozusagen auf die gelbe linie machen wenn sie da
+       sind." Die Leiste muss also oben sitzen -- und nur dann da sein, wenn es etwas zu
+       sagen gibt. Eine Leiste an jeder Kachel waere keine Warnung mehr. */
+    t('die gelbe Leiste sitzt oben in der Kachel', () => {
+      const { el, zurueck } = kachelSichtbar({ ...VOLL, entwurf: true });
+      try {
+        const m = el.querySelector('.marks');
+        if (!m) return 'keine Leiste';
+        const re = el.getBoundingClientRect(), rm = m.getBoundingClientRect();
+        return (Math.abs(rm.top - re.top) <= 2 && rm.width > re.width * 0.8)
+            || ('Kachel oben ' + Math.round(re.top) + ', Leiste oben ' + Math.round(rm.top));
+      } finally { zurueck(); }
+    });
+    t('ohne Grund gibt es keine Leiste', () => {
+      const el = kachel();          // VOLL ist fertig und gilt im Rahmen als gesichert
+      return !el.querySelector('.marks') || 'Leiste ohne Anlass';
     });
     t('fmtTag liefert den Tag ohne Uhrzeit', () =>
       fmtTag('2026-08-12T10:30:00.000Z').indexOf(':') === -1
