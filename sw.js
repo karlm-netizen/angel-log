@@ -2,7 +2,7 @@
 // Eigene Dateien: Netz zuerst, damit Updates sofort ankommen — Cache nur als Offline-Rückfall.
 // Kartenkacheln und Leaflet: Cache zuerst, denn am Wasser ist oft kein Netz und einmal
 // angeschaute Gewässer sollen offline noch da sein. Wetter-API: nie cachen.
-const CACHE  = 'angellog-v47';
+const CACHE  = 'angellog-v48';
 const TILES  = 'angellog-tiles';
 /* ⚠️ Die sechs Ladebildschirm-Fotos gehören hier hinein. Ohne sie im Cache stünde am
    Wasser ohne Netz ein Ladebildschirm ohne Bild — und genau dort wird die App benutzt.
@@ -95,10 +95,23 @@ self.addEventListener('push', e => {
   let daten = {};
   try { if (e.data) daten = e.data.json(); } catch { daten = {}; }
 
-  const titel = daten.titel || 'Angel-Log';
-  const text  = daten.text  || 'Neue Antwort auf deine Meldung.';
-  e.waitUntil(self.registration.showNotification(titel, {
-    body: text,
+  /* ⚠️ **Der Titel IST die Nachricht, ein Rumpf darunter steht nicht mehr da.**
+     Hier stand `showNotification('Angel-Log', { body: 'Neue Antwort …' })`. Am iPhone
+     kam das als drei Zeilen heraus (Karls Meldung vom 13.08.2026):
+
+         angel-log            ← der Name der Verknüpfung, den setzt iOS selbst davor
+         from angel-log       ← das war dieser Titel
+         Neue Antwort …       ← der Rumpf
+
+     Der Name der App steht am iPhone ohnehin schon über jeder Nachricht. Ihn im Titel
+     zu wiederholen hat ihn nur ein zweites Mal hingeschrieben. Jetzt trägt der Titel
+     den Satz, der Rumpf entfällt — eine Zeile Inhalt statt zweimal derselbe Name.
+
+     ⚠️ Auch auf Android und am PC ist das die bessere Fassung: dort steht der Titel
+     groß und der Rumpf klein darunter. „Angel-Log / Neue Antwort" hätte die einzige
+     echte Auskunft ins Kleingedruckte gesetzt. */
+  const text = daten.text || 'Neue Antwort auf deine Meldung.';
+  e.waitUntil(self.registration.showNotification(text, {
     icon: './icon-192.png',
     badge: './icon-192.png',
     /* Gleiches `tag` heißt: eine zweite Antwort ersetzt die erste, statt den

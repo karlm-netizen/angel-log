@@ -4503,9 +4503,33 @@ window.addEventListener('error', e => {
     const js = await r.text();
     const a = js.indexOf("addEventListener('push'");
     if (a < 0) return 'kein push-Handler in sw.js';
-    const block = js.slice(a, a + 1400);
+    const block = js.slice(a, a + 2200);
     return (block.indexOf('showNotification') !== -1)
         || 'push-Handler ohne showNotification';
+  });
+  /* ⚠️ Karls Meldung vom 13.08.2026: am iPhone stand der App-Name zweimal untereinander
+     ("angel-log" / "from angel-log" / Text). Die erste Zeile setzt iOS selbst davor --
+     die zweite war unser Titel. Der Titel traegt jetzt den Satz, einen Rumpf gibt es
+     nicht mehr. Ohne diese Pruefung schleicht sich ein "Angel-Log" als Titel beim
+     naechsten Anfassen sofort wieder ein. */
+  ta('die Nachricht wiederholt nicht den Namen der App', async () => {
+    /* ⚠️ **Erst die Kommentare wegnehmen.** Genau daneben steht als Erklaerung der ALTE
+       Aufruf `showNotification('Angel-Log', { body: … })` -- und die erste Fassung
+       dieser Pruefung hat ihn gefunden und den behobenen Fehler gemeldet. Dieselbe
+       Falle wie am 11. und 12.08., diesmal andersherum: nicht faelschlich gruen,
+       sondern faelschlich rot. Beides taugt nicht. */
+    const roh = await (await fetch('sw.js')).text();
+    const js = roh.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const a = js.indexOf("addEventListener('push'");
+    if (a < 0) return 'kein push-Handler';
+    const ruf = js.slice(js.indexOf('showNotification', a));
+    const inhalt = ruf.slice(0, Math.max(ruf.indexOf('}));'), 0) || 400);
+    const klagen = [];
+    // Kein `body:` mehr -- sonst stuenden wieder zwei Zeilen da.
+    if (/\bbody\s*:/.test(inhalt)) klagen.push('es gibt wieder einen Rumpf');
+    // Und der Titel darf kein fester Text sein, sondern der Satz aus `text`.
+    if (/showNotification\(\s*['"]/.test(inhalt)) klagen.push('fester Text als Titel');
+    return klagen.length === 0 || (klagen.join(', ') + ' -> ' + inhalt.slice(0, 160));
   });
   ta('und ein Tipp darauf holt ein offenes Fenster nach vorn', async () => {
     /* Ohne das Suchen nach einem offenen Fenster oeffnet iOS eine zweite Instanz --

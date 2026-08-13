@@ -6,6 +6,43 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 13.08.2026 (v48) — Die Benachrichtigung nennt den App-Namen nicht zweimal
+
+Karls Meldung, direkt nach dem ersten echten Push: am iPhone standen drei Zeilen —
+
+```
+angel-log
+from angel-log
+Neue Antwort auf deine Meldung.
+```
+
+*„from angel-log weg bitte."*
+
+**Die erste Zeile setzt iOS selbst davor** — das ist der Name der Verknüpfung auf dem
+Home-Bildschirm, den schreibt die App nicht. **Die zweite war unser Titel.**
+`showNotification('Angel-Log', { body: 'Neue Antwort …' })` hat den Namen ein zweites Mal
+hingeschrieben, direkt unter den, der ohnehin schon dastand.
+
+➡️ **Jetzt trägt der Titel den Satz, einen Rumpf gibt es nicht mehr.** Eine Zeile Inhalt statt
+zweimal derselbe Name.
+
+⚠️ Auch auf Android und am PC ist das die bessere Fassung: dort steht der Titel groß und der
+Rumpf klein darunter — „Angel-Log / Neue Antwort" hätte die einzige echte Auskunft ins
+Kleingedruckte gesetzt.
+
+⚠️ **Die neue Prüfung fiel zuerst am behobenen Fehler.** Sie suchte im Quelltext nach
+`showNotification('…'` und fand den alten Aufruf **im Kommentar daneben**, der erklärt, warum er
+weg ist — dieselbe Falle wie am 11. und 12.08., diesmal andersherum: nicht fälschlich grün,
+sondern fälschlich rot. Sie nimmt jetzt erst die Kommentare heraus. Gegenprobe gemacht: alte
+Fassung zurückgespielt → sie fällt.
+
+⚠️ **Der kleine `angel-log` in der ersten Zeile ist eine alte Verknüpfung**, kein Fehler in der
+App: das Manifest heißt seit jeher `Angel-Log`. iOS merkt sich den Namen beim **Anlegen** der
+Verknüpfung — dieselbe Sache wie beim App-Symbol (steht seit dem 08.08. als offener Punkt).
+Alte Verknüpfung löschen, Seite in Safari öffnen, Teilen → „Zum Home-Bildschirm".
+
+**610 Prüfungen grün** (von 609).
+
 ## 13.08.2026 (v47) — 🔔 Benachrichtigung, wenn dein Ticket beantwortet wurde
 
 Karls Ansage: *„Ja mit pushbenachrichtigung, nur von wegen neue antwort auf dein ticket, ganz
