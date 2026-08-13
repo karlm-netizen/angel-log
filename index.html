@@ -244,15 +244,29 @@ setTimeout(function(){
   .ph b{position:absolute; top:2px; right:2px; width:22px; height:22px; border-radius:99px;
     background:rgba(0,0,0,.65); color:#fff; display:grid; place-items:center; font-size:14px}
 
-  /* Liste */
-  .item{display:flex; gap:12px; align-items:center; background:var(--card);
-    border:1px solid var(--line); border-radius:14px; padding:10px; margin:10px 0}
-  .item .th{width:56px; height:56px; flex:0 0 56px; border-radius:10px; overflow:hidden;
-    background:var(--card2); display:grid; place-items:center; color:var(--muted); font-size:20px}
+  /* Liste — seit dem 13.08.2026 zwei nebeneinander (Karls Ansage).
+     ⚠️ Die Kachel ist deshalb **hochkant** statt quer. Eine Zeile mit 56-px-Bild links
+        und Text rechts hat auf 320 px Breite je Kachel rund 130 px für den Text — dort
+        passt kein Fischname neben ein Bild. Hochkant bekommt das Bild die volle Breite
+        und der Text darunter auch.
+     ⚠️ `minmax(0,1fr)` statt `1fr`: Rasterspalten haben als Mindestbreite ihren Inhalt,
+        und ein langer Gewässername („Nord-Ostsee-Kanal") schöbe die Spalte sonst breiter
+        als das halbe Bild. Genau so ragt am Handy etwas heraus. */
+  #list{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; margin-top:10px}
+  #list .empty{grid-column:1 / -1}
+  .item{display:flex; flex-direction:column; background:var(--card);
+    border:1px solid var(--line); border-radius:14px; padding:8px; min-width:0}
+  .item .th{width:100%; aspect-ratio:4/3; border-radius:10px; overflow:hidden;
+    background:var(--card2); display:grid; place-items:center; color:var(--muted); font-size:26px}
   .item .th img{width:100%; height:100%; object-fit:cover; display:block}
-  .item .t1{font-size:15px; font-weight:700}
-  .item .t2{font-size:12px; color:var(--muted); margin-top:2px}
-  .item .tags{display:flex; gap:5px; margin-top:6px; flex-wrap:wrap}
+  /* ⚠️ Alle drei Textzeilen mit `overflow:hidden` + `ellipsis`. Ohne das ist ein einziger
+     langer Fischname der Grund, warum die Kachel seitlich aus dem Bild läuft. */
+  .item .t1, .item .t2, .item .t3{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .item .t1{font-size:14px; font-weight:700; margin-top:7px}
+  .item .t2{font-size:12.5px; margin-top:2px}
+  .item .t3{font-size:11.5px; color:var(--muted); margin-top:2px}
+  .item .marks{display:flex; gap:4px; margin-top:6px; flex-wrap:wrap}
+  .item .marks .pill{font-size:10px; padding:2px 6px}
   .item.entwurf{border-color:var(--warn); box-shadow:inset 3px 0 0 var(--warn)}
   .pill.warn{background:var(--warn); color:#241a02; font-weight:700}
 
@@ -343,13 +357,12 @@ setTimeout(function(){
     body{max-width:none}
     /* Die Reiter dürfen nicht über einen Meter auseinanderlaufen. */
     .tabs > div{max-width:760px}
-    /* Fangliste mehrspaltig — der eigentliche Gewinn am großen Bildschirm. */
-    #list{display:grid; grid-template-columns:repeat(auto-fill, minmax(330px, 1fr));
+    /* Fangliste mehrspaltig — der eigentliche Gewinn am großen Bildschirm.
+       ⚠️ Seit dem 13.08.2026 sind die Kacheln hochkant und stehen schon am Handy zu
+       zweit. Hier geht es deshalb nur noch um **mehr als zwei** Spalten; 330 px waren
+       das Maß der alten breiten Zeilen-Kachel und ließen am PC gerade zwei zu. */
+    #list{grid-template-columns:repeat(auto-fill, minmax(190px, 1fr));
       gap:14px; align-items:start; margin-top:14px}
-    /* gap wirkt nur zwischen den Karten — den Abstand zur Suchleiste darüber
-       muss das Raster selbst mitbringen, sonst klebt die erste Reihe daran. */
-    #list .item{margin:0}
-    #list .empty{grid-column:1 / -1}
     /* Kopfzeile über der Liste: mitwachsend wäre ein 2000 px breites Suchfeld. */
     #zeit-karte, #v-log .row, #q{max-width:760px}
     /* Überschrift mittig über dem Formular, nicht am Fensterrand daneben. */
@@ -942,29 +955,33 @@ function splashWeg(){
           </svg>
         </button>
       </h2>
+      <!-- ⚠️ **Bewusst wenig Auszeichnung mitten im Satz.** Der Sprach-Rundgang sammelt
+           Textknoten ein, und jedes <b> im Satzinneren zerschneidet einen Absatz in drei
+           Bruchstücke, die einzeln übersetzt werden müssten. Fett steht deshalb auf
+           ganzen Zeilen, nicht auf Wörtern darin — dann ist jeder Absatz ein Schlüssel. -->
       <div id="st-info" hidden style="margin:-2px 0 14px">
         <div class="hint" style="margin:0">
-          <p style="margin:0 0 9px"><b>Wozu das gut ist:</b> Eine Auswertung zeigt,
-            <b>unter welchen Bedingungen deine Fänge bisher zustande kamen</b> — bei
-            welchem Luftdruck, zu welcher Uhrzeit, bei welchem Mond, an welchem Köder.
-            Wer das ein paar Saisons lang führt, sieht sein eigenes Muster statt der
-            Faustregeln aus dem Internet.</p>
-          <p style="margin:0 0 6px"><b>In vier Schritten gebaut:</b></p>
-          <ol style="margin:0 0 9px; padding-left:19px; line-height:1.6">
-            <li><b>Zählen</b> — welche Fische. „Alle Fische" oder eine Art.</li>
-            <li><b>Über</b> — was auf die Waagerechte kommt. Das ist die eigentliche
-              Frage: „meine Hechte <i>über Luftdruck</i>".</li>
-            <li><b>Aufteilen nach</b> — macht aus einer Kurve mehrere, eine je
-              Köderfarbe. Damit vergleichst du zwei Sachen im selben Bild.</li>
-            <li><b>Gewässer</b> — grenzt auf ein Gewässer ein. Sonst zählen alle mit.</li>
+          <p style="margin:0 0 4px"><b>Wozu das gut ist</b></p>
+          <p style="margin:0 0 10px">Eine Auswertung zeigt, unter welchen Bedingungen deine
+            Fänge bisher zustande kamen — bei welchem Luftdruck, zu welcher Uhrzeit, bei
+            welchem Mond, an welchem Köder. Wer das ein paar Saisons lang führt, sieht sein
+            eigenes Muster statt der Faustregeln aus dem Internet.</p>
+          <p style="margin:0 0 5px"><b>In vier Schritten gebaut</b></p>
+          <ol style="margin:0 0 10px; padding-left:19px; line-height:1.6">
+            <li>Zählen — welche Fische mitgerechnet werden: alle oder eine Art.</li>
+            <li>Über — was auf die Waagerechte kommt. Das ist die eigentliche Frage:
+              meine Hechte über Luftdruck.</li>
+            <li>Aufteilen nach — macht aus einer Kurve mehrere, eine je Köderfarbe.
+              Damit vergleichst du zwei Sachen im selben Bild.</li>
+            <li>Gewässer — grenzt auf eins ein. Ohne Auswahl zählen alle mit.</li>
           </ol>
-          <p style="margin:0 0 9px">Das Bild ändert sich sofort mit. Passt es, legt
-            <b>„Auswertung speichern"</b> es unter einem Namen ab — gespeicherte stehen
-            darunter und werden bei jedem neuen Fang mitgerechnet.</p>
-          <p style="margin:0"><b>⚠️ Was hier <i>nicht</i> steht:</b> wie gut es beißt.
-            Gezählt werden nur <b>Fänge</b> — Ansitze ohne Fang trägt die App nicht ein.
-            Ein hoher Punkt heißt also „so oft hast du hier gefangen", nicht „hier
-            fängst du am besten". Wenn du meistens samstags morgens losziehst, wird
+          <p style="margin:0 0 10px">Das Bild ändert sich sofort mit. Passt es, legt
+            „Auswertung speichern" es unter einem Namen ab — gespeicherte stehen darunter
+            und werden bei jedem neuen Fang mitgerechnet.</p>
+          <p style="margin:0 0 4px"><b>⚠️ Was hier nicht steht: wie gut es beißt</b></p>
+          <p style="margin:0">Gezählt werden nur Fänge — Ansitze ohne Fang trägt die App
+            nicht ein. Ein hoher Punkt heißt also „so oft hast du hier gefangen", nicht
+            „hier fängst du am besten". Wenn du meistens samstags morgens losziehst, wird
             Samstagmorgen zwangsläufig dein bester Wert.</p>
         </div>
       </div>
@@ -1491,6 +1508,44 @@ const EN = {
   'Nochmal versuchen': 'Try again',
   'Karte nicht ladbar': 'Map not loadable',
   'Neu anfangen': 'Start fresh',
+  'nur hier': 'this device only',
+  /* Das ⓘ am Baukasten (13.08.2026). Die Absätze stehen als ganze Sätze in der
+     Tabelle — im HTML daneben trägt deshalb kein Satz ein <b> in seiner Mitte. */
+  'Auswertung bauen': 'Build a chart',
+  'Wie funktioniert das?': 'How does this work?',
+  'Wozu das gut ist': 'What this is for',
+  /* ⚠️ Eckige Klammern, weil der Schlüssel über mehrere Zeilen zusammengesetzt ist.
+     Ohne sie ist `'a' + 'b': 'c'` ein Syntaxfehler — und der reißt den **ganzen**
+     Skriptblock mit, nicht nur die Zeile. Beim Bauen genau so passiert: die App
+     meldete „gateZeigen is not defined", 3000 Zeilen entfernt vom eigentlichen Fehler. */
+  ['Eine Auswertung zeigt, unter welchen Bedingungen deine Fänge bisher zustande kamen — bei '
+  + 'welchem Luftdruck, zu welcher Uhrzeit, bei welchem Mond, an welchem Köder. Wer das ein '
+  + 'paar Saisons lang führt, sieht sein eigenes Muster statt der Faustregeln aus dem Internet.']:
+    'A chart shows the conditions your catches came in under — at what air pressure, at what '
+  + 'time of day, at what moon phase, on what bait. Keep it up for a few seasons and you see '
+  + 'your own pattern instead of the rules of thumb from the internet.',
+  'In vier Schritten gebaut': 'Built in four steps',
+  'Zählen — welche Fische mitgerechnet werden: alle oder eine Art.':
+    'Count — which fish are included: all of them or one species.',
+  'Über — was auf die Waagerechte kommt. Das ist die eigentliche Frage: meine Hechte über Luftdruck.':
+    'Over — what goes on the horizontal axis. That is the actual question: my pike over air pressure.',
+  ['Aufteilen nach — macht aus einer Kurve mehrere, eine je Köderfarbe. Damit vergleichst du '
+  + 'zwei Sachen im selben Bild.']:
+    'Split by — turns one line into several, one per bait colour. That is how you compare two '
+  + 'things in the same chart.',
+  'Gewässer — grenzt auf eins ein. Ohne Auswahl zählen alle mit.':
+    'Water — narrows it down to one. With nothing selected, all of them count.',
+  ['Das Bild ändert sich sofort mit. Passt es, legt „Auswertung speichern" es unter einem Namen '
+  + 'ab — gespeicherte stehen darunter und werden bei jedem neuen Fang mitgerechnet.']:
+    'The chart updates as you go. Once it fits, “Save this chart” stores it under a name — '
+  + 'saved ones appear below and are recalculated with every new catch.',
+  '⚠️ Was hier nicht steht: wie gut es beißt': '⚠️ What this does not tell you: how well they bite',
+  ['Gezählt werden nur Fänge — Ansitze ohne Fang trägt die App nicht ein. Ein hoher Punkt heißt '
+  + 'also „so oft hast du hier gefangen", nicht „hier fängst du am besten". Wenn du meistens '
+  + 'samstags morgens losziehst, wird Samstagmorgen zwangsläufig dein bester Wert.']:
+    'Only catches are counted — blank sessions are not recorded. So a high point means “this '
+  + 'is how often you caught here”, not “this is where you catch best”. If you mostly head out '
+  + 'on Saturday mornings, Saturday morning is bound to be your best value.',
   'Zählen': 'Count',
   'Über': 'Over',
   'über': 'over',
@@ -2278,6 +2333,15 @@ function fmtDate(iso){
   const d = new Date(iso);
   if (isNaN(d)) return iso;
   return `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+/* Nur der Tag, ohne Uhrzeit — für die Kacheln der Fangliste (13.08.2026).
+   Eigene Funktion statt `fmtDate(...).split(' · ')[0]`: das Trennzeichen ist Gestaltung
+   und wandert irgendwann, und dann stünde in der Liste plötzlich die halbe Uhrzeit. */
+function fmtTag(iso){
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()}`;
 }
 const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
 /* ⚠️ Übersetzt wird hier, an der Beschriftung — nicht in den Listen oben.
@@ -3248,27 +3312,33 @@ function renderList(){
 
     const size = [c.laenge && c.laenge + ' cm', c.gewicht && String(c.gewicht).replace('.', ',') + ' kg']
       .filter(Boolean).join(' · ');
-    const farben = farbenVon(c).map(T).join(', ');
-    const tags = (c.entwurf ? `<span class="pill warn">${T('Entwurf')}</span>` : '')
-      + (offen.has(c.id) ? `<span class="pill offen">${T('nur auf diesem Gerät')}</span>` : '') + [
-      c.phase && phaseLabel(c.phase),
-      c.wetter && (wetterIcon(c.wetter) + ' ' + wetterLabel(c.wetter)),
-      [c.koeder, farben].filter(Boolean).join(' · '),
-      c.druck  && c.druck + ' hPa',
-      c.windRichtung && (T('Wind') + ' ' + c.windRichtung)
-    ].filter(Boolean).map(t => `<span class="pill">${t}</span>`).join('');
+
+    /* ⚠️ Karls Ansage vom 13.08.2026: „zeig nur Bild Fischname länge gewicht datum ort."
+       Weggefallen sind damit Tageszeit, Wetter, Köder, Luftdruck und Wind — die stehen
+       alle im Fang selbst, einen Tipper entfernt.
+
+       ⚠️ **Zwei Schilder bleiben trotzdem, und das ist kein Übergehen der Ansage.**
+       „Entwurf" und „nur auf diesem Gerät" sind keine Fangdaten, sondern **Zustände der
+       App**: das eine sagt, dass der Eintrag halb ist, das andere, dass er nirgendwo
+       sonst liegt. Das zweite ist am 08.08. gebaut worden, nachdem zwei Fänge des
+       Kollegen verloren waren — es aus der Liste zu nehmen, hieße genau die Warnung
+       abzuschalten, die der Anlass war. Beide sind auf Kachelgröße geschrumpft. */
+    const marks = (c.entwurf ? `<span class="pill warn">${T('Entwurf')}</span>` : '')
+      + (offen.has(c.id) ? `<span class="pill offen">${T('nur hier')}</span>` : '');
 
     const th = (c.photos && c.photos[0])
       ? `<img src="${objURL(c.photos[0].thumb)}" alt="">`
       : '🐟';
 
+    /* Datum ohne Uhrzeit. In einer Kachel von rund 130 px stünde „12.08.2026 · 10:00"
+       sonst allein über die ganze Zeile und schöbe das Gewässer heraus — die Uhrzeit
+       steht im Fang. */
     el.innerHTML = `
       <div class="th">${th}</div>
-      <div style="flex:1; min-width:0">
-        <div class="t1">${c.art || T('Fang')}${size ? ' · ' + size : ''}</div>
-        <div class="t2">${fmtDate(c.when)}${c.gewaesser ? ' · ' + c.gewaesser : ''}</div>
-        <div class="tags">${tags}</div>
-      </div>`;
+      <div class="t1">${esc(c.art || T('Fang'))}</div>
+      <div class="t2">${size || '—'}</div>
+      <div class="t3">${fmtTag(c.when)}${c.gewaesser ? ' · ' + esc(c.gewaesser) : ''}</div>
+      ${marks ? `<div class="marks">${marks}</div>` : ''}`;
     list.appendChild(el);
   });
 
@@ -3540,7 +3610,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v42';
+const FASSUNG = 'v43';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);

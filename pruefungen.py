@@ -2186,11 +2186,15 @@ window.addEventListener('error', e => {
     return document.querySelector('#st-cloud').hidden === true
         || ('steht noch da: ' + document.querySelector('#st-cloud').textContent);
   });
+  /* ⚠️ Die Kachel heisst seit dem 13.08.2026 „nur hier" statt „nur auf diesem Geraet" —
+     auf einer halbbreiten Kachel steht der lange Text nicht. Gesucht wird deshalb nach
+     dem Schild selbst (.pill.offen) und nicht nach seinem Wortlaut: der ist Gestaltung
+     und aendert sich wieder, die Warnung darf davon nicht abhaengen. */
   t('jeder offene Fang ist in der Liste einzeln markiert', () => {
     // Die Zahl allein genuegt nicht -- man muss sehen, WELCHE Faenge es sind.
     cloudSetzen([mkC('alt', 1000), mkC('neu1', 5000), mkC('neu2', 6000)], 3000);
     const zeilen = [...document.querySelectorAll('#list .item')];
-    const markiert = zeilen.filter(z => /nur auf diesem Ger/.test(z.textContent))
+    const markiert = zeilen.filter(z => z.querySelector('.pill.offen'))
                            .map(z => z.dataset.id).sort();
     return (markiert.length === 2 && markiert[0] === 'neu1' && markiert[1] === 'neu2')
         || JSON.stringify(markiert);
@@ -2198,7 +2202,14 @@ window.addEventListener('error', e => {
   t('ein gesicherter Fang traegt die Markierung nicht', () => {
     cloudSetzen([mkC('alt', 1000)], 3000);
     const z = document.querySelector('#list .item');
-    return !/nur auf diesem Ger/.test(z.textContent) || 'faelschlich markiert';
+    return !z.querySelector('.pill.offen') || 'faelschlich markiert';
+  });
+  /* Gegenprobe zur Umbenennung: das Schild muss auch beschriftet sein. Ein leeres
+     Kaestchen bestuende die Pruefung darueber und saehe aus wie ein Gestaltungsfehler. */
+  t('und das Schild traegt einen Text', () => {
+    cloudSetzen([mkC('alt', 1000), mkC('neu1', 5000)], 3000);
+    const p = document.querySelector('#list .item .pill.offen');
+    return (p && p.textContent.trim().length >= 4) || 'Schild ohne Text';
   });
   t('die Einstellungen warnen vor dem Abmelden und Loeschen', () => {
     /* Die Seite, auf der man landet, bevor man abmeldet, das Konto loescht oder
@@ -3882,6 +3893,71 @@ window.addEventListener('error', e => {
         || 'noch ungelesen: ' + postfachUngelesen();
   });
 
+  /* ====== Die Fangliste zeigt weniger (13.08.2026, Karls Ansage) ======
+     „Bei der Suche will ich weniger Infos direkt sehen erst wenn ich draufclicke will ich
+     mehr sehen. bitte zeig nur Bild Fischname laenge gewicht datum ort."
+
+     ⚠️ Geprueft wird der **sichtbare Text der Kachel**, nicht die Vorlage im Quelltext.
+     Eine Quelltext-Pruefung faende „Luftdruck" im Kommentar daneben und bliebe gruen --
+     dieselbe Falle wie am 11. und 12.08. */
+  (function(){
+    const VOLL = {
+      id: 'pruef-liste', when: '2026-08-12T10:30:00.000Z', art: 'Hecht',
+      laenge: 78, gewicht: 4.2, gewaesser: 'Elbe',
+      koeder: 'Gummifisch', koederFarbe: 'Firetiger', phase: 'morgens',
+      wetter: 'bewoelkt', druck: 1013, windRichtung: 'NW', notiz: 'Sonnenaufgang'
+    };
+    const kachel = () => {
+      const alt = state.catches;
+      state.catches = [VOLL];
+      try { renderList(); return document.querySelector('#list .item'); }
+      finally { state.catches = alt; renderList(); }
+    };
+
+    t('die Kachel zeigt Fischart, Masse, Datum und Gewaesser', () => {
+      const txt = kachel().textContent;
+      return ['Hecht', '78 cm', '4,2 kg', '12.08.2026', 'Elbe'].every(s => txt.indexOf(s) !== -1)
+          || 'Kachel zeigt: ' + txt;
+    });
+    /* Der eigentliche Punkt der Ansage: was NICHT mehr dasteht. */
+    t('und nicht mehr Koeder, Wetter, Luftdruck, Wind oder Tageszeit', () => {
+      const txt = kachel().textContent;
+      const drin = ['Gummifisch', 'Firetiger', 'hPa', 'NW', 'morgens', 'Sonnenaufgang']
+        .filter(s => txt.indexOf(s) !== -1);
+      return drin.length === 0 || 'steht noch drin: ' + drin.join(', ');
+    });
+    /* Gegenprobe: „weniger anzeigen" darf nicht heissen „weniger finden". Gesucht wird
+       weiter ueber alle Felder -- sonst waere ein Koeder ab jetzt unauffindbar, obwohl
+       die Suchleiste ihn ausdruecklich anbietet. */
+    t('gesucht wird trotzdem noch nach dem Koeder', () => {
+      const alt = state.catches, q = document.getElementById('q');
+      state.catches = [VOLL];
+      q.value = 'gummifisch';
+      try { renderList(); return document.querySelectorAll('#list .item').length === 1
+                              || 'Koeder-Suche findet nichts mehr'; }
+      finally { q.value = ''; state.catches = alt; renderList(); }
+    });
+    t('und die Uhrzeit steht nicht mehr in der Kachel, aber im Fang', () => {
+      const txt = kachel().textContent;
+      return txt.indexOf('10:30') === -1 || 'Uhrzeit steht noch in der Kachel';
+    });
+    /* Die zwei Schilder, die kein Fangdatum sind, sondern ein Zustand der App.
+       „Entwurf" heisst: der Eintrag ist halb. Ohne das Schild sieht er fertig aus. */
+    t('ein Entwurf ist in der Kachel weiter als Entwurf erkennbar', () => {
+      const alt = state.catches;
+      state.catches = [{ ...VOLL, entwurf: true }];
+      try {
+        renderList();
+        const el = document.querySelector('#list .item');
+        return (el.classList.contains('entwurf') && /Entwurf/.test(el.textContent))
+            || 'Entwurf nicht erkennbar: ' + el.textContent;
+      } finally { state.catches = alt; renderList(); }
+    });
+    t('fmtTag liefert den Tag ohne Uhrzeit', () =>
+      fmtTag('2026-08-12T10:30:00.000Z').indexOf(':') === -1
+        || 'fmtTag: ' + fmtTag('2026-08-12T10:30:00.000Z'));
+  })();
+
   /* ====== Antworten kommen an, ohne die App neu zu starten (13.08.2026) ======
      Karls Meldung: Ticket in Discord beantwortet, am Handy kam nichts an. Die rote Zahl
      haengt an postfachHolen(), das haengt an syncJetzt() -- und das lief beim Zurueckholen
@@ -4119,6 +4195,61 @@ window.addEventListener('error', e => {
   for (const breite of [320, 360, 390]){
     ta('nichts ragt heraus auf ' + breite + ' px', async () => await breitPruefen(breite));
   }
+
+  /* ====== Zwei Kacheln nebeneinander (13.08.2026, Karls Ansage) ======
+     „mach die kacheln dann auch kleiner nur wenns geht sodass 2 nebeneinander moeglich
+     waeren." Gemessen wird die **Geometrie im 320-px-Fenster**, nicht der CSS-Text:
+     `grid-template-columns` im Quelltext zu suchen sagt nichts darueber, ob die Kacheln
+     dort auch wirklich nebeneinander landen -- ein zu breiter Inhalt sprengt jedes
+     Raster, und genau das ist am Handy der Normalfall.
+
+     ⚠️ Die Kacheln werden im Rahmen selbst gebaut statt ueber echte Faenge: `state` ist
+     auf oberster Ebene ein const und keine Eigenschaft des Fensters, an den Bestand des
+     iframes kommt man von hier also nicht heran. Gemeint ist ohnehin die Zusage des
+     Rasters, und die haengt nicht am Inhalt. */
+  const zweiNebeneinander = (breite) => new Promise((fertig, schief) => {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'width:' + breite + 'px;height:720px;border:0;position:absolute;left:-9999px';
+    f.src = 'index.html';
+    f.onload = () => setTimeout(() => {
+      try {
+        const w = f.contentWindow, d = f.contentDocument;
+        w.go('log');
+        const liste = d.getElementById('list');
+        liste.innerHTML = '';
+        // Absichtlich lange Texte: ein Fischname und ein Gewaesser, an denen ein
+        // Raster ohne minmax(0,1fr) auseinanderfaellt.
+        for (let i = 0; i < 4; i++){
+          const el = d.createElement('div');
+          el.className = 'item';
+          el.innerHTML = '<div class="th">\u{1F41F}</div>'
+            + '<div class="t1">Regenbogenforelle</div>'
+            + '<div class="t2">87 cm · 6,4 kg</div>'
+            + '<div class="t3">12.08.2026 · Nord-Ostsee-Kanal</div>';
+          liste.appendChild(el);
+        }
+        const k = [...liste.querySelectorAll('.item')];
+        const klagen = [];
+        if (k.length !== 4) klagen.push('nur ' + k.length + ' Kacheln');
+        // Erste und zweite muessen dieselbe Zeile teilen, dritte eine Zeile tiefer.
+        if (k[0].offsetTop !== k[1].offsetTop) klagen.push('1 und 2 stehen untereinander');
+        if (k[0].offsetLeft === k[1].offsetLeft) klagen.push('1 und 2 stehen uebereinander');
+        if (k[2].offsetTop <= k[0].offsetTop) klagen.push('3 steht nicht in der zweiten Reihe');
+        // Drei nebeneinander waeren auf 320 px Briefmarken -- gemeint sind zwei.
+        if (k[2].offsetTop === k[1].offsetTop) klagen.push('drei in einer Reihe');
+        // Und nichts davon darf seitlich herausragen.
+        for (const el of k){
+          const r = el.getBoundingClientRect();
+          if (r.right > breite + 1) klagen.push('Kachel ragt bis ' + Math.round(r.right) + ' px');
+        }
+        f.remove();
+        fertig(klagen.length === 0 || klagen.join(', '));
+      } catch (e){ f.remove(); schief(e); }
+    }, 2600);
+    f.onerror = () => { f.remove(); schief(new Error('index.html laedt nicht')); };
+    document.body.appendChild(f);
+  });
+  ta('zwei Fang-Kacheln stehen auf 320 px nebeneinander', async () => await zweiNebeneinander(320));
 
   (async function(){
     for (const [name, fn] of asyncTests){

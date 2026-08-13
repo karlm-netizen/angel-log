@@ -6,6 +6,41 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 13.08.2026 (v43) — Die Fangliste zeigt weniger und passt zu zweit nebeneinander
+
+Karls Ansage: *„Bei der Suche will ich weniger Infos direkt sehen erst wenn ich draufclicke will
+ich mehr sehen. bitte zeig nur Bild Fischname länge gewicht datum ort und mach die kacheln dann
+auch kleiner nur wenns geht sodas 2 nebeneinander möglich wären."*
+
+Weggefallen sind damit **Tageszeit, Wetter, Köder, Köderfarbe, Luftdruck und Wind** — die stehen
+alle im Fang selbst, einen Tipper entfernt. Geblieben: Bild, Fischart, Maße, Tag, Gewässer.
+
+⚠️ **Die Kachel ist dafür hochkant geworden, nicht nur kleiner.** Eine Zeile mit 56-px-Bild links
+und Text rechts hat auf 320 px Bildschirmbreite rund 130 px je Kachel für den Text — dort passt
+kein Fischname neben ein Bild. Hochkant bekommt das Bild die volle Kachelbreite und der Text
+darunter auch.
+
+⚠️ **Zwei Schilder bleiben, und das ist kein Übergehen der Ansage.** „Entwurf" und „nur hier"
+sind keine Fangdaten, sondern **Zustände der App**: das eine sagt, dass der Eintrag halb ist, das
+andere, dass er nirgendwo sonst liegt. Das zweite ist am 08.08. gebaut worden, nachdem zwei Fänge
+des Kollegen verloren waren — es aus der Liste zu nehmen hieße, genau die Warnung abzuschalten,
+die der Anlass war. Beide sind auf Kachelgröße geschrumpft, „nur auf diesem Gerät" heißt jetzt
+**„nur hier"**.
+
+⚠️ **Die Uhrzeit ist aus der Kachel raus**, das Datum nicht. „12.08.2026 · 10:00" stünde auf 130 px
+allein über die ganze Zeile und schöbe das Gewässer heraus.
+
+⚠️ **Weniger anzeigen heißt nicht weniger finden.** Gesucht wird weiter über Köder, Farbe, Wetter,
+Mondphase und Notiz — die Suchleiste bietet den Köder ausdrücklich an. Eine eigene Prüfung wacht
+darüber.
+
+Nebenbei: Fischart und Gewässer laufen in der Kachel jetzt durch `esc()`. Ein offener Punkt aus
+der Sicherheitsdurchsicht vom 12.08., an dieser Stelle mit erledigt.
+
+**Prüfungen:** die Geometrie wird im 320-px-Fenster **gemessen** (stehen Kachel 1 und 2 in
+derselben Zeile, Kachel 3 eine tiefer, ragt nichts heraus) — nicht im CSS-Text nachgeschlagen.
+Gegenprobe gemacht: Raster ausgehängt → sie fällt. **568 grün** (von 560).
+
 ## 13.08.2026 (v42) — Antworten kommen an, und die Auswertung erklärt sich
 
 ### 🐞 Karls Meldung: Ticket beantwortet, am Handy kam nichts an
