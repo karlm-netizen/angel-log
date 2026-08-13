@@ -3882,6 +3882,87 @@ window.addEventListener('error', e => {
         || 'noch ungelesen: ' + postfachUngelesen();
   });
 
+  /* ====== Antworten kommen an, ohne die App neu zu starten (13.08.2026) ======
+     Karls Meldung: Ticket in Discord beantwortet, am Handy kam nichts an. Die rote Zahl
+     haengt an postfachHolen(), das haengt an syncJetzt() -- und das lief beim Zurueckholen
+     der App aus dem App-Switcher nie. Genau der Weg, auf dem eine PWA am iPhone benutzt
+     wird.
+
+     ⚠️ Behaviorale Pruefung, keine Quelltext-Suche. Mein eigener Kommentar an der Stelle
+     enthaelt das Wort "visibilitychange" mehrfach -- eine Quelltext-Pruefung fiele damit
+     in genau die Falle vom 11.08.: sie findet ihren Suchbegriff im Kommentar daneben und
+     bleibt gruen, auch wenn der Aufruf raus ist.
+
+     ⚠️ **Asynchron, und das ist keine Kosmetik.** Der Zuhoerer wird in init() angemeldet,
+     und init() ist beim Durchlauf der synchronen Pruefungen noch nicht so weit. Als
+     einfaches t() geschrieben fiel diese Pruefung zunaechst mit "Aufrufe: 0" -- sie hat
+     nicht den Code gemessen, sondern den Zeitpunkt. Deshalb wird gewartet, bis der
+     Zuhoerer wirklich da ist. */
+  (function(){
+    const sichtbar = () => document.dispatchEvent(new Event('visibilitychange'));
+    const spionieren = async fn => {
+      const echt = syncJetzt;
+      const zaehler = { n: 0 };
+      syncJetzt = () => { zaehler.n++; return Promise.resolve(); };
+      try { await fn(zaehler); } finally { syncJetzt = echt; }
+      return zaehler;
+    };
+
+    ta('zurueck in die App loest einen Abgleich aus', async () => {
+      const z = await spionieren(async z => {
+        // Warten, bis init() den Zuhoerer angemeldet hat -- nicht laenger.
+        for (let i = 0; i < 80 && z.n === 0; i++){
+          sichtbar();
+          await new Promise(r => setTimeout(r, 50));
+        }
+      });
+      return z.n > 0 || 'kein Abgleich, auch nach dem Warten auf init()';
+    });
+    /* Gegenprobe zur Drossel -- ohne sie liefe am iPhone bei JEDEM Blick in die App ein
+       voller Abgleich, ueber Mobilfunk, mitten im Angeln. Laeuft direkt nach der
+       Pruefung darueber, die Sperre steht also frisch. */
+    ta('der zweite Blick sofort danach loest keinen zweiten aus', async () => {
+      const z = await spionieren(async () => { sichtbar(); sichtbar(); sichtbar(); });
+      return z.n === 0 || 'Aufrufe trotz Drossel: ' + z.n;
+    });
+    /* Und die Gegenprobe zur Gegenprobe: eine Drossel von einer Stunde waere dasselbe
+       wie gar kein Abgleich. Die Antwort soll beim naechsten Hinsehen da sein.
+       ⚠️ Keine Pruefung fuer `document.hidden`: sie kaeme nur nach der Registrierung
+       dran, und dann steht die Drossel -- sie wuerde also gruen bleiben, ohne die
+       Bedingung je gemessen zu haben. Lieber keine als eine, die aus dem falschen
+       Grund gruen ist (die Lektion vom 11. und 12.08.). */
+    t('die Drossel ist eine Minute, keine Stunde', () =>
+      (SICHT_SYNC_PAUSE >= 15000 && SICHT_SYNC_PAUSE <= 300000)
+        || 'SICHT_SYNC_PAUSE = ' + SICHT_SYNC_PAUSE);
+  })();
+
+  /* ====== Das ⓘ am Baukasten (13.08.2026, Karls Ansage) ====== */
+  t('das Info-Zeichen steht am Baukasten', () =>
+    !!document.getElementById('st-info-btn') || 'kein #st-info-btn');
+  t('die Erklaerung ist zugeklappt, bis man tippt', () =>
+    document.getElementById('st-info').hidden === true || 'steht offen da');
+  t('ein Tipp klappt sie auf, der naechste wieder zu', () => {
+    const b = document.getElementById('st-info-btn'), p = document.getElementById('st-info');
+    b.click();
+    const auf = p.hidden === false && b.getAttribute('aria-expanded') === 'true';
+    b.click();
+    const zu = p.hidden === true && b.getAttribute('aria-expanded') === 'false';
+    return (auf && zu) || ('auf: ' + auf + ', zu: ' + zu);
+  });
+  /* Der Satz, der als Erstes verschwindet, wenn jemand den Text kuerzt -- und der
+     einzige, der die Auswertung ehrlich haelt: gezaehlt werden Faenge, nicht Ansitze.
+     Ohne ihn liest man aus einem hohen Punkt "hier faengt man am besten". */
+  t('die Erklaerung sagt, dass Ansitze ohne Fang fehlen', () => {
+    const txt = document.getElementById('st-info').textContent;
+    return (txt.indexOf('Ansitze ohne Fang') !== -1 && txt.indexOf('nicht') !== -1)
+        || 'Hinweis fehlt: ' + txt.slice(0, 120);
+  });
+  t('und sie erklaert die vier Schritte des Baukastens', () => {
+    const txt = document.getElementById('st-info').textContent;
+    return ['Zählen', 'Über', 'Aufteilen', 'Gewässer'].every(w => txt.indexOf(w) !== -1)
+        || 'ein Schritt fehlt';
+  });
+
   /* ====== Die Fang-Ansicht: leere Felder (12.08.2026) ======
      ⚠️ Diese Ansicht hatte bis heute KEINE einzige Pruefung. Genau deshalb konnte in acht
      Zeilen woertlich "false" stehen, ohne dass irgendetwas gefallen waere -- gemeldet hat

@@ -159,6 +159,13 @@ setTimeout(function(){
   }
   .iconbtn{width:38px; height:38px; flex:0 0 38px; display:grid; place-items:center;
     background:var(--card2); border:1px solid var(--line); border-radius:11px; color:var(--muted)}
+  /* ⚠️ Hier stand kurz `.iconbtn svg{width:20px;height:20px}`. Ohne Größenangabe füllt
+     ein svg mit viewBox seinen Kasten (100 % von 38 px) — die Regel hätte also **jeden**
+     bestehenden Icon-Knopf mit verkleinert, vom Abbrechen-Kreuz bis zum Zurück-Pfeil.
+     Eine neue Erklärung ist kein Grund, die halbe Oberfläche zu verstellen.
+     Aufgeklappt sieht man dem ⓘ an, dass die Erklärung offen ist — sonst tippt man
+     ein zweites Mal darauf und wundert sich, warum sie verschwindet. */
+  .iconbtn.on{color:var(--accent); border-color:var(--accent)}
 
   /* Formular */
   label.f{display:block; font-size:12px; color:var(--muted); margin:0 0 5px 2px; font-weight:600}
@@ -919,6 +926,48 @@ function splashWeg(){
          Frage: „wie viele <Fische> über <Größe>". Deshalb steht oben, was
          gezählt wird, darunter, worüber. -->
     <div class="card" id="st-baukasten">
+      <!-- Karls Ansage vom 13.08.2026: „ein kleines info symbol wo es noch einmal
+           erklärt wird wie das genau funktioniert wozu das gut ist."
+           ⚠️ Aufklappen statt Fenster. Ein fliegendes Fenster wäre der dritte
+              Bedienweg in einem Reiter, aus dem am 12.08. gerade erst eins
+              herausgeworfen wurde — und man will die Erklärung **neben** dem
+              Baukasten lesen, während man ihn bedient, nicht statt seiner. -->
+      <h2 class="row between" style="display:flex; align-items:center; gap:10px">
+        <span>Auswertung bauen</span>
+        <button class="iconbtn" id="st-info-btn" aria-label="Wie funktioniert das?"
+                aria-expanded="false" style="flex:0 0 auto">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6v.1"/>
+          </svg>
+        </button>
+      </h2>
+      <div id="st-info" hidden style="margin:-2px 0 14px">
+        <div class="hint" style="margin:0">
+          <p style="margin:0 0 9px"><b>Wozu das gut ist:</b> Eine Auswertung zeigt,
+            <b>unter welchen Bedingungen deine Fänge bisher zustande kamen</b> — bei
+            welchem Luftdruck, zu welcher Uhrzeit, bei welchem Mond, an welchem Köder.
+            Wer das ein paar Saisons lang führt, sieht sein eigenes Muster statt der
+            Faustregeln aus dem Internet.</p>
+          <p style="margin:0 0 6px"><b>In vier Schritten gebaut:</b></p>
+          <ol style="margin:0 0 9px; padding-left:19px; line-height:1.6">
+            <li><b>Zählen</b> — welche Fische. „Alle Fische" oder eine Art.</li>
+            <li><b>Über</b> — was auf die Waagerechte kommt. Das ist die eigentliche
+              Frage: „meine Hechte <i>über Luftdruck</i>".</li>
+            <li><b>Aufteilen nach</b> — macht aus einer Kurve mehrere, eine je
+              Köderfarbe. Damit vergleichst du zwei Sachen im selben Bild.</li>
+            <li><b>Gewässer</b> — grenzt auf ein Gewässer ein. Sonst zählen alle mit.</li>
+          </ol>
+          <p style="margin:0 0 9px">Das Bild ändert sich sofort mit. Passt es, legt
+            <b>„Auswertung speichern"</b> es unter einem Namen ab — gespeicherte stehen
+            darunter und werden bei jedem neuen Fang mitgerechnet.</p>
+          <p style="margin:0"><b>⚠️ Was hier <i>nicht</i> steht:</b> wie gut es beißt.
+            Gezählt werden nur <b>Fänge</b> — Ansitze ohne Fang trägt die App nicht ein.
+            Ein hoher Punkt heißt also „so oft hast du hier gefangen", nicht „hier
+            fängst du am besten". Wenn du meistens samstags morgens losziehst, wird
+            Samstagmorgen zwangsläufig dein bester Wert.</p>
+        </div>
+      </div>
       <!-- Sagt, ob hier gerade eine gespeicherte Auswertung offen liegt. Ohne die Liste
            von früher wäre sonst nicht erkennbar, woran man beim Bearbeiten sitzt. -->
       <div class="row between" id="st-offen" style="display:none; align-items:center; gap:10px; margin-bottom:12px">
@@ -2821,6 +2870,16 @@ function buildStatics(){
 
   renderTruebHint();     // füllt den Hinweis auch ohne Werte — und beim Sprachwechsel neu
 
+  /* Die Erklärung auf- und zuklappen. ⚠️ `aria-expanded` wandert mit — ein Knopf,
+     der etwas aufklappt, muss es auch sagen können; das Zeichen allein sieht nur
+     jemand, der es sieht. */
+  $('#st-info-btn').onclick = () => {
+    const auf = $('#st-info').hidden;
+    $('#st-info').hidden = !auf;
+    $('#st-info-btn').setAttribute('aria-expanded', auf ? 'true' : 'false');
+    $('#st-info-btn').classList.toggle('on', auf);
+  };
+
   $('#st-speichern').onclick = auswertungSpeichern;
   $('#st-sichern').onclick   = auswertungSichern;
   /* Aus einer geladenen Auswertung wieder heraus. ⚠️ Nur die Verbindung wird gelöst —
@@ -3481,7 +3540,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v41';
+const FASSUNG = 'v42';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -4220,6 +4279,12 @@ function werteAnstossen(){
   clearTimeout(werteTimer);
   werteTimer = setTimeout(() => syncJetzt(true), 4000);
 }
+
+/* Wie lange nach einem Abgleich das Zurückkommen in die App keinen neuen auslöst.
+   60 s ist der Kompromiss: eine Antwort, die gerade geschrieben wurde, ist beim
+   nächsten Blick da — und wer zwischen App und Kamera hin- und herspringt, löst
+   nicht bei jedem Wechsel eine Übertragung aus. */
+const SICHT_SYNC_PAUSE = 60000;
 
 let werteFehlerGemeldet = false;
 async function syncJetzt(still){
@@ -5981,6 +6046,32 @@ window.addEventListener('unhandledrejection', e =>
        wäre sie ausgerechnet dann noch nicht da, wenn dieser Abgleich gerade am Netz hängt —
        und das Wiederkommen der Verbindung liefe ins Leere. */
     window.addEventListener('online', () => syncJetzt(true));
+
+    /* ⚠️ Karls Meldung vom 13.08.2026: Ticket in Discord beantwortet, **am Handy kam
+       nichts an**. Der Befund ist echt und liegt genau hier.
+
+       Die rote Zahl hängt an `postfachHolen()`, und das läuft ausschließlich in
+       `syncJetzt()`. Ausgelöst wurde das bis eben nur beim **Start**, beim Speichern
+       eines Fangs, beim Wiederkommen des Netzes und von Hand. Eine PWA am iPhone wird
+       aber fast nie „gestartet" — man holt sie aus dem App-Switcher zurück, und dann
+       lief kein einziger Abgleich. Wer die App offen liegen lässt, während die Antwort
+       geschrieben wird, sieht sie bis zum nächsten Neustart nicht.
+
+       ⚠️ Das ist **nicht** dasselbe wie eine Push-Nachricht. Bei geschlossener App
+       zeigt das Handy weiterhin nichts an — dafür bräuchte es Web Push mit
+       Berechtigung, Push-Dienst und einem Server, der sendet. Das ist ein eigener
+       Bau und Karls Entscheidung, keine stille Zugabe.
+
+       ⚠️ **Gedrosselt**, und zwar nicht aus Sparsamkeit: `visibilitychange` feuert am
+       iPhone bei jedem Blick in die App. Ungebremst liefe bei jedem Antippen ein
+       voller Abgleich — am Wasser, über Mobilfunk, mitten im Angeln. */
+    let letzterSichtSync = 0;
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) return;
+      if (Date.now() - letzterSichtSync < SICHT_SYNC_PAUSE) return;
+      letzterSichtSync = Date.now();
+      syncJetzt(true);
+    });
     /* ⚠️ `await`, und darin steckt Karls Ansage: der Ladebildschirm bleibt so lange stehen.
        Gefahrlos ist das nur, weil syncJetzt seine Fehler selbst behandelt (nichts fliegt hier
        heraus) und weil SPLASH_HOECHSTENS unabhängig davon läuft. Wer sich noch nicht

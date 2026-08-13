@@ -6,6 +6,51 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 13.08.2026 (v42) — Antworten kommen an, und die Auswertung erklärt sich
+
+### 🐞 Karls Meldung: Ticket beantwortet, am Handy kam nichts an
+
+**Der Befund war echt.** Die rote Zahl hängt an `postfachHolen()`, das hängt an `syncJetzt()` —
+und ausgelöst wurde ein Abgleich bisher nur beim **Start**, beim Speichern eines Fangs, beim
+Wiederkommen des Netzes und von Hand. Eine PWA am iPhone wird aber fast nie gestartet: man holt
+sie aus dem App-Switcher zurück, und dabei lief kein einziger Abgleich. Wer die App offen liegen
+lässt, während die Antwort geschrieben wird, sah sie bis zum nächsten Neustart nicht.
+
+Zurück in die App löst jetzt einen stillen Abgleich aus — **gedrosselt auf einmal je Minute**.
+Ohne die Drossel liefe am iPhone bei jedem Blick in die App eine volle Übertragung, über
+Mobilfunk, mitten im Angeln.
+
+⚠️ **Das ist keine Push-Nachricht.** Bei geschlossener App zeigt das Handy weiterhin nichts an.
+Dafür bräuchte es Web Push mit Berechtigung, Push-Dienst und einem Server, der sendet — ein
+eigener Bau und keine stille Zugabe.
+
+⚠️ **Die Prüfung dazu fiel zuerst aus dem falschen Grund.** Als synchrones `t()` geschrieben lief
+sie, bevor `init()` den Zuhörer überhaupt angemeldet hatte — sie maß den Zeitpunkt, nicht den
+Code. Jetzt wartet sie darauf. Gegenprobe gemacht: Aufruf entfernt → sie fällt.
+Eine Prüfung für `document.hidden` gibt es bewusst **nicht** — sie käme erst nach der
+Registrierung dran, und dann steht die Drossel; sie wäre grün, ohne je etwas gemessen zu haben.
+
+### ⓘ Ein Info-Zeichen am Baukasten der Auswertung
+
+Karls Ansage: *„ein kleines info symbol wo es noch einmal erklärt wird wie das genau funktioniert
+wozu das gut ist."* Klappt neben dem Baukasten auf, statt ein Fenster zu öffnen — man liest es,
+während man den Baukasten bedient, nicht statt seiner.
+
+Darin: wozu eine Auswertung gut ist, die vier Schritte (Zählen / Über / Aufteilen / Gewässer),
+und wie man sie speichert.
+
+⚠️ **Der wichtigste Absatz ist der letzte, und er sagt, was dort *nicht* steht:** wie gut es
+beißt. Gezählt werden nur Fänge — **Ansitze ohne Fang trägt die App nicht ein**. Ein hoher Punkt
+heißt „so oft hast du hier gefangen", nicht „hier fängst du am besten". Wer meistens samstags
+morgens loszieht, hat zwangsläufig samstagmorgens seinen besten Wert. Eine eigene Prüfung wacht
+darüber, dass dieser Satz beim nächsten Kürzen nicht als Erstes verschwindet.
+
+⚠️ **Zurückgenommen während des Bauens:** eine CSS-Regel `.iconbtn svg{width:20px}` hätte das ⓘ
+sauber gemacht — und dabei **jeden bestehenden Icon-Knopf mit verkleinert**, vom Abbrechen-Kreuz
+bis zum Zurück-Pfeil. Ohne Größenangabe füllt ein `svg` mit viewBox seinen Kasten.
+
+**560 Prüfungen grün** (von 552).
+
 ## 12.08.2026 (8) — Die Einführung führt jetzt wirklich durch die App
 
 Karls Liste, Punkt für Punkt abgearbeitet.
