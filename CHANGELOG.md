@@ -6,6 +6,78 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 13.08.2026 (v44) — Home: Angelzeit, Wetter am Wasser und eine Fangprognose
+
+Karls Ansage: *„Leiste unten neue anordnung: als erstes soll jetzt ein home button kommen wo die
+angelzeit steht und vorraussage für wetter (alles was in der statistik auch vorkommt)
+fangprognose auch."*
+
+Vier Kacheln statt drei, **Home steht vorn**, und die App öffnet dort. Die Angelzeit ist
+umgezogen, sie steht nicht doppelt — sie gehörte ohnehin nie zur Fangliste, man startet sie,
+bevor der erste Fang existiert.
+
+### 🌤 Wetter am Wasser
+
+Jetzt-Werte und die nächsten 24 Stunden: Wetterlage, Lufttemperatur, Luftdruck **mit Tendenz**,
+Wind, Bewölkung, Regen, Mondphase, Sonnenauf- und -untergang. Das ist Karls Klammer („alles was
+in der statistik auch vorkommt") wörtlich genommen.
+
+**Der Ort kommt vom zuletzt erfassten Fang mit Koordinaten** — nicht aus einer GPS-Abfrage beim
+Öffnen. Ein Standortdialog, den niemand ausgelöst hat, ist das Erste, was man wegtippt; danach
+stünde die Karte für immer leer. Von Hand setzen geht über den 📍-Knopf.
+
+⚠️ **Die Vorhersage wird gespeichert.** Am Wasser ist oft kein Netz — lieber die Werte von heute
+früh mit sichtbarem Zeitstempel („Stand …", und ab 30 Minuten „nicht mehr taufrisch") als eine
+leere Karte.
+
+⚠️ **`dirLabel(null)` liefert „N", nicht nichts** — `null % 360` ist 0. Ohne die Abfrage hätte
+bei fehlender Windrichtung eine erfundene Himmelsrichtung dagestanden, ununterscheidbar von einer
+echten. Eigene Prüfung dafür.
+
+### 🎣 Die Fangprognose — und was sie ausdrücklich nicht ist
+
+Sie rechnet **ausschließlich mit Karls eigenen Fängen**. Keine Beißformel, keine Solunar-Tabelle,
+keine geliehene Faustregel. Sie fragt eine einzige Sache: *wie ähnlich sind die vorhergesagten
+Bedingungen denen, unter denen dieser Angler bisher gefangen hat?*
+
+Verglichen wird an sechs Maßen, alle sechs stehen auch in der Auswertung auf der X-Achse:
+**Uhrzeit** (±1 h Fenster — wer um 5:50 gefangen hat, hat nicht „um 5" gefangen), **Tageszeit,
+Wetter, Mondphase, Luftdruck** (5-hPa-Stufen), **Lufttemperatur** (2-°C-Stufen). Ausgegeben wird
+für heute und morgen das beste zusammenhängende **Drei-Stunden-Fenster**, dazu eine von drei
+Stufen und die zwei stärksten Gründe.
+
+⚠️ **Wassertemperatur, Tiefe und Trübung fehlen bewusst** — dafür gibt es keine Vorhersage. Die
+Pegel der WSV melden Messwerte, keine Prognose, und die Trübung trägt Karl von Hand ein. Ein
+geschätzter Wert wäre eine erfundene Zahl in einer Rechnung, die sonst nur mit echten arbeitet.
+
+⚠️ **Drei Stufen, keine Prozentzahl.** „73 %" liest sich wie eine Messung und wäre keine.
+
+⚠️ **Unter zehn Fängen wird gar nichts gerechnet.** Eine Prognose aus vier Fängen ist kein
+ungenaues Ergebnis, sondern gar keins — und sie sähe genauso aus wie eine aus vierhundert. Statt
+einer Stufe steht dann da, wie weit es noch ist („Erst 4 von 10 Fängen sind eingetragen").
+
+⚠️ **Und der wichtigste Satz steht in der Karte selbst: das ist keine Beißvorhersage.** Die App
+zählt nur Fänge, keine Ansitze ohne Fang — der Nenner fehlt. Wer meistens samstags früh losfährt,
+bekommt samstags früh die besten Werte, weil er dann da war. Eine eigene Prüfung wacht darüber,
+dass dieser Satz nicht verschwindet.
+
+### Nebenbei gefunden und behoben
+
+⚠️ **Der Prüfrahmen kannte zusammengesetzte Wörterbuch-Schlüssel nicht.** Lange Sätze stehen als
+`['a ' + 'b']: '…'` da; die Prüfung las nur `'a':`-Zeilen und meldete fünf Übersetzungen als
+fehlend, die zwei Zeilen weiter oben standen. Jetzt liest sie beides.
+
+⚠️ **Ein Syntaxfehler in einem Wörterbuch-Schlüssel reißt den ganzen Skriptblock mit.**
+`'a' + 'b': 'c'` ist ungültig — die App meldete daraufhin `gateZeigen is not defined`, 3000 Zeilen
+vom eigentlichen Fehler entfernt.
+
+⚠️ **Vier Kacheln passen auf 320 px nur mit 10 px Schrift und `min-width:0`.** Eine Flex-Kachel
+ist sonst mindestens so breit wie ihr Inhalt, und „Einstellungen" hätte die Leiste seitlich aus
+dem Bild geschoben.
+
+**583 Prüfungen grün** (von 568). Gegenprobe gemacht: die Prognose-Rechnung flachgelegt (jedes Maß
+liefert 0,5) → die beiden Prüfungen, die den Unterschied messen, fallen.
+
 ## 13.08.2026 (v43) — Die Fangliste zeigt weniger und passt zu zweit nebeneinander
 
 Karls Ansage: *„Bei der Suche will ich weniger Infos direkt sehen erst wenn ich draufclicke will

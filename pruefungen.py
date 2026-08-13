@@ -3589,12 +3589,13 @@ window.addEventListener('error', e => {
     return weiter || `Tour steht auf ${tourNr}, erwartet ${nr + 1}`;
   });
 
-  /* ====== Drei Kacheln statt vier (12.08.2026) ======
-     Karls Ansage: Liste, Karte und Statistiken zusammenwerfen, dann Neuer Fang,
-     dann Einstellungen. */
-  t('unten stehen genau drei Kacheln', () => {
+  /* ====== Die Kacheln unten (12.08.2026, erweitert am 13.08.2026) ======
+     Am 12.08. Karls Ansage: Liste, Karte und Statistiken zusammenwerfen, dann Neuer
+     Fang, dann Einstellungen. Am 13.08. kam Home dazu, und zwar **vorn**:
+     „als erstes soll jetzt ein home button kommen." */
+  t('unten stehen genau vier Kacheln', () => {
     const n = document.querySelectorAll('.tabs .tab').length;
-    return n === 3 || 'es sind ' + n;
+    return n === 4 || 'es sind ' + n;
   });
   t('und zwar in Karls Reihenfolge', () => {
     /* ⚠️ Geprueft wird die Kennung, nicht die Beschriftung. Die erste Fassung las
@@ -3603,7 +3604,15 @@ window.addEventListener('error', e => {
        damit mit "Faenge | Neuer Fang | 0", obwohl die Reihenfolge stimmte. */
     const b = Array.from(document.querySelectorAll('.tabs .tab'))
       .map(t2 => t2.dataset.go || t2.id);
-    return (b.join(',') === 'log,new,set') || 'Reihenfolge: ' + b.join(' | ');
+    return (b.join(',') === 'home,log,new,set') || 'Reihenfolge: ' + b.join(' | ');
+  });
+  /* Die erste Kachel ist die, auf der man landet. Steht das auseinander, leuchtet
+     unten Home und man steht in der Fangliste -- der verwirrendste aller Zustaende. */
+  t('die App oeffnet auf der ersten Kachel', () => {
+    const erste = document.querySelector('.tabs .tab').dataset.go;
+    const js = document.documentElement.innerHTML;
+    return js.indexOf("go('" + erste + "');") !== -1
+        || 'init() startet nicht auf ' + erste;
   });
   /* ⚠️ Die wichtigste hier: keine der drei Ansichten darf beim Zusammenlegen
      verlorengehen. Erreichbar bleiben muessen sie alle -- ueber den Umschalter. */
@@ -3893,6 +3902,191 @@ window.addEventListener('error', e => {
         || 'noch ungelesen: ' + postfachUngelesen();
   });
 
+  /* ====== Home: Wetter und Fangprognose (13.08.2026, Karls Ansage) ======
+     „als erstes soll jetzt ein home button kommen wo die angelzeit steht und vorraussage
+     fuer wetter (alles was in der statistik auch vorkommt) fangprognose auch."
+
+     ⚠️ Der heikle Teil ist nicht das Zeichnen, sondern die **Rechnung**. Die Prognose
+     darf nichts behaupten, was sie nicht aus Karls eigenen Faengen hat -- und sie darf
+     sich nicht wie eine Beissquote lesen. Beides wird hier gemessen. */
+  (function(){
+    const pad2 = n => String(n).padStart(2, '0');
+    const isoLokal = d => d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate())
+                        + 'T' + pad2(d.getHours()) + ':00';
+    /* Eine Vorhersage bauen, die von jetzt an 60 Stunden abdeckt. Alle Stunden tragen
+       dieselben Werte ausser dem, was die einzelne Pruefung veraendert -- dann ist
+       messbar, WORAN ein Unterschied liegt. */
+    const vorhersageBauen = (aendern) => {
+      const t0 = new Date(); t0.setMinutes(0, 0, 0);
+      const time = [], temp = [], druck = [], code = [], wind = [], richt = [], wolken = [], regen = [];
+      for (let k = -2; k < 58; k++){
+        const d = new Date(t0.getTime() + k * 3600e3);
+        time.push(isoLokal(d));
+        temp.push(18); druck.push(1015); code.push(2); wind.push(9);
+        richt.push(240); wolken.push(50); regen.push(0);
+      }
+      const tage = [];
+      for (let k = 0; k < 4; k++){
+        const d = new Date(t0.getTime() + (k - 1) * 864e5);
+        tage.push(d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate()));
+      }
+      const v = {
+        lat: 54.32, lon: 10.13, geholt: Date.now(),
+        hourly: { time, temperature_2m: temp, pressure_msl: druck, weather_code: code,
+                  wind_speed_10m: wind, wind_direction_10m: richt,
+                  cloud_cover: wolken, precipitation: regen },
+        daily: { time: tage,
+                 sunrise: tage.map(s => s + 'T05:30'), sunset: tage.map(s => s + 'T21:15') }
+      };
+      if (aendern) aendern(v);
+      return v;
+    };
+    /* Faenge, die alle unter derselben Bedingung entstanden sind: 1015 hPa, bewoelkt,
+       18 Grad. Damit muss eine Stunde mit genau diesen Werten hoeher liegen als eine
+       mit ganz anderen -- das ist die einzige Zusage, die die Prognose macht. */
+    const faengeBauen = (n, aendern) => {
+      const l = [];
+      for (let k = 0; k < n; k++){
+        const d = new Date(Date.now() - (k + 1) * 864e5);
+        d.setHours(6, 0, 0, 0);
+        const c = { id: 'p' + k, when: d.toISOString(), art: 'Hecht',
+                    druck: 1015, luft: 18, wetter: 'bewoelkt', phase: 'morgen' };
+        l.push(aendern ? aendern(c, k) : c);
+      }
+      return l;
+    };
+
+    t('das Modell benutzt nur Masse, die genug Faenge tragen', () => {
+      const m = prognoseModell(faengeBauen(12));
+      const keys = m.map(x => x.mass.key).sort();
+      // Uhrzeit, Tageszeit, Wetter, Luftdruck, Lufttemperatur, Mondphase - alle gedeckt.
+      return keys.length >= 5 || 'nur: ' + keys.join(',');
+    });
+    t('ein Mass mit zu wenigen Werten faellt raus', () => {
+      // Nur zwei Faenge tragen einen Luftdruck, der Rest nicht.
+      const l = faengeBauen(12, (c, k) => k < 2 ? c : { ...c, druck: null });
+      const m = prognoseModell(l);
+      return m.every(x => x.mass.key !== 'druck')
+          || 'Luftdruck rechnet mit ' + m.find(x => x.mass.key === 'druck').werte.length + ' Werten';
+    });
+    /* Die Kernzusage: passende Bedingungen ergeben einen hoeheren Wert als unpassende.
+       Ohne diese Pruefung koennte die Rechnung konstant 0,5 liefern und niemand saehe es. */
+    t('passende Bedingungen liegen hoeher als unpassende', () => {
+      const m = prognoseModell(faengeBauen(20));
+      const gut = prognoseStunde(m, { stunde: 6, druck: 1015, luft: 18,
+                                      wetter: 'bewoelkt', mond: null, phase: 'morgen' });
+      const mau = prognoseStunde(m, { stunde: 14, druck: 985, luft: 30,
+                                      wetter: 'gewitter', mond: null, phase: 'tag' });
+      return (gut.wert > mau.wert) || `gut ${gut.wert} vs. mau ${mau.wert}`;
+    });
+    t('und die passende Stunde landet in der obersten Stufe', () => {
+      const m = prognoseModell(faengeBauen(20));
+      const gut = prognoseStunde(m, { stunde: 6, druck: 1015, luft: 18,
+                                      wetter: 'bewoelkt', mond: null, phase: 'morgen' });
+      return prognoseStufe(gut.wert).icon === '🟢' || 'Wert ' + gut.wert;
+    });
+    /* Gegenprobe zur Normierung: der Wert darf nie ueber 1 liegen, sonst waere die
+       Stufengrenze 0,6 sinnlos geworden. */
+    t('kein Wert liegt ueber 1', () => {
+      const m = prognoseModell(faengeBauen(20));
+      const p = prognoseStunde(m, { stunde: 6, druck: 1015, luft: 18,
+                                    wetter: 'bewoelkt', mond: null, phase: 'morgen' });
+      return p.wert <= 1.0000001 || 'Wert ' + p.wert;
+    });
+    t('die Uhrzeit zaehlt mit einem Fenster von einer Stunde', () => {
+      const m = prognoseModell(faengeBauen(20)).find(x => x.mass.key === 'stunde');
+      const nah = m.mass.nah;
+      return (nah(6, 7) && nah(6, 5) && !nah(6, 9) && nah(23, 0))
+          || 'Fenster stimmt nicht (auch ueber Mitternacht pruefen)';
+    });
+    t('das beste Fenster ist drei zusammenhaengende Stunden', () => {
+      const v = vorhersageBauen();
+      const m = prognoseModell(faengeBauen(20));
+      const heute = v.hourly.time[2].slice(0, 10);
+      const b = bestesFenster(m, v, heute);
+      if (!b || !b.von) return 'kein Fenster gefunden';
+      const spanne = new Date(b.bis).getTime() - new Date(b.von).getTime();
+      return spanne === 2 * 3600e3 || 'Spanne: ' + (spanne / 3600e3) + ' h';
+    });
+
+    /* ---- Die Ansicht ---- */
+    const homeBauen = async (faenge, vAendern) => {
+      const alt = state.catches;
+      localStorage.setItem('angellog-heimat',
+        JSON.stringify({ lat: 54.32, lon: 10.13, name: 'Teststrecke' }));
+      /* ⚠️ Frisch gestempelt abgelegt: dann liefert vorhersageHolen() aus dem Speicher
+         und der Prueflauf haengt nicht am Netz. Eine Pruefung, die eine fremde API
+         braucht, faellt irgendwann aus Gruenden, die nichts mit dem Code zu tun haben. */
+      localStorage.setItem('angellog-vorhersage', JSON.stringify(vorhersageBauen(vAendern)));
+      state.catches = faenge;
+      state.view = 'home';
+      try { await renderHome(); return {
+        wetter: document.getElementById('home-wetter').textContent,
+        prognose: document.getElementById('home-prognose').textContent
+      }; }
+      finally {
+        state.catches = alt;
+        localStorage.removeItem('angellog-heimat');
+        localStorage.removeItem('angellog-vorhersage');
+      }
+    };
+
+    ta('die Wetterkarte zeigt die Werte, die auch in der Auswertung vorkommen', async () => {
+      const r = await homeBauen(faengeBauen(20));
+      const fehlt = ['1015 hPa', '18 °C', '50 %', 'km/h', 'Teststrecke']
+        .filter(s => r.wetter.indexOf(s) === -1);
+      return fehlt.length === 0 || 'fehlt: ' + fehlt.join(', ') + '  |  ' + r.wetter.slice(0, 200);
+    });
+    ta('sie nennt Sonnenauf- und -untergang und die Mondphase', async () => {
+      const r = await homeBauen(faengeBauen(20));
+      return (r.wetter.indexOf('05:30') !== -1 && r.wetter.indexOf('21:15') !== -1
+              && /Mond|Neumond|Vollmond|Viertel|Sichel/.test(r.wetter))
+          || r.wetter.slice(0, 200);
+    });
+    /* ⚠️ Ohne Windrichtung darf dort keine stehen. `dirLabel(null)` liefert "N", weil
+       `null % 360` gleich 0 ist -- eine erfundene Himmelsrichtung, die von einer echten
+       nicht zu unterscheiden waere. */
+    ta('ohne Windrichtung steht keine erfundene Richtung da', async () => {
+      const r = await homeBauen(faengeBauen(20),
+        v => { v.hourly.wind_direction_10m = v.hourly.time.map(() => null); });
+      return /\d+ km\/h(?!\s*[NSOW])/.test(r.wetter) || 'Wind: ' + r.wetter.slice(0, 200);
+    });
+    ta('die Prognose steht mit Heute und Morgen da', async () => {
+      const r = await homeBauen(faengeBauen(20));
+      return (r.prognose.indexOf('Heute') !== -1 && r.prognose.indexOf('Morgen') !== -1)
+          || r.prognose.slice(0, 200);
+    });
+    /* Der Satz, der die ganze Ansicht ehrlich haelt. Faellt er weg, liest sich die
+       Stufe wie eine Beissquote -- und die App hat den Nenner dafuer gar nicht. */
+    ta('und sie sagt dazu, dass sie keine Beissvorhersage ist', async () => {
+      const r = await homeBauen(faengeBauen(20));
+      return (/keine Beißvorhersage/.test(r.prognose)
+              && /Ansitze ohne Fang/.test(r.prognose))
+          || r.prognose.slice(0, 300);
+    });
+    ta('unter zehn Faengen wird gar keine Stufe gezeigt', async () => {
+      const r = await homeBauen(faengeBauen(4));
+      const stufen = ['🟢', '🟡', '⚪'].filter(s => r.prognose.indexOf(s) !== -1);
+      // Und sie sagt, wie weit es noch ist -- „zu wenig" ohne Zahl ist eine Sackgasse.
+      return (stufen.length === 0 && /zu wenige Fänge/.test(r.prognose)
+              && /4 von 10/.test(r.prognose))
+          || 'zeigt: ' + r.prognose.slice(0, 300);
+    });
+    ta('ohne Ort steht dort ein Weg statt einer leeren Karte', async () => {
+      const alt = state.catches;
+      state.catches = [];
+      state.view = 'home';
+      localStorage.removeItem('angellog-heimat');
+      localStorage.removeItem('angellog-vorhersage');
+      try {
+        await renderHome();
+        const txt = document.getElementById('home-wetter').textContent;
+        return (txt.indexOf('Ort') !== -1 && !!document.getElementById('home-gps'))
+            || 'zeigt: ' + txt.slice(0, 200);
+      } finally { state.catches = alt; }
+    });
+  })();
+
   /* ====== Die Fangliste zeigt weniger (13.08.2026, Karls Ansage) ======
      „Bei der Suche will ich weniger Infos direkt sehen erst wenn ich draufclicke will ich
      mehr sehen. bitte zeig nur Bild Fischname laenge gewicht datum ort."
@@ -4176,7 +4370,7 @@ window.addEventListener('error', e => {
             if (el){ el.textContent = lang[wahl]; el.hidden = false; }
           }
         };
-        for (const seite of ['log', 'map', 'stats', 'new', 'set']){
+        for (const seite of ['home', 'log', 'map', 'stats', 'new', 'set']){
           w.go(seite);
           fuellen();
           const raus = zuBreit(w, d);
@@ -4310,6 +4504,14 @@ if not en_block:
 en_keys = set()
 for km in re.finditer(r"^  '((?:[^'\\]|\\.)*)':", en_block.group(1), re.M):
     en_keys.add(km.group(1).replace("\\'", "'").replace('\\\\', '\\'))
+# ⚠️ Lange Saetze stehen als zusammengesetzter Schluessel da: ['a ' + 'b']: '...'.
+# Ohne diesen zweiten Durchgang gelten sie als NICHT vorhanden -- und dann meldet die
+# Pruefung eine fehlende Uebersetzung, die zwei Zeilen weiter oben steht. Am 13.08.2026
+# genau so passiert, mit fuenf Saetzen auf einmal.
+for km in re.finditer(r"^  \[([\s\S]*?)\]:", en_block.group(1), re.M):
+    teile = re.findall(r"'((?:[^'\\]|\\.)*)'", km.group(1))
+    if teile:
+        en_keys.add(''.join(teile).replace("\\'", "'").replace('\\\\', '\\'))
 
 benutzt = set()
 # T('a'), T("a"), T('a' + 'b'), T(bed ? 'a' : 'b')

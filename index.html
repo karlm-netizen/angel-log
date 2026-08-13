@@ -336,9 +336,14 @@ setTimeout(function(){
   .tabs{position:fixed; left:0; right:0; bottom:0; background:var(--bg);
     border-top:1px solid var(--line); display:flex;
     padding:8px 10px calc(env(safe-area-inset-bottom) + 8px); gap:6px; z-index:900}
-  .tabs > div{max-width:560px; margin:0 auto; width:100%; display:flex; gap:6px}
-  .tab{flex:1; background:transparent; border-radius:12px; padding:8px 4px; font-size:11px;
-    font-weight:600; color:var(--muted); display:grid; gap:3px; justify-items:center}
+  .tabs > div{max-width:560px; margin:0 auto; width:100%; display:flex; gap:5px}
+  /* ⚠️ Seit der vierten Kachel (13.08.2026) bleiben auf 320 px noch rund 70 px je
+     Kachel. „Einstellungen" ist in 11 px breiter als das — deshalb 10 px und
+     `min-width:0`. Ohne das Zweite ist eine Flex-Kachel mindestens so breit wie ihr
+     Inhalt und schiebt die Leiste seitlich aus dem Bild, statt sich zu fügen. */
+  .tab{flex:1 1 0; min-width:0; background:transparent; border-radius:12px; padding:8px 2px;
+    font-size:10px; font-weight:600; color:var(--muted); display:grid; gap:3px;
+    justify-items:center; overflow:hidden}
   .tab.on{color:var(--accent)}
   .tab svg{width:22px; height:22px}
 
@@ -363,8 +368,11 @@ setTimeout(function(){
        das Maß der alten breiten Zeilen-Kachel und ließen am PC gerade zwei zu. */
     #list{grid-template-columns:repeat(auto-fill, minmax(190px, 1fr));
       gap:14px; align-items:start; margin-top:14px}
-    /* Kopfzeile über der Liste: mitwachsend wäre ein 2000 px breites Suchfeld. */
-    #zeit-karte, #v-log .row, #q{max-width:760px}
+    /* Kopfzeile über der Liste: mitwachsend wäre ein 2000 px breites Suchfeld.
+       Home genauso: eine Wetterkarte über zwei Meter liest sich nicht besser, und die
+       Angelzeit-Karte war schon vorher gedeckelt — sie ist nur umgezogen. */
+    #zeit-karte, #v-log .row, #q,
+    #v-home .card, #v-home .head{max-width:760px}
     /* Überschrift mittig über dem Formular, nicht am Fensterrand daneben. */
     #v-new .wrap, #v-detail .wrap,
     #v-new .head, #v-detail .head{max-width:640px; margin:0 auto}
@@ -668,7 +676,20 @@ function splashWeg(){
   <button class="segbtn" data-seg="stats">Auswertung</button>
 </div>
 
-<section id="v-log">
+<!-- ======================= HOME =======================
+     Karls Ansage vom 13.08.2026: „als erstes soll jetzt ein home button kommen wo die
+     angelzeit steht und vorraussage für wetter (alles was in der statistik auch
+     vorkommt) fangprognose auch."
+
+     ⚠️ Die Angelzeit ist hierher **umgezogen**, sie steht nicht doppelt. Sie gehörte
+        ohnehin nie zur Fangliste — man startet sie, bevor der erste Fang existiert.
+     ⚠️ Home ist kein Teil der Sammel-Gruppe (Liste/Karte/Auswertung) und hat deshalb
+        einen eigenen Kopf. Der Umschalter darüber gehört den drei Blickwinkeln auf den
+        Bestand; hier gibt es keinen Bestand, sondern den kommenden Tag. -->
+<section id="v-home" class="hidden">
+  <header class="head">
+    <h1><img src="icon-192.png" alt="">Angel-Log</h1>
+  </header>
   <div class="wrap">
     <div class="card" id="zeit-karte" style="margin-top:8px">
       <div class="row between" style="display:flex; align-items:center; gap:12px">
@@ -702,6 +723,16 @@ function splashWeg(){
         <button class="btn sm" id="btn-korr-set" style="margin-top:9px">Gesamtzeit übernehmen</button>
       </div>
     </div>
+
+    <!-- Wetter und Prognose werden gezeichnet, nicht geschrieben — beide hängen an
+         Werten, die erst zur Laufzeit da sind. Siehe renderHome(). -->
+    <div id="home-wetter"></div>
+    <div id="home-prognose"></div>
+  </div>
+</section>
+
+<section id="v-log">
+  <div class="wrap">
     <!-- ⚠️ `flex-wrap:wrap` ist der eigentliche Flick, nicht das Entfernen der
          Pille. Die Zeile ist ein Flex-Kasten und jede Pille trägt `white-space:
          nowrap` -- ohne Umbruch schiebt die nächste lange Pille sie genauso
@@ -1158,9 +1189,17 @@ function splashWeg(){
      ⚠️ Die Einstellungen sind vom Zahnrad oben hierher gewandert. Zwei Eingänge
         zu derselben Schublade wären einer zu viel; die rote Zahl ist deshalb
         mitgezogen. -->
+<!-- ⚠️ Seit dem 13.08.2026 vier Kacheln statt drei (Karls Ansage): Home steht vorn.
+     Die Leiste beantwortet weiter „was will ich tun?" — und das Erste, was man beim
+     Aufmachen will, ist nicht die Liste von gestern, sondern ob es sich heute lohnt. -->
 <nav class="tabs">
   <div>
-    <button class="tab on" data-go="log">
+    <button class="tab on" data-go="home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3.5 10.5 12 4l8.5 6.5"/><path d="M5.8 9.4V19h12.4V9.4"/><path d="M10 19v-4.6h4V19"/>
+      </svg>Home
+    </button>
+    <button class="tab" data-go="log">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M4 6h16M4 12h16M4 18h10"/>
       </svg>Fänge
@@ -1509,6 +1548,51 @@ const EN = {
   'Karte nicht ladbar': 'Map not loadable',
   'Neu anfangen': 'Start fresh',
   'nur hier': 'this device only',
+  /* Home — Wetter und Fangprognose (13.08.2026). */
+  'Home': 'Home',
+  'Wetter am Wasser': 'Weather at the water',
+  'Vorhersage wird geholt …': 'Fetching the forecast …',
+  'Ort': 'Place',
+  'Stand': 'As of',
+  'nicht mehr taufrisch': 'no longer fresh',
+  'Lage unbekannt': 'Conditions unknown',
+  'Für jetzt liegt kein Wert vor.': 'There is no value for right now.',
+  'Sonnenaufgang': 'Sunrise',
+  'Sonnenuntergang': 'Sunset',
+  'Standort jetzt holen': 'Get my location now',
+  'Standort geht auf diesem Gerät nicht': 'Location is not available on this device',
+  'Standort nicht bekommen': 'Could not get the location',
+  ['Dafür fehlt noch ein Ort. Sobald ein Fang mit Standort erfasst ist, steht hier die '
+  + 'Vorhersage für dieses Gewässer — oder du setzt den Ort jetzt von Hand.']:
+    'A place is still missing. As soon as one catch has a location, the forecast for that '
+  + 'water appears here — or set the place by hand right now.',
+  ['Keine Vorhersage — und auch keine gespeicherte. Sobald wieder Netz da ist, steht sie hier.']:
+    'No forecast — and no saved one either. It appears here as soon as you are back online.',
+  'Fangprognose': 'Catch outlook',
+  'Heute': 'Today',
+  'Morgen': 'Tomorrow',
+  'Uhr': '',
+  'Verglichen an': 'Compared on',
+  'am ehesten wegen': 'mostly because of',
+  'Dafür sind es noch zu wenige Fänge.': 'There are still too few catches for that.',
+  'Erst {a} von {b} Fängen sind eingetragen.': 'Only {a} of {b} catches are recorded.',
+  ['Die Prognose vergleicht die Vorhersage mit deinen eigenen Fängen — vorher hätte sie '
+  + 'nichts, womit sie vergleichen könnte.']:
+    'The outlook compares the forecast against your own catches — before that it would have '
+  + 'nothing to compare with.',
+  ['Deine Fänge tragen noch zu wenige automatische Werte — hol beim Erfassen einmal die '
+  + 'Bedingungen, dann rechnet die Prognose damit.']:
+    'Your catches carry too few automatic values yet — fetch the conditions once while '
+  + 'recording, then the outlook can work with them.',
+  'passt gut zu deinen Fängen': 'a good match for your catches',
+  'durchwachsen': 'mixed',
+  'eher untypisch für dich': 'rather untypical for you',
+  ['Das ist keine Beißvorhersage. Die App zählt nur Fänge, keine Ansitze ohne Fang — die '
+  + 'Prognose sagt also, wie sehr die Bedingungen denen ähneln, unter denen du bisher gefangen '
+  + 'hast. Wer meistens samstags früh losfährt, bekommt samstags früh die besten Werte.']:
+    'This is not a bite forecast. The app only counts catches, never blank sessions — so the '
+  + 'outlook says how closely the conditions resemble those you have caught in before. If you '
+  + 'mostly head out on Saturday mornings, Saturday mornings will score best.',
   /* Das ⓘ am Baukasten (13.08.2026). Die Absätze stehen als ganze Sätze in der
      Tabelle — im HTML daneben trägt deshalb kein Satz ein <b> in seiner Mitte. */
   'Auswertung bauen': 'Build a chart',
@@ -1761,6 +1845,7 @@ function T(de){
    würde beim Umschalten ein „Pike", der so nie eingetippt wurde. Alles darin
    wird beim Umschalten ohnehin neu gezeichnet, dort steht T() im Quelltext. */
 const NICHT_UEBERSETZEN = ['#list', '#stats-body', '#detail-body', '#konto', '#gate-inner',
+  '#home-wetter', '#home-prognose',
   '#tour-inner', '#ds-text', '#g-ds-text', '#map', '#splash', '#toast',
   '#viewer', '#zeit-gesamt', '#zeit-laeuft', '#zeit-warnung', '#korr-start',
   '#st-count', '#st-waters', '#st-cloud', '#map-count', '#stats-pill',
@@ -3610,7 +3695,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v43';
+const FASSUNG = 'v44';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -5972,6 +6057,391 @@ function renderStats(){
   lupeVerdrahten();
 }
 
+/* ============================ Home (13.08.2026) ============================
+   Karls Ansage: „als erstes soll jetzt ein home button kommen wo die angelzeit steht
+   und vorraussage für wetter (alles was in der statistik auch vorkommt) fangprognose
+   auch."
+
+   Drei Karten: die Angelzeit (umgezogen, siehe HTML), das Wetter am Wasser und die
+   Fangprognose.
+
+   ⚠️ **Die Prognose rechnet ausschließlich mit Karls eigenen Fängen.** Es steckt keine
+   Beißformel darin, keine „Solunar"-Tabelle, keine geliehene Faustregel. Sie fragt eine
+   einzige Sache: *wie ähnlich sind die vorhergesagten Bedingungen denen, unter denen
+   dieser Angler bisher gefangen hat?* Alles andere wäre geraten und sähe nur so aus,
+   als wüsste die App etwas.
+
+   ⚠️ **Und sie ist deshalb keine Beißquote.** Die App erfasst keine Ansitze ohne Fang —
+   der Nenner fehlt. Wer meistens samstags früh losfährt, bekommt samstags früh die
+   besten Werte, weil er dann da war. Genau das steht auch in der Karte; es unter den
+   Tisch fallen zu lassen wäre die eine Unehrlichkeit, die diese Ansicht kaputt macht. */
+
+const HEIM_KEY      = 'angellog-heimat';
+const VORHER_KEY    = 'angellog-vorhersage';
+const VORHER_FRISCH = 30 * 60e3;      // so lange gilt eine geholte Vorhersage als frisch
+/* Unter so vielen Fängen wird gar keine Prognose gezeigt. Eine aus vier Fängen gerechnete
+   Zahl ist keine Aussage, sondern ein Zufall mit Nachkommastelle. */
+const PROG_MIN_FAENGE = 10;
+/* Und je Maß: ein Wert, den nur drei Fänge tragen, geht nicht in die Rechnung ein. */
+const PROG_MIN_JE_MASS = 6;
+
+function heimatLesen(){
+  try {
+    const j = JSON.parse(localStorage.getItem(HEIM_KEY) || 'null');
+    if (j && j.lat != null && j.lon != null) return j;
+  } catch {}
+  /* ⚠️ Rückfall auf den zuletzt erfassten Fang mit Koordinaten — **nicht** auf eine
+     GPS-Abfrage beim Öffnen. Ein Standortdialog, den niemand ausgelöst hat, ist das
+     Erste, was man wegtippt; danach steht die Karte für immer leer. Der letzte Fang ist
+     ohnehin die bessere Annahme: da war er zuletzt angeln. */
+  const mitOrt = state.catches.filter(c => c.lat != null && c.lon != null);
+  const c = mitOrt.find(x => !x.entwurf) || mitOrt[0];
+  return c ? { lat: c.lat, lon: c.lon, name: c.gewaesser || '', quelle: 'fang' } : null;
+}
+function heimatSchreiben(h){
+  try { localStorage.setItem(HEIM_KEY, JSON.stringify(h)); } catch {}
+}
+
+function vorhersageCache(){
+  try { return JSON.parse(localStorage.getItem(VORHER_KEY) || 'null'); } catch { return null; }
+}
+/* ⚠️ Die Vorhersage wird gespeichert, und zwar aus demselben Grund wie alles andere in
+   dieser App: am Wasser ist oft kein Netz. Lieber die Werte von heute früh mit
+   sichtbarem Zeitstempel als eine leere Karte. */
+async function vorhersageHolen(force){
+  const h = heimatLesen();
+  if (!h) return null;
+  const c = vorhersageCache();
+  // Rund 2 km Toleranz — wer 300 m weiter steht, braucht keine neue Vorhersage.
+  const passt = c && Math.abs(c.lat - h.lat) < 0.02 && Math.abs(c.lon - h.lon) < 0.02;
+  if (!force && passt && Date.now() - c.geholt < VORHER_FRISCH) return c;
+  if (!navigator.onLine) return passt ? c : null;
+
+  const url = 'https://api.open-meteo.com/v1/forecast'
+    + `?latitude=${h.lat}&longitude=${h.lon}`
+    + '&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,'
+    + 'weather_code,cloud_cover,precipitation'
+    + '&daily=sunrise,sunset&timezone=auto&past_days=1&forecast_days=3';
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    if (!j.hourly || !j.hourly.time) throw new Error('leere Antwort');
+    const neu = { lat: h.lat, lon: h.lon, geholt: Date.now(), hourly: j.hourly, daily: j.daily };
+    try { localStorage.setItem(VORHER_KEY, JSON.stringify(neu)); } catch {}
+    return neu;
+  } catch {
+    return passt ? c : null;      // lieber alt als gar nichts
+  }
+}
+
+/* ---- Bedingungen, einmal aus einem Fang und einmal aus einer vorhergesagten Stunde ----
+   ⚠️ Beide Seiten laufen durch dieselben Felder. Käme die eine Seite in °C und die andere
+   in Zehntelgrad, verglichen die Eimer unten stillschweigend Unsinn — ohne Fehlermeldung,
+   es sähe nur nach „passt nie" aus. */
+function bedingungAusFang(c){
+  const d = new Date(c.when);
+  const m = mondFor(c.when);
+  return {
+    stunde: isNaN(d) ? null : d.getHours(),
+    druck:  c.druck != null && c.druck !== '' ? Number(c.druck) : null,
+    luft:   c.luft  != null && c.luft  !== '' ? Number(c.luft)  : null,
+    wetter: c.wetter || null,
+    mond:   m ? m.key : null,
+    phase:  c.phase || null
+  };
+}
+function bedingungAusStunde(v, i){
+  const iso = v.hourly.time[i];
+  const d = new Date(iso);
+  const m = mondFor(iso);
+  const holen = (feld) => (v.hourly[feld] && v.hourly[feld][i] != null) ? v.hourly[feld][i] : null;
+  return {
+    stunde: isNaN(d) ? null : d.getHours(),
+    druck:  holen('pressure_msl'),
+    luft:   holen('temperature_2m'),
+    wetter: wetterFor(holen('weather_code')) || null,
+    mond:   m ? m.key : null,
+    phase:  phaseFor(iso, v.daily)
+  };
+}
+
+/* ---- Die sechs Maße, an denen verglichen wird ----
+   Alle sechs stehen auch in der Auswertung auf der X-Achse — Karls Klammer
+   („alles was in der statistik auch vorkommt") ist hier wörtlich gemeint.
+
+   ⚠️ Wassertemperatur, Wassertiefe und Trübung fehlen bewusst: für die gibt es **keine
+   Vorhersage**. Die Pegel der WSV melden Messwerte, keine Prognose, und die Trübung
+   trägt Karl von Hand ein. Ein geschätzter Wert an dieser Stelle wäre eine erfundene
+   Zahl in einer Rechnung, die sonst nur mit echten arbeitet. */
+const PROG_MASSE = [
+  /* Die Uhrzeit mit einem Fenster von ±1 h statt auf die Stunde genau: wer um 5:50
+     gefangen hat, hat nicht „um 5" gefangen. Ohne Fenster wäre die Achse ein Kamm. */
+  { key:'stunde', kurz:'Uhrzeit', eimer: b => b.stunde,
+    nah: (a, z) => { const d = Math.abs(a - z); return Math.min(d, 24 - d) <= 1; } },
+  { key:'phase',  kurz:'Tageszeit',      eimer: b => b.phase },
+  { key:'wetter', kurz:'Wetter',         eimer: b => b.wetter },
+  { key:'mond',   kurz:'Mondphase',      eimer: b => b.mond },
+  // Dieselben Stufen wie in der Auswertung: 5 hPa und 2 °C.
+  { key:'druck',  kurz:'Luftdruck',      eimer: b => b.druck == null ? null : Math.round(b.druck / 5) * 5 },
+  { key:'luft',   kurz:'Lufttemperatur', eimer: b => b.luft  == null ? null : Math.round(b.luft  / 2) * 2 }
+];
+
+/* Was dieser Angler bisher gefangen hat, je Maß zusammengefasst. Einmal gerechnet und
+   dann für alle 72 Stunden benutzt — sonst liefe je Stunde die ganze Fangliste durch. */
+function prognoseModell(faenge){
+  const bed = faenge.map(bedingungAusFang);
+  return PROG_MASSE.map(m => {
+    const werte = bed.map(m.eimer).filter(v => v != null && v !== '');
+    if (werte.length < PROG_MIN_JE_MASS) return null;
+    const passt = (v, z) => m.nah ? m.nah(v, z) : v === z;
+    /* Der stärkste Eimer ist der Maßstab: 1,0 heißt „so oft wie in deiner besten Stufe".
+       Gegen den Durchschnitt zu normieren hätte Werte über 1 erzeugt, und gegen die
+       Gesamtzahl wären alle Werte winzig, sobald es viele Stufen gibt. */
+    let max = 0;
+    for (const z of new Set(werte)) max = Math.max(max, werte.filter(v => passt(v, z)).length);
+    return { mass: m, werte, max, passt };
+  }).filter(Boolean);
+}
+
+/* Wie gut passt eine einzelne vorhergesagte Stunde zu diesem Modell? 0 bis 1. */
+function prognoseStunde(modell, ziel){
+  const teile = [];
+  for (const m of modell){
+    const z = m.mass.eimer(ziel);
+    if (z == null) continue;
+    const treffer = m.werte.filter(v => m.passt(v, z)).length;
+    teile.push({ kurz: m.mass.kurz, anteil: m.max ? treffer / m.max : 0, treffer });
+  }
+  if (!teile.length) return null;
+  return { wert: teile.reduce((s, x) => s + x.anteil, 0) / teile.length, teile };
+}
+
+/* Drei Stufen, mehr nicht. Eine Prozentzahl auf dieser Grundlage vorzugaukeln wäre
+   Scheingenauigkeit — „73 %" liest sich wie eine Messung und ist keine. */
+function prognoseStufe(w){
+  if (w >= 0.60) return { icon:'🟢', text:'passt gut zu deinen Fängen' };
+  if (w >= 0.30) return { icon:'🟡', text:'durchwachsen' };
+  return { icon:'⚪', text:'eher untypisch für dich' };
+}
+
+/* Das beste zusammenhängende Drei-Stunden-Fenster eines Tages. Drei Stunden, weil
+   niemand für eine einzelne Stunde ans Wasser fährt. */
+function bestesFenster(modell, v, tag){
+  const stunden = [];
+  for (let i = 0; i < v.hourly.time.length; i++){
+    const iso = v.hourly.time[i];
+    if (iso.slice(0, 10) !== tag) continue;
+    if (new Date(iso).getTime() < Date.now() - 3600e3) continue;   // Vergangenes nicht vorschlagen
+    const p = prognoseStunde(modell, bedingungAusStunde(v, i));
+    if (p) stunden.push({ iso, i, wert: p.wert, teile: p.teile });
+  }
+  if (stunden.length < 3) return stunden.length ? stunden[0] : null;
+  let bestes = null;
+  for (let k = 0; k + 2 < stunden.length; k++){
+    /* ⚠️ Nur zusammenhängende Stunden. Ohne diese Prüfung würde bei einem angebrochenen
+       Tag über eine Lücke hinweg gemittelt und ein Fenster „19–06 Uhr" ausgegeben. */
+    const a = new Date(stunden[k].iso).getTime();
+    const c = new Date(stunden[k + 2].iso).getTime();
+    if (c - a !== 2 * 3600e3) continue;
+    const wert = (stunden[k].wert + stunden[k + 1].wert + stunden[k + 2].wert) / 3;
+    if (!bestes || wert > bestes.wert)
+      bestes = { wert, von: stunden[k].iso, bis: stunden[k + 2].iso,
+                 teile: stunden[k + 1].teile };
+  }
+  return bestes || stunden[0];
+}
+
+/* ---------------------------- Home zeichnen ---------------------------- */
+const hhmm = iso => iso.slice(11, 16);
+const nachDruckTrend = (v, i) => {
+  const vorher = v.hourly.pressure_msl && v.hourly.pressure_msl[i - 3];
+  const jetzt  = v.hourly.pressure_msl && v.hourly.pressure_msl[i];
+  if (vorher == null || jetzt == null) return '';
+  const d = jetzt - vorher;
+  if (d >= 1)  return ' ↑';
+  if (d <= -1) return ' ↓';
+  return ' →';
+};
+// Der Index der Stunde, die gerade läuft.
+function jetztIndex(v){
+  const t = Date.now();
+  let best = -1, bd = Infinity;
+  v.hourly.time.forEach((s, i) => {
+    const d = Math.abs(new Date(s).getTime() - t);
+    if (d < bd){ bd = d; best = i; }
+  });
+  return bd <= 3 * 3600e3 ? best : -1;
+}
+
+let homeLaeuft = false;
+async function renderHome(){
+  renderZeit();
+  const wBox = $('#home-wetter'), pBox = $('#home-prognose');
+  const h = heimatLesen();
+
+  if (!h){
+    /* Ohne Koordinaten gibt es keine Vorhersage — und ohne einen Fang mit Standort
+       weiß die App keine. Das ist kein Fehler, sondern der erste Tag. */
+    wBox.innerHTML = `<div class="card"><h2>${T('Wetter am Wasser')}</h2>
+      <div class="hint" style="margin:0 0 10px">${T('Dafür fehlt noch ein Ort. Sobald ein Fang '
+      + 'mit Standort erfasst ist, steht hier die Vorhersage für dieses Gewässer — oder du '
+      + 'setzt den Ort jetzt von Hand.')}</div>
+      <button class="btn sm primary" id="home-gps">📍 ${T('Standort jetzt holen')}</button></div>`;
+    pBox.innerHTML = '';
+    return;
+  }
+
+  const ortName = h.name || (Number(h.lat).toFixed(3) + ', ' + Number(h.lon).toFixed(3));
+  wBox.innerHTML = `<div class="card"><h2>${T('Wetter am Wasser')}</h2>
+    <div class="tiny muted"><span class="spin"></span>${T('Vorhersage wird geholt …')}</div></div>`;
+
+  if (homeLaeuft) return;
+  homeLaeuft = true;
+  let v = null;
+  try { v = await vorhersageHolen(false); } finally { homeLaeuft = false; }
+  if (state.view !== 'home') return;      // inzwischen weitergetippt
+
+  const kopf = `<div class="row between" style="display:flex; align-items:baseline; gap:8px">
+      <h2 style="margin:0">${T('Wetter am Wasser')}</h2>
+      <button class="btn sm" id="home-gps" style="flex:0 0 auto">📍 ${T('Ort')}</button>
+    </div>
+    <div class="tiny muted" style="margin:4px 0 12px">${esc(ortName)}</div>`;
+
+  if (!v){
+    wBox.innerHTML = `<div class="card">${kopf}
+      <div class="hint" style="margin:0">${T('Keine Vorhersage — und auch keine gespeicherte. '
+      + 'Sobald wieder Netz da ist, steht sie hier.')}</div></div>`;
+    pBox.innerHTML = '';
+    return;
+  }
+
+  const i = jetztIndex(v);
+  const alt = Date.now() - v.geholt > VORHER_FRISCH;
+  const nun = i >= 0 ? bedingungAusStunde(v, i) : null;
+  const mond = mondFor(new Date().toISOString());
+  const tagIdx = v.daily && v.daily.time ? v.daily.time.indexOf(new Date(v.hourly.time[Math.max(i,0)]).toISOString().slice(0,10)) : -1;
+
+  const zeile = (l, w) => w == null || w === '' ? ''
+    : `<div><div class="f" style="margin:0 0 2px 2px">${l}</div><div style="font-size:14px">${w}</div></div>`;
+
+  /* ⚠️ `dirLabel(null)` liefert **„N"**, nicht nichts — `null % 360` ist 0. Ohne diese
+     Abfrage stünde bei fehlender Windrichtung eine erfundene Himmelsrichtung da, und
+     zwar eine, die sich von einer echten nicht unterscheiden lässt. */
+  const windRi = v.hourly.wind_direction_10m && v.hourly.wind_direction_10m[i] != null
+    ? ' ' + dirLabel(v.hourly.wind_direction_10m[i]) : '';
+
+  const jetztBlock = nun ? `
+    <div style="font-size:30px; line-height:1.1">${wetterIcon(nun.wetter) || '🌡'}</div>
+    <div style="font-size:15px; font-weight:700; margin:2px 0 12px">${
+      wetterLabel(nun.wetter) || T('Lage unbekannt')}</div>
+    <div class="tiles" style="gap:10px">
+      ${zeile(T('Lufttemperatur'), nun.luft  != null ? Math.round(nun.luft) + ' °C' : null)}
+      ${zeile(T('Luftdruck'), nun.druck != null ? Math.round(nun.druck) + ' hPa' + nachDruckTrend(v, i) : null)}
+      ${zeile(T('Wind'), v.hourly.wind_speed_10m && v.hourly.wind_speed_10m[i] != null
+        ? Math.round(v.hourly.wind_speed_10m[i]) + ' km/h' + windRi : null)}
+      ${zeile(T('Bewölkung'), v.hourly.cloud_cover && v.hourly.cloud_cover[i] != null
+        ? Math.round(v.hourly.cloud_cover[i]) + ' %' : null)}
+      ${zeile(T('Regen'), v.hourly.precipitation && v.hourly.precipitation[i] != null
+        ? String(Math.round(v.hourly.precipitation[i] * 10) / 10).replace('.', ',') + ' mm' : null)}
+      ${zeile(T('Mondphase'), mond ? mond.icon + ' ' + mond.name : null)}
+      ${tagIdx >= 0 ? zeile(T('Sonnenaufgang'), hhmm(v.daily.sunrise[tagIdx])) : ''}
+      ${tagIdx >= 0 ? zeile(T('Sonnenuntergang'), hhmm(v.daily.sunset[tagIdx])) : ''}
+    </div>` : `<div class="hint" style="margin:0">${T('Für jetzt liegt kein Wert vor.')}</div>`;
+
+  /* Die nächsten Stunden als Streifen. ⚠️ Er scrollt in seinem **eigenen** Kasten —
+     sonst schiebt er auf 320 px die ganze Seite seitlich weg. */
+  let streifen = '';
+  if (i >= 0){
+    const zellen = [];
+    for (let k = i; k < Math.min(i + 24, v.hourly.time.length); k += 2){
+      zellen.push(`<div style="flex:0 0 auto; text-align:center; min-width:46px">
+        <div class="tiny muted">${hhmm(v.hourly.time[k])}</div>
+        <div style="font-size:17px; line-height:1.5">${wetterIcon(wetterFor(v.hourly.weather_code[k]))}</div>
+        <div class="tiny">${v.hourly.temperature_2m[k] != null ? Math.round(v.hourly.temperature_2m[k]) + '°' : '—'}</div>
+      </div>`);
+    }
+    streifen = `<div style="overflow-x:auto; margin-top:12px; padding-top:10px;
+      border-top:1px solid var(--line)"><div style="display:flex; gap:10px">${zellen.join('')}</div></div>`;
+  }
+
+  wBox.innerHTML = `<div class="card">${kopf}${jetztBlock}${streifen}
+    <div class="tiny muted" style="margin-top:10px">${T('Stand')} ${fmtDate(new Date(v.geholt).toISOString())}${
+      alt ? ' · ' + T('nicht mehr taufrisch') : ''}</div></div>`;
+
+  prognoseZeichnen(v);
+}
+
+function prognoseZeichnen(v){
+  const pBox = $('#home-prognose');
+  const fertig = state.catches.filter(c => !c.entwurf);
+
+  /* ⚠️ Die Untergrenze steht **vor** der Rechnung, nicht als Fußnote darunter. Eine
+     Prognose aus vier Fängen wäre nicht ungenau, sondern bedeutungslos — und sie sähe
+     genauso aus wie eine aus vierhundert. */
+  if (fertig.length < PROG_MIN_FAENGE){
+    pBox.innerHTML = `<div class="card"><h2>${T('Fangprognose')}</h2>
+      <div class="hint" style="margin:0">${T('Dafür sind es noch zu wenige Fänge.')} ${
+        /* ⚠️ Zahl über einen Platzhalter, nicht über zusammengeklebte Satzstücke.
+           „… sind eingetragen, gerechnet wird ab 10" ist auf Deutsch ein Satz und auf
+           Englisch drei Bruchstücke in anderer Reihenfolge — übersetzbar ist nur der
+           ganze Satz. */
+        T('Erst {a} von {b} Fängen sind eingetragen.')
+          .replace('{a}', fertig.length).replace('{b}', PROG_MIN_FAENGE)
+      } ${T('Die Prognose vergleicht die Vorhersage mit deinen eigenen Fängen — vorher hätte sie '
+      + 'nichts, womit sie vergleichen könnte.')}</div></div>`;
+    return;
+  }
+
+  const modell = prognoseModell(fertig);
+  if (!modell.length){
+    pBox.innerHTML = `<div class="card"><h2>${T('Fangprognose')}</h2>
+      <div class="hint" style="margin:0">${T('Deine Fänge tragen noch zu wenige automatische Werte '
+      + '— hol beim Erfassen einmal die Bedingungen, dann rechnet die Prognose damit.')}</div></div>`;
+    return;
+  }
+
+  const heute  = new Date().toISOString().slice(0, 10);
+  const morgen = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+  const karte = (tag, titel) => {
+    const b = bestesFenster(modell, v, tag);
+    if (!b) return '';
+    const s = prognoseStufe(b.wert);
+    /* Die zwei stärksten Gründe dazuschreiben. Eine Stufe ohne Begründung ist ein
+       Orakel — mit Begründung kann Karl ihr widersprechen, und das soll er können. */
+    const gruende = (b.teile || []).slice().sort((x, y) => y.anteil - x.anteil).slice(0, 2)
+      .map(x => T(x.kurz)).join(' · ');
+    return `<div style="padding:10px 0; border-top:1px solid var(--line)">
+      <div class="row between" style="display:flex; align-items:baseline; gap:10px">
+        <div style="font-weight:700">${titel}</div>
+        <div class="tiny muted">${b.von ? hhmm(b.von) + '–' + hhmm(b.bis) + ' ' + T('Uhr') : ''}</div>
+      </div>
+      <div style="margin-top:4px">${s.icon} ${T(s.text)}</div>
+      ${gruende ? `<div class="tiny muted" style="margin-top:3px">${T('am ehesten wegen')}: ${gruende}</div>` : ''}
+    </div>`;
+  };
+
+  const benutzt = modell.map(m => T(m.mass.kurz)).join(', ');
+  pBox.innerHTML = `<div class="card"><h2>${T('Fangprognose')}</h2>
+    <div class="tiny muted" style="margin:-2px 0 4px">${T('Verglichen an')}: ${benutzt}</div>
+    ${karte(heute, T('Heute'))}${karte(morgen, T('Morgen'))}
+    <div class="hint" style="margin:10px 0 0">${T('Das ist keine Beißvorhersage. Die App zählt nur '
+    + 'Fänge, keine Ansitze ohne Fang — die Prognose sagt also, wie sehr die Bedingungen denen '
+    + 'ähneln, unter denen du bisher gefangen hast. Wer meistens samstags früh losfährt, bekommt '
+    + 'samstags früh die besten Werte.')}</div></div>`;
+}
+
+/* Standort von Hand setzen. ⚠️ Nur auf Tippen, nie von selbst — siehe heimatLesen(). */
+document.addEventListener('click', async e => {
+  if (!e.target.closest || !e.target.closest('#home-gps')) return;
+  if (!navigator.geolocation){ toast(T('Standort geht auf diesem Gerät nicht')); return; }
+  toast(T('Standort wird gesucht …'));
+  navigator.geolocation.getCurrentPosition(p => {
+    heimatSchreiben({ lat: p.coords.latitude, lon: p.coords.longitude, name: '', quelle: 'gps' });
+    renderHome();
+  }, () => toast(T('Standort nicht bekommen')), { enableHighAccuracy: false, timeout: 10000 });
+});
+
 /* ---------------------------- Ansichtswechsel ---------------------------- */
 /* Die drei Ansichten, die seit dem 12.08.2026 hinter einer Kachel stecken. */
 const SAMMEL = ['log', 'map', 'stats'];
@@ -5979,7 +6449,7 @@ const SAMMEL = ['log', 'map', 'stats'];
 function go(view){
   freeURLs();
   state.view = view;
-  ['log', 'new', 'map', 'stats', 'detail', 'set'].forEach(v => $('#v-' + v).classList.toggle('hidden', v !== view));
+  ['home', 'log', 'new', 'map', 'stats', 'detail', 'set'].forEach(v => $('#v-' + v).classList.toggle('hidden', v !== view));
   $('#fab-save').classList.toggle('on', view === 'new');
 
   /* Kopf und Umschalter gehören zu den drei Sammel-Ansichten. Beim Erfassen und
@@ -5998,7 +6468,8 @@ function go(view){
   $$('.tab').forEach(t => t.classList.toggle('on',
     t.dataset.go === view || ((sammel || view === 'detail') && t.dataset.go === 'log')));
 
-  if (view === 'log'){ renderList(); renderZeit(); }
+  if (view === 'home')   renderHome();
+  if (view === 'log')    renderList();
   if (view === 'map')    renderMap();
   if (view === 'stats')  renderStats();
   if (view === 'detail') renderDetail();
@@ -6041,7 +6512,14 @@ window.addEventListener('unhandledrejection', e =>
      eine Antwort, die gestern schon da war, soll nicht erst nach dem Abgleich
      wieder auftauchen. Den frischen Stand holt syncJetzt() gleich hinterher. */
   badgesZeichnen();
-  go('log');                       // Oberfläche steht sofort, auch wenn der Speicher klemmt
+  /* ⚠️ Die App öffnet seit dem 13.08.2026 auf **Home**, nicht mehr auf der Liste. Das
+     folgt aus Karls Reihenfolge in der Leiste: die erste Kachel ist die, auf der man
+     landet. Wer sie umsortiert, muss das hier nachziehen — sonst leuchtet unten Home
+     und man steht in der Fangliste.
+     ⚠️ `renderHome()` holt eine Vorhersage aus dem Netz und wird deshalb **nicht**
+     abgewartet: der Ladebildschirm hängt schon am Abgleich, und ein zweiter Grund zu
+     warten wäre am Wasser eine zweite Sperre vor der App. */
+  go('home');                      // Oberfläche steht sofort, auch wenn der Speicher klemmt
 
   /* ⚠️ **Hier stand `splashWeg()`** — vor allem, was Zeit kostet, mit der ausdrücklichen
      Begründung, der Schirm dürfe an nichts hängen. Karls Ansage vom 11.08.2026 dreht das um:
