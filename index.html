@@ -1178,6 +1178,11 @@ function splashWeg(){
          Antwort an. Getrennt voneinander wäre beides halb. -->
     <button class="btn" id="btn-postfach" style="margin-bottom:8px">📬 Postfach<span class="badge inline" id="badge-post" hidden></span></button>
     <div id="postfach" hidden style="margin-bottom:12px"></div>
+    <!-- Push (13.08.2026, Karls Ansage: „nur von wegen neue antwort auf dein ticket,
+         ganz einfach"). Steht direkt beim Postfach, weil es dasselbe Thema ist: das
+         Postfach zeigt die Antwort, die Benachrichtigung ruft dazu. -->
+    <button class="btn" id="btn-push" style="margin-bottom:6px">🔔 Bei Antwort benachrichtigen</button>
+    <p class="tiny muted" id="push-info" style="margin:0 0 12px; line-height:1.5"></p>
     <div id="bug-form" hidden style="margin-bottom:12px">
       <label class="f" for="bug-text">Was ist passiert?</label>
       <textarea class="in" id="bug-text" rows="4"
@@ -1616,6 +1621,30 @@ const EN = {
   'Karte nicht ladbar': 'Map not loadable',
   'Neu anfangen': 'Start fresh',
   'nur hier': 'this device only',
+  /* Push-Benachrichtigung (13.08.2026). */
+  'Bei Antwort benachrichtigen': 'Notify me about replies',
+  'Benachrichtigung ausschalten': 'Turn notifications off',
+  'Benachrichtigung ist an': 'Notifications are on',
+  'Benachrichtigung ist aus': 'Notifications are off',
+  'Anmelden fehlgeschlagen:': 'Could not subscribe:',
+  'Dafür brauchst du ein Konto': 'That needs an account',
+  'Konnte nicht gespeichert werden — später nochmal': 'Could not be saved — try again later',
+  'Ohne Erlaubnis geht es nicht — in den Geräte-Einstellungen änderbar':
+    'It does not work without permission — you can change that in your device settings',
+  ['Benachrichtigungen gehen auf diesem Gerät nicht. Am iPhone brauchst du dafür die App '
+  + 'auf dem Home-Bildschirm: in Safari öffnen, Teilen → „Zum Home-Bildschirm".']:
+    'Notifications do not work on this device. On iPhone the app has to be on your home '
+  + 'screen: open it in Safari, then Share → “Add to Home Screen”.',
+  'Dafür brauchst du ein Konto — sonst weiß niemand, wohin die Antwort gehört.':
+    'That needs an account — otherwise nobody knows whose reply it is.',
+  'Dieses Gerät bekommt eine Nachricht, sobald eine deiner Meldungen beantwortet wird.':
+    'This device gets a notification as soon as one of your reports is answered.',
+  ['Du hast Benachrichtigungen für diese Seite abgelehnt. Das lässt sich nur in den '
+  + 'Einstellungen des Geräts wieder ändern.']:
+    'You have blocked notifications for this site. That can only be changed in your device '
+  + 'settings.',
+  'Nur bei einer Antwort auf deine eigene Meldung — sonst schickt die App nichts.':
+    'Only when one of your own reports gets a reply — the app sends nothing else.',
   /* Sortierung der Fangliste (13.08.2026). */
   'Neueste zuerst': 'Newest first',
   'Älteste zuerst': 'Oldest first',
@@ -3864,7 +3893,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v46';
+const FASSUNG = 'v47';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -5454,6 +5483,150 @@ function sperreZeichnen(){
   if (!$('#bug-form').hidden) sperrTimer = setTimeout(sperreZeichnen, 250);
 }
 
+/* ================= Push: bei einer Antwort benachrichtigen (13.08.2026) =================
+   Karls Ansage: „Ja mit pushbenachrichtigung, nur von wegen neue antwort auf dein ticket,
+   ganz einfach."
+
+   Der Weg, von hinten: Karl antwortet in Discord → der Bot trägt die Antwort ein → der Bot
+   schickt einen Anstoß an alle Geräte, die dieser Melder angemeldet hat → der Service
+   Worker zeigt eine Nachricht. Verschickt wird vom **Bot**, nicht von der Datenbank: die
+   Anfrage muss mit dem VAPID-Schlüssel signiert sein, und der gehört nirgends hin, wo die
+   App oder RLS ihn sehen könnten.
+
+   ⚠️ **Am iPhone geht das ausschließlich mit Verknüpfung auf dem Home-Bildschirm.**
+   In Safari selbst gibt es kein `PushManager` — die App muss über „Teilen → Zum
+   Home-Bildschirm" installiert sein (ab iOS 16.4). Das steht auch so in der App, sonst
+   tippt jemand auf einen Knopf, der nie etwas tut, und hält ihn für kaputt.
+
+   ⚠️ **Die Erlaubnis wird nur auf Tippen erfragt.** Ein Berechtigungsdialog beim Start ist
+   das, was man wegtippt — und ein einmal abgelehnter lässt sich nicht erneut stellen. */
+
+/* Der öffentliche VAPID-Schlüssel. Er ist öffentlich und gehört genau hierher; der private
+   steht in der `.env` des Discord-Bots und nirgendwo sonst. */
+const VAPID_PUB = 'BLxEeSl5L86MrjuBwAOcJxk1dEdThUaAsqKSarUpI8EN58iYQUmL2SyFUrmXFnbs3tgCfACcqaVdUjL5FsP2xcg';
+const PUSH_TABELLE = '/rest/v1/angel_push';
+
+/* Der Schlüssel muss als Bytes übergeben werden, nicht als Text. base64url hat statt
+   `+/` die Zeichen `-_` und lässt das Auffüllen weg — `atob` kennt beides nicht. */
+function urlBase64ZuBytes(s){
+  const voll = (s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+  const roh = atob(voll);
+  return Uint8Array.from(roh, c => c.charCodeAt(0));
+}
+const bytesZuBase64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+
+const pushMoeglich = () => 'serviceWorker' in navigator && 'PushManager' in window
+                        && 'Notification' in window;
+
+async function pushAnmeldungHolen(){
+  if (!pushMoeglich()) return null;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    return reg ? await reg.pushManager.getSubscription() : null;
+  } catch { return null; }
+}
+
+async function pushEinschalten(){
+  if (!cloudAn() || !konto){ toast(T('Dafür brauchst du ein Konto')); return; }
+  /* ⚠️ Erst fragen, dann anmelden. `subscribe()` fragt zwar selbst, aber der Fehler bei
+     Ablehnung ist ein nichtssagender `NotAllowedError` — so lässt sich „abgelehnt"
+     von „geht hier nicht" unterscheiden und auch so sagen. */
+  let erlaubnis = Notification.permission;
+  if (erlaubnis === 'default') erlaubnis = await Notification.requestPermission();
+  if (erlaubnis !== 'granted'){
+    toast(T('Ohne Erlaubnis geht es nicht — in den Geräte-Einstellungen änderbar'));
+    pushInfoZeichnen();
+    return;
+  }
+
+  const reg = await navigator.serviceWorker.ready;
+  let sub;
+  try {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,                 // Pflicht; „stille" Pushs sind nicht erlaubt
+      applicationServerKey: urlBase64ZuBytes(VAPID_PUB)
+    });
+  } catch (e){
+    toast(T('Anmelden fehlgeschlagen:') + ' ' + (e.message || e.name || ''));
+    return;
+  }
+
+  const roh = sub.toJSON();
+  const r = await api(PUSH_TABELLE, { method: 'POST',
+    headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    /* ⚠️ Ohne `user_id`. Die App kennt ihre eigene Benutzer-id nicht — im Gerät liegt
+       nur das Token. In der Tabelle steht dafür `default auth.uid()`, genau wie bei den
+       Fängen; der Server setzt sie aus der Sitzung. */
+    body: JSON.stringify({ endpoint: sub.endpoint,
+                           p256dh: roh.keys.p256dh, auth: roh.keys.auth }) });
+  if (!r.ok){
+    /* ⚠️ Beim Fehlschlag die Anmeldung im Gerät wieder auflösen. Sonst hielte sich das
+       Gerät für angemeldet, während niemand weiß, wohin gesendet werden soll — der
+       Schalter stünde auf „an" und es käme nie etwas. */
+    try { await sub.unsubscribe(); } catch {}
+    toast(T('Konnte nicht gespeichert werden — später nochmal'));
+    return;
+  }
+  toast(T('Benachrichtigung ist an'));
+  pushInfoZeichnen();
+}
+
+async function pushAusschalten(){
+  const sub = await pushAnmeldungHolen();
+  if (!sub){ pushInfoZeichnen(); return; }
+  const endpoint = sub.endpoint;
+  try { await sub.unsubscribe(); } catch {}
+  /* Auch aus der Datenbank nehmen. Bleibt die Zeile stehen, sendet der Bot weiter an eine
+     tote Adresse — das kostet ihn bei jeder Antwort einen fehlschlagenden Aufruf. */
+  if (cloudAn() && konto){
+    try { await api(PUSH_TABELLE + '?endpoint=eq.' + encodeURIComponent(endpoint),
+                    { method: 'DELETE' }); } catch {}
+  }
+  toast(T('Benachrichtigung ist aus'));
+  pushInfoZeichnen();
+}
+
+async function pushInfoZeichnen(){
+  const knopf = $('#btn-push'), info = $('#push-info');
+  if (!knopf) return;
+
+  if (!pushMoeglich()){
+    knopf.hidden = true;
+    /* ⚠️ Der häufigste Fall am iPhone, und er sieht wie ein Fehler aus: in Safari selbst
+       gibt es kein PushManager. Deshalb hier der Weg statt einer Absage. */
+    info.textContent = T('Benachrichtigungen gehen auf diesem Gerät nicht. Am iPhone brauchst '
+      + 'du dafür die App auf dem Home-Bildschirm: in Safari öffnen, Teilen → „Zum '
+      + 'Home-Bildschirm".');
+    return;
+  }
+  knopf.hidden = false;
+
+  if (!cloudAn() || !konto){
+    knopf.disabled = true;
+    info.textContent = T('Dafür brauchst du ein Konto — sonst weiß niemand, wohin die Antwort gehört.');
+    return;
+  }
+  knopf.disabled = false;
+
+  const sub = await pushAnmeldungHolen();
+  const an = !!sub && Notification.permission === 'granted';
+  knopf.textContent = an ? '🔔 ' + T('Benachrichtigung ausschalten')
+                         : '🔔 ' + T('Bei Antwort benachrichtigen');
+  knopf.classList.toggle('primary', !an);
+  info.textContent = an
+    ? T('Dieses Gerät bekommt eine Nachricht, sobald eine deiner Meldungen beantwortet wird.')
+    : (Notification.permission === 'denied'
+        ? T('Du hast Benachrichtigungen für diese Seite abgelehnt. Das lässt sich nur in den '
+          + 'Einstellungen des Geräts wieder ändern.')
+        : T('Nur bei einer Antwort auf deine eigene Meldung — sonst schickt die App nichts.'));
+}
+
+$('#btn-push').onclick = async () => {
+  const sub = await pushAnmeldungHolen();
+  if (sub && Notification.permission === 'granted') await pushAusschalten();
+  else await pushEinschalten();
+};
+
 /* ---------- Das Postfach ---------- */
 function badgesZeichnen(){
   const n = postfachUngelesen();
@@ -6664,6 +6837,10 @@ function go(view){
   if (view === 'stats')  renderStats();
   if (view === 'detail') renderDetail();
   if (view === 'new' && !state.editId) resetForm(null);
+  /* ⚠️ Der Push-Schalter wird bei **jedem** Öffnen neu gezeichnet, nicht einmal beim
+     Start. Sein Zustand kann sich außerhalb der App ändern: wer die Erlaubnis in den
+     Geräte-Einstellungen zurücknimmt, hätte hier sonst weiterhin „ist an" stehen. */
+  if (view === 'set') pushInfoZeichnen();
   window.scrollTo(0, 0);
 }
 $$('.tab').forEach(t => t.onclick = () => {

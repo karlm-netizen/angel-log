@@ -4451,6 +4451,73 @@ window.addEventListener('error', e => {
         || 'ein Schritt fehlt';
   });
 
+  /* ====== Push: bei einer Antwort benachrichtigen (13.08.2026, Karls Ansage) ======
+     „Ja mit pushbenachrichtigung, nur von wegen neue antwort auf dein ticket, ganz
+     einfach."
+
+     ⚠️ Der Versand selbst laesst sich hier nicht pruefen -- er laeuft im Discord-Bot
+     und braucht einen echten Push-Dienst. Geprueft wird, was in der App passiert:
+     der Schluessel, die Umrechnung, und dass der Knopf keine Behauptung aufstellt,
+     die er nicht halten kann. */
+  t('der oeffentliche VAPID-Schluessel ist ein P-256-Punkt', () => {
+    // 65 Byte unkomprimiert, beginnt mit 0x04 -- sonst weist ihn subscribe() ab,
+    // und zwar erst am Geraet, wo es niemand mehr sieht.
+    const b = urlBase64ZuBytes(VAPID_PUB);
+    return (b.length === 65 && b[0] === 4) || ('Laenge ' + b.length + ', erstes Byte ' + b[0]);
+  });
+  /* ⚠️ Die wichtigste hier. Ein privater VAPID-Schluessel im Quelltext waere fuer
+     jeden lesbar, der die Seite oeffnet -- und wer ihn hat, kann im Namen dieser App
+     an jedes angemeldete Geraet senden. Der private ist 32 Byte lang und steht in der
+     .env des Bots; hier darf nur der oeffentliche stehen. */
+  t('und im Quelltext steht kein privater Schluessel', () => {
+    const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
+    const verdaechtig = (js.match(/['"][A-Za-z0-9_-]{40,50}['"]/g) || [])
+      .map(s => s.slice(1, -1))
+      .filter(s => { try { return urlBase64ZuBytes(s).length === 32; } catch { return false; } });
+    return verdaechtig.length === 0 || ('32-Byte-Schluessel im Quelltext: ' + verdaechtig.join(', '));
+  });
+  t('base64url wird richtig zurueckgerechnet', () => {
+    /* `-` und `_` statt `+/`, und ohne Auffuellen -- `atob` kennt beides nicht.
+       Ohne die Umrechnung wirft subscribe() einen Fehler, den niemand deutet. */
+    const b = urlBase64ZuBytes('AQAB');
+    return (b.length === 3 && b[0] === 1 && b[1] === 0 && b[2] === 1)
+        || Array.from(b).join(',');
+  });
+  t('der Schalter behauptet nichts ohne Konto', () => {
+    /* Ohne Konto weiss niemand, wem eine Antwort gehoert. Der Knopf muss das sagen
+       und nicht anbieten -- ein Schalter, der nichts bewirkt, ist schlimmer als
+       keiner. */
+    const alt = konto; konto = null;
+    try {
+      pushInfoZeichnen();
+      const txt = document.getElementById('push-info').textContent;
+      return /Konto/.test(txt) || ('steht da: ' + txt);
+    } finally { konto = alt; }
+  });
+  /* Der Service Worker muss auf ein Push-Ereignis IMMER etwas anzeigen. Wer nichts
+     zeigt, wird von den Browsern nach ein paar Malen von der Zustellung
+     ausgeschlossen ("silent push") -- und dann kommt gar nichts mehr an, ohne dass
+     jemand erfaehrt, warum. */
+  ta('der Service Worker zeigt bei jedem Push etwas an', async () => {
+    const r = await fetch('sw.js');
+    const js = await r.text();
+    const a = js.indexOf("addEventListener('push'");
+    if (a < 0) return 'kein push-Handler in sw.js';
+    const block = js.slice(a, a + 1400);
+    return (block.indexOf('showNotification') !== -1)
+        || 'push-Handler ohne showNotification';
+  });
+  ta('und ein Tipp darauf holt ein offenes Fenster nach vorn', async () => {
+    /* Ohne das Suchen nach einem offenen Fenster oeffnet iOS eine zweite Instanz --
+       mit eigenem Zustand, und der Fang, den man gerade eintippt, waere im anderen. */
+    const js = await (await fetch('sw.js')).text();
+    const a = js.indexOf("addEventListener('notificationclick'");
+    if (a < 0) return 'kein notificationclick-Handler';
+    const block = js.slice(a, a + 1200);
+    return (block.indexOf('matchAll') !== -1 && block.indexOf('focus') !== -1)
+        || 'holt kein offenes Fenster nach vorn';
+  });
+
   /* ====== Die Fang-Ansicht: leere Felder (12.08.2026) ======
      ⚠️ Diese Ansicht hatte bis heute KEINE einzige Pruefung. Genau deshalb konnte in acht
      Zeilen woertlich "false" stehen, ohne dass irgendetwas gefallen waere -- gemeldet hat

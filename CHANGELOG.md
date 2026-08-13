@@ -6,6 +6,63 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 13.08.2026 (v47) — 🔔 Benachrichtigung, wenn dein Ticket beantwortet wurde
+
+Karls Ansage: *„Ja mit pushbenachrichtigung, nur von wegen neue antwort auf dein ticket, ganz
+einfach."*
+
+In den Einstellungen, direkt beim Postfach: **🔔 Bei Antwort benachrichtigen.**
+
+### Der Weg, von hinten
+
+Karl antwortet in Discord → der Bot trägt die Antwort ein → **der Bot** schickt einen Anstoß an
+alle Geräte, die dieser Melder angemeldet hat → der Service Worker zeigt „Neue Antwort auf deine
+Meldung."
+
+⚠️ **Verschickt wird ohne Nutzlast**, der Text steht fest im Service Worker. Zwei Gründe: der
+Ticket-Text ginge sonst durch die Server von Apple bzw. Google — er enthält, was jemand an der App
+auszusetzen hat — und eine Nutzlast müsste je Empfänger verschlüsselt werden (aes128gcm, ECDH).
+Ohne sie genügt die VAPID-Signatur, und das ist deutlich weniger, was schiefgehen kann.
+
+⚠️ **Verschickt wird vom Bot, nicht von der Datenbank.** Die Anfrage muss mit dem privaten
+VAPID-Schlüssel signiert sein, und der gehört nirgends hin, wo App oder RLS ihn sehen könnten.
+Der Preis, ehrlich benannt: **läuft der Bot nicht, geht keine Benachrichtigung raus.** Genau
+deshalb startet er seit heute von selbst.
+
+⚠️ **Am iPhone geht das nur mit Verknüpfung auf dem Home-Bildschirm** (ab iOS 16.4). In Safari
+selbst gibt es kein `PushManager`. Die App sagt das an der Stelle, statt einen Knopf zu zeigen,
+der nie etwas tut.
+
+⚠️ **Die Erlaubnis wird nur auf Tippen erfragt.** Ein Dialog beim Start ist das, was man wegtippt
+— und ein einmal abgelehnter lässt sich nicht erneut stellen.
+
+⚠️ **404 und 410 vom Push-Dienst sind kein Fehler, sondern eine Auskunft:** dieses Gerät gibt es
+nicht mehr. Die Zeile wird dann gelöscht, sonst sammelt die Tabelle tote Adressen.
+
+⚠️ **Schlägt das Speichern in der Datenbank fehl, wird die Anmeldung im Gerät wieder aufgelöst.**
+Sonst stünde der Schalter auf „an", während niemand weiß, wohin gesendet werden soll.
+
+### Geprüft wird, was hier prüfbar ist
+
+Der Versand selbst läuft im Bot und braucht einen echten Push-Dienst. Geprüft wird die App-Seite:
+dass der öffentliche Schlüssel ein gültiger P-256-Punkt ist (65 Byte, führendes `0x04` — sonst
+weist `subscribe()` ihn erst am Gerät ab, wo es niemand mehr sieht), dass die base64url-Umrechnung
+stimmt, dass der Schalter ohne Konto nichts behauptet, und dass der Service Worker **bei jedem**
+Push etwas anzeigt — wer das nicht tut, wird von den Browsern von der Zustellung ausgeschlossen.
+
+🔒 **Und eine Prüfung sucht im Quelltext nach einem privaten Schlüssel.** Ein privater
+VAPID-Schlüssel wäre für jeden lesbar, der die Seite öffnet, und wer ihn hat, kann im Namen dieser
+App an jedes angemeldete Gerät senden.
+
+**609 Prüfungen grün** (von 603).
+
+### ➡️ Zwei Schritte, die bei Karl liegen
+
+1. **`supabase.sql` ausführen** — Abschnitt 7 legt die Tabelle `angel_push` an. Ohne sie meldet
+   der Bot beim Senden `404`.
+2. In der App **einmal einschalten** (Einstellungen → 🔔), dann eine Meldung abschicken und in
+   Discord antworten.
+
 ## 13.08.2026 (v46) — Sortieren, ein Ausweg aus der gelben Leiste, Logo zurück
 
 ### 🔤 Filter für die Suche

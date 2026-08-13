@@ -563,3 +563,65 @@ grant execute on function public.email_fuer_username(text) to anon, authenticate
 --    muss erst eine Mail bestätigen — am Wasser mit halbem Empfang ist das
 --    die Stelle, an der jemand aufgibt. (Bei Gym-Log genauso gelöst.)
 -- ---------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------
+--  7. Push-Benachrichtigungen  (Nachtrag 13.08.2026)
+--
+--  Karls Ansage: "Ja mit pushbenachrichtigung, nur von wegen neue antwort
+--  auf dein ticket, ganz einfach."
+--
+--  Hier steht nur die Anmeldung eines Geraets. Verschickt wird NICHT von
+--  der Datenbank, sondern vom Discord-Bot -- direkt nachdem er eine
+--  Antwort eingetragen hat. Grund: Web Push verlangt eine mit dem
+--  VAPID-Schluessel signierte Anfrage, und dieser Schluessel gehoert
+--  nirgends hin, wo die App oder RLS ihn sehen koennten.
+--
+--  ⚠️ Eine Anmeldung ist geraetebezogen, nicht personenbezogen: dasselbe
+--  Konto auf iPhone und PC ergibt zwei Zeilen. Genau so soll es sein --
+--  eine Antwort soll auf jedem Geraet ankommen, an dem jemand sie
+--  eingeschaltet hat.
+-- ---------------------------------------------------------------------
+
+create table if not exists public.angel_push (
+  -- Der Endpunkt ist die Adresse beim Push-Dienst (Apple, Google, Mozilla)
+  -- und schon fuer sich eindeutig. Als Schluessel ist er deshalb richtiger
+  -- als eine erfundene id: meldet sich dasselbe Geraet erneut an, soll die
+  -- alte Zeile ersetzt werden und keine zweite entstehen.
+  endpoint   text primary key,
+  -- ⚠️ `default auth.uid()` wie bei angel_faenge und angel_werte: die App kennt
+  --    ihre eigene Benutzer-id gar nicht (im Geraet liegt nur das Token) und soll
+  --    sie auch nicht mitschicken muessen. Wer es doch tut, kommt an der
+  --    RLS-Regel unten nicht vorbei.
+  user_id    uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  p256dh     text not null,
+  auth       text not null,
+  erstellt   timestamptz not null default now(),
+  -- Wann zuletzt erfolgreich zugestellt. Nur zum Nachsehen.
+  zuletzt    timestamptz
+);
+
+create index if not exists angel_push_user_idx on public.angel_push (user_id);
+
+alter table public.angel_push enable row level security;
+
+-- ⚠️ Jeder sieht und aendert ausschliesslich seine eigenen Anmeldungen.
+--    Ohne das koennte jemand fremde Endpunkte auslesen -- und wer einen
+--    Endpunkt hat, kann an dieses Geraet senden.
+drop policy if exists "eigene push-anmeldungen lesen"    on public.angel_push;
+drop policy if exists "eigene push-anmeldungen anlegen"  on public.angel_push;
+drop policy if exists "eigene push-anmeldungen aendern"  on public.angel_push;
+drop policy if exists "eigene push-anmeldungen loeschen" on public.angel_push;
+
+create policy "eigene push-anmeldungen lesen"
+  on public.angel_push for select using (auth.uid() = user_id);
+create policy "eigene push-anmeldungen anlegen"
+  on public.angel_push for insert with check (auth.uid() = user_id);
+create policy "eigene push-anmeldungen aendern"
+  on public.angel_push for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "eigene push-anmeldungen loeschen"
+  on public.angel_push for delete using (auth.uid() = user_id);
+
+-- ⚠️ Der Bot arbeitet mit dem Service-Key und geht damit an RLS vorbei --
+--    er muss fremde Anmeldungen lesen duerfen, denn eine Antwort gehoert
+--    per Definition zu jemand anderem. Dasselbe gilt schon fuer
+--    angel_meldungen; hier steht es nur noch einmal dabei.

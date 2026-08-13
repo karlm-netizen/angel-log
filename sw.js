@@ -2,7 +2,7 @@
 // Eigene Dateien: Netz zuerst, damit Updates sofort ankommen — Cache nur als Offline-Rückfall.
 // Kartenkacheln und Leaflet: Cache zuerst, denn am Wasser ist oft kein Netz und einmal
 // angeschaute Gewässer sollen offline noch da sein. Wetter-API: nie cachen.
-const CACHE  = 'angellog-v46';
+const CACHE  = 'angellog-v47';
 const TILES  = 'angellog-tiles';
 /* ⚠️ Die sechs Ladebildschirm-Fotos gehören hier hinein. Ohne sie im Cache stünde am
    Wasser ohne Netz ein Ladebildschirm ohne Bild — und genau dort wird die App benutzt.
@@ -73,4 +73,54 @@ self.addEventListener('fetch', e => {
       .then(r => { const cp = r.clone(); caches.open(CACHE).then(c => c.put(req, cp)); return r; })
       .catch(() => caches.match(req).then(m => m || caches.match('./index.html')))
   );
+});
+
+/* ================= Push: neue Antwort auf ein Ticket (13.08.2026) =================
+   Karls Ansage: „Ja mit pushbenachrichtigung, nur von wegen neue antwort auf dein
+   ticket, ganz einfach."
+
+   ⚠️ **Ohne Nutzlast.** Der Bot schickt einen leeren Anstoß, der Text steht hier fest.
+   Zwei Gründe, und beide zählen:
+   1. Der Ticket-Text ginge sonst durch die Server von Apple bzw. Google. Er enthält,
+      was jemand an der App auszusetzen hat — das muss dort nicht liegen.
+   2. Eine Nutzlast muss verschlüsselt werden (aes128gcm, ECDH je Empfänger). Ohne sie
+      genügt die VAPID-Signatur, und das ist deutlich weniger, was schiefgehen kann.
+
+   ⚠️ **`showNotification` ist Pflicht, nicht Kür.** Wer ein Push-Ereignis empfängt und
+   nichts anzeigt, wird von den Browsern nach ein paar Malen von der Zustellung
+   ausgeschlossen („silent push"). Deshalb wird immer etwas gezeigt — auch wenn die
+   Nachricht mal ohne erkennbaren Grund kommt. */
+self.addEventListener('push', e => {
+  // Falls doch einmal etwas mitkommt, darf es den Handler nicht umwerfen.
+  let daten = {};
+  try { if (e.data) daten = e.data.json(); } catch { daten = {}; }
+
+  const titel = daten.titel || 'Angel-Log';
+  const text  = daten.text  || 'Neue Antwort auf deine Meldung.';
+  e.waitUntil(self.registration.showNotification(titel, {
+    body: text,
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    /* Gleiches `tag` heißt: eine zweite Antwort ersetzt die erste, statt den
+       Sperrbildschirm zuzustellen. Bei einem Postfach ist „es liegt etwas an"
+       die Auskunft, nicht die Anzahl. */
+    tag: 'angel-ticket',
+    data: { url: './' }
+  }));
+});
+
+/* Tippen auf die Nachricht: ein bereits offenes Fenster nach vorn holen, sonst eines
+   öffnen. ⚠️ Ohne das Suchen nach einem offenen Fenster öffnet iOS eine **zweite**
+   Instanz der App — mit eigenem Zustand, und der Fang, den man gerade eintippt, wäre
+   im anderen Fenster. */
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil((async () => {
+    const ziel = new URL((e.notification.data && e.notification.data.url) || './', self.location.href).href;
+    const fenster = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const f of fenster){
+      if (f.url.startsWith(self.registration.scope) && 'focus' in f) return f.focus();
+    }
+    if (self.clients.openWindow) return self.clients.openWindow(ziel);
+  })());
 });
