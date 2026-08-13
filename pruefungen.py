@@ -4259,6 +4259,112 @@ window.addEventListener('error', e => {
       const el = kachel();          // VOLL ist fertig und gilt im Rahmen als gesichert
       return !el.querySelector('.marks') || 'Leiste ohne Anlass';
     });
+    /* ====== Sortierung (13.08.2026, Karls Ansage) ======
+       „Filter für suchfunktion für datum von alt bis jung und anders herum und fische
+       a-z und gewicht." */
+    const sortSetzen = w => { localStorage.setItem('angellog-sortierung', w);
+                              document.getElementById('sort').value = w; };
+    const listeMit = (faenge, wie) => {
+      const alt = state.catches, altS = localStorage.getItem('angellog-sortierung');
+      state.catches = faenge;
+      sortSetzen(wie);
+      try { renderList();
+            return [...document.querySelectorAll('#list .item')].map(z => z.dataset.id); }
+      finally { state.catches = alt;
+                if (altS) sortSetzen(altS); else localStorage.removeItem('angellog-sortierung');
+                renderList(); }
+    };
+    const drei = [
+      { ...VOLL, id: 'mittel', when: '2026-06-15T10:00:00.000Z', ts: Date.parse('2026-06-15T10:00:00Z'), art: 'Zander', gewicht: 3, laenge: 60 },
+      { ...VOLL, id: 'alt',    when: '2026-01-02T10:00:00.000Z', ts: Date.parse('2026-01-02T10:00:00Z'), art: 'Äsche',  gewicht: 9, laenge: 40 },
+      { ...VOLL, id: 'neu',    when: '2026-08-01T10:00:00.000Z', ts: Date.parse('2026-08-01T10:00:00Z'), art: 'Barsch', gewicht: 1, laenge: 80 }
+    ];
+    t('Neueste zuerst', () =>
+      listeMit(drei, 'neu').join(',') === 'neu,mittel,alt' || listeMit(drei, 'neu').join(','));
+    t('Aelteste zuerst', () =>
+      listeMit(drei, 'alt').join(',') === 'alt,mittel,neu' || listeMit(drei, 'alt').join(','));
+    /* ⚠️ „Äsche" muss VOR „Barsch" stehen. Ohne localeCompare landet sie hinter „Zander",
+       weil Umlaute in der Zeichentabelle hinter Z liegen — bei deutschen Fischnamen ist
+       das kein Randfall, sondern der Normalfall. */
+    t('Fischart A-Z sortiert Umlaute richtig ein', () =>
+      listeMit(drei, 'art').join(',') === 'alt,neu,mittel' || listeMit(drei, 'art').join(','));
+    t('Schwerste zuerst', () =>
+      listeMit(drei, 'gewicht').join(',') === 'alt,mittel,neu' || listeMit(drei, 'gewicht').join(','));
+    t('Laengste zuerst', () =>
+      listeMit(drei, 'laenge').join(',') === 'neu,mittel,alt' || listeMit(drei, 'laenge').join(','));
+    /* ⚠️ Fehlende Werte gehoeren ans Ende. Stuenden die Faenge ohne Gewicht oben, saehe
+       die Liste kaputt aus -- genau die, die zur Frage nichts sagen, laegen im Blick. */
+    t('Faenge ohne Gewicht stehen hinten, nicht vorn', () => {
+      const l = [...drei, { ...VOLL, id: 'ohne', gewicht: null, ts: Date.parse('2026-07-01T10:00:00Z') }];
+      const r = listeMit(l, 'gewicht');
+      return r[r.length - 1] === 'ohne' || r.join(',');
+    });
+    /* Die Sortierung darf `state.catches` nicht umdrehen -- daran haengen andere Stellen,
+       etwa der Ort der Wetterkarte (juengster Fang mit Koordinaten). */
+    t('die Sortierung dreht den Bestand nicht mit um', () => {
+      const alt = state.catches;
+      state.catches = drei.slice();
+      const vorher = state.catches.map(c => c.id).join(',');
+      sortSetzen('alt'); renderList();
+      const nachher = state.catches.map(c => c.id).join(',');
+      state.catches = alt; localStorage.removeItem('angellog-sortierung'); renderList();
+      return vorher === nachher || (vorher + ' wurde zu ' + nachher);
+    });
+    t('die gewaehlte Sortierung bleibt gespeichert', () => {
+      localStorage.setItem('angellog-sortierung', 'gewicht');
+      const a = sortierungLesen();
+      localStorage.setItem('angellog-sortierung', 'quatsch');
+      const b = sortierungLesen();          // unbekannt -> Rueckfall, nicht Absturz
+      localStorage.removeItem('angellog-sortierung');
+      return (a === 'gewicht' && b === 'neu') || (a + ' / ' + b);
+    });
+
+    /* ====== Was die gelbe Leiste bedeutet (13.08.2026, Karls Ansage) ======
+       „eine info wenn man auf den fang klickt für entwurf oder nur auf diesem gerät,
+       was man tun muss damit das weggeht." Ein Warnschild ohne Ausweg ist die
+       schlechtere Haelfte einer Warnung. */
+    const detailVon = rec => {
+      const alt = { c: state.catches, id: state.detailId };
+      state.catches = [rec]; state.detailId = rec.id;
+      try { renderDetail(); return document.getElementById('d-body'); }
+      finally { state.catches = alt.c; state.detailId = alt.id; }
+    };
+    t('ein Entwurf erklaert im Fang, wie er fertig wird', () => {
+      const txt = detailVon({ ...VOLL, entwurf: true }).textContent;
+      return (/Entwurf/.test(txt) && /Haken/.test(txt)) || txt.slice(0, 200);
+    });
+    t('ein fertiger, gesicherter Fang bekommt keine solche Karte', () => {
+      const txt = detailVon({ ...VOLL, cloud: VOLL.updated || 1 }).textContent;
+      return !/Woran es noch hängt/.test(txt) || 'Karte ohne Anlass';
+    });
+
+    /* ====== Das Logo auf dem Ladebildschirm (13.08.2026, Karls Ansage) ======
+       „Ich brauche doch wieder das Logo auf dem Ladescreen ... aber mach das mehr oben."
+       Am 08.08. war es auf seine Ansage hin verschwunden — zurueck, und zwar oben.
+       ⚠️ `visibility:hidden` (so wird der Schirm weggenommen) behaelt die Lage im Layout,
+       anders als `display:none`. Deshalb laesst sich hier auch nach dem Start messen. */
+    t('der Ladebildschirm traegt wieder Zeichen und Namen', () => {
+      const o = document.querySelector('#splash .oben');
+      return (o && o.querySelector('img') && /Angel-Log/.test(o.textContent))
+          || (o ? 'unvollstaendig: ' + o.textContent : 'kein #splash .oben');
+    });
+    t('und beides steht oben, nicht in der Mitte', () => {
+      const s = document.getElementById('splash');
+      const o = document.querySelector('#splash .oben');
+      const rs = s.getBoundingClientRect(), ro = o.getBoundingClientRect();
+      return (ro.top - rs.top < rs.height * 0.25)
+          || ('Zeichen sitzt bei ' + Math.round(ro.top - rs.top) + ' von ' + Math.round(rs.height));
+    });
+    /* Gegenprobe zur Lesbarkeit: weisse Schrift auf hellem Wasser ist weg. Der Verlauf
+       war seit dem 08.08. oben fast durchsichtig (0,12), weil dort nichts stand -- jetzt
+       steht dort etwas, also muss er zurueck sein. */
+    t('der Verlauf dunkelt den oberen Rand wieder ab', () => {
+      const css = Array.from(document.styleSheets)
+        .flatMap(sh => { try { return [...sh.cssRules].map(r => r.cssText); } catch { return []; } })
+        .filter(t2 => t2.indexOf('#splash .schleier') !== -1).join(' ');
+      const m = css.match(/rgba\(0,\s*0,\s*0,\s*([0-9.]+)\)\s*0%/);
+      return (m && parseFloat(m[1]) >= 0.3) || ('oben steht ' + (m ? m[1] : 'nichts'));
+    });
     t('fmtTag liefert den Tag ohne Uhrzeit', () =>
       fmtTag('2026-08-12T10:30:00.000Z').indexOf(':') === -1
         || 'fmtTag: ' + fmtTag('2026-08-12T10:30:00.000Z'));

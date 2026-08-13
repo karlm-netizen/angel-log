@@ -6,6 +6,50 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 13.08.2026 (v46) — Sortieren, ein Ausweg aus der gelben Leiste, Logo zurück
+
+### 🔤 Filter für die Suche
+
+Karls Ansage: *„Filter für suchfunktion für datum von alt bis jung und anders herum und fische
+a-z und gewicht."* Ein Auswahlfeld neben der Suche: **Neueste / Älteste / Fischart A–Z /
+Schwerste / Längste zuerst.** Die Wahl bleibt gespeichert.
+
+⚠️ **Bewusst ein Auswahlfeld und keine Filterzeile.** Es geht um die Reihenfolge, nicht um eine
+zweite Auswahl neben der Suche — zwei Bedienelemente, die beide die Liste kürzen, verwechselt man
+sofort.
+
+⚠️ **`localeCompare` statt `<`:** sonst landet „Äsche" hinter „Zander", weil Umlaute in der
+Zeichentabelle hinter Z stehen. Bei deutschen Fischnamen ist das kein Randfall.
+
+⚠️ **Fänge ohne Gewicht stehen hinten, nicht vorn.** Mit 0 statt „fehlt" lägen genau die Fänge,
+die zur Frage nichts sagen, mitten in der Liste.
+
+⚠️ **Sortiert wird eine Kopie.** `state.catches` ist die Reihenfolge, in der die App überall sonst
+rechnet — unter anderem sucht die Wetterkarte darin den jüngsten Fang mit Koordinaten. Sie
+umzudrehen, weil jemand nach Gewicht sortiert, wäre ein Nebeneffekt an ganz anderer Stelle.
+
+### 🟡 Ein Ausweg aus der gelben Leiste
+
+Karls Ansage: *„eine info wenn man auf den fang klickt für entwurf oder nur auf diesem gerät, was
+man tun muss damit das weggeht."*
+
+**Ein Warnschild ohne Ausweg ist die schlechtere Hälfte einer Warnung.** In der Liste stand „nur
+hier" — und nirgends, was zu tun ist. Wer das liest, kann nur raten, ob er etwas falsch gemacht
+hat. Im Fang steht jetzt eine Karte „Woran es noch hängt": beim Entwurf, wie er fertig wird; beim
+ungesicherten Fang, dass er von selbst hochgeht — mit einem Knopf, der es sofort tut.
+
+### 🖼 Das Logo ist auf dem Ladebildschirm zurück
+
+Karls Ansage: *„Ich brauche doch wieder das Logo auf dem Ladescreen … aber mach das mehr oben."*
+Am 08.08. war es auf seine Ansage hin verschwunden — das ist kein Widerspruch, sondern ein Blick
+auf das fertige Ergebnis.
+
+⚠️ **Der Verlauf musste oben mit zurück** (0,12 → 0,45). Seit dem 08.08. war der obere Rand fast
+durchsichtig, weil dort nichts stand; weiße Schrift auf hellem Wasser ist sonst schlicht weg. Die
+Bildmitte bleibt frei.
+
+**603 Prüfungen grün** (von 590).
+
 ## 13.08.2026 (v45) — 🔴 Ein Fang ging bei jedem Abgleich neu hoch
 
 ### Karls Meldung

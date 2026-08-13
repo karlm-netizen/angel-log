@@ -120,12 +120,16 @@ setTimeout(function(){
     opacity:0; transition:opacity .45s ease; border-radius:0; z-index:0}
   #splash .foto.da{opacity:1}
   /* ⚠️ Ohne Abdunklung sind Leiste und Zahl auf hellem Wasser oder Sand unlesbar.
-     ⚠️ Der Verlauf ist **unten kräftig und oben fast weg**: dort steht seit Karls Ansage
-     nichts mehr, und ihn dort trotzdem abzudunkeln kostete Bild ohne Gegenwert. Genau darum
-     ging es ja — das Foto soll zu sehen sein. */
+     ⚠️ Der Verlauf war ab dem 08.08. **oben fast weg** (0,12), weil dort nichts mehr
+     stand — ihn ohne Anlass abzudunkeln kostete Bild ohne Gegenwert.
+     ➡️ Seit dem 13.08. steht dort wieder das Zeichen (Karls Ansage), also braucht der
+     obere Rand seine Abdunklung zurück: 0,45 am Kopf, in der Mitte fast nichts. Weiße
+     Schrift auf hellem Wasser ist sonst schlicht weg, und das ist derselbe Fall, für den
+     der Verlauf unten von Anfang an da war. Die Bildmitte bleibt frei. */
   #splash .schleier{position:absolute; inset:0; z-index:1; opacity:0;
     transition:opacity .45s ease;
-    background:linear-gradient(to bottom, rgba(0,0,0,.12) 0%, rgba(0,0,0,.06) 45%,
+    background:linear-gradient(to bottom, rgba(0,0,0,.45) 0%, rgba(0,0,0,.14) 22%,
+                                          rgba(0,0,0,.06) 48%,
                                           rgba(0,0,0,.35) 78%, rgba(0,0,0,.78) 100%)}
   #splash .schleier.da{opacity:1}
 
@@ -135,6 +139,18 @@ setTimeout(function(){
      ⚠️ `env(safe-area-inset-bottom)`: bei einer vom Home-Bildschirm gestarteten App läuft
      der Schirm bis unter den Home-Strich am iPhone. Ohne den Abstand läge die Leiste teils
      darunter — dasselbe Thema wie oben bei der Dynamic Island. */
+  /* ---- Zeichen und Name, oben (13.08.2026, Karls Ansage) ----
+     ⚠️ `env(safe-area-inset-top)`: bei einer vom Home-Bildschirm gestarteten App läuft
+     der Schirm bis unter die Dynamic Island. Ohne den Abstand steckte das Zeichen
+     darunter — dasselbe Thema wie unten beim Home-Strich. */
+  #splash .oben{position:absolute; left:0; right:0; z-index:2;
+    top:calc(env(safe-area-inset-top) + 26px); padding:0 18px;
+    display:flex; align-items:center; gap:10px}
+  #splash .oben img{width:34px; height:34px; border-radius:9px; display:block}
+  #splash .oben span{font-size:19px; font-weight:800; letter-spacing:.2px; color:var(--txt)}
+  /* Auf einem Foto muss die Schrift hell sein — wie unten bei der Prozentzahl, und aus
+     demselben Grund: auf den hellen Paletten ist --txt fast schwarz. */
+  #splash.mitFoto .oben span{color:#fff; text-shadow:0 1px 14px rgba(0,0,0,.6)}
   #splash .unten{position:absolute; left:0; right:0; z-index:2;
     bottom:calc(env(safe-area-inset-bottom) + 18px); padding:0 18px}
   #splash .balken{width:100%; height:7px; border-radius:999px; overflow:hidden;
@@ -569,8 +585,18 @@ setTimeout(function(){
        Reihe ist, steht im Speicher, ein fest verdrahtetes src zeigte immer dasselbe. -->
   <img class="foto" alt="" aria-hidden="true">
   <div class="schleier"></div>
-  <!-- Ladeleiste ganz unten (Karls Ansage vom 08.08.). Zeichen und Name sind raus —
-       der Schirm ist jetzt das Foto, und darunter der Stand. -->
+  <!-- ⚠️ Das Logo ist am 13.08.2026 zurückgekommen (Karls Ansage: „Ich brauche doch
+       wieder das Logo auf dem Ladescreen, das mag ich irgendwie nicht so, aber mach das
+       mehr oben bitte"). Am 08.08. war es auf seine Ansage hin verschwunden — das ist
+       kein Widerspruch, sondern ein Blick auf das fertige Ergebnis: ohne Zeichen sah der
+       Schirm aus wie ein Foto, nicht wie eine App, die startet.
+       Es steht **oben**, nicht mittig: in der Mitte läge es über dem Motiv, und die sechs
+       Fotos haben ihr Motiv unterschiedlich verteilt. -->
+  <div class="oben">
+    <img src="icon-192.png" alt="" aria-hidden="true">
+    <span>Angel-Log</span>
+  </div>
+  <!-- Ladeleiste ganz unten (Karls Ansage vom 08.08.). -->
   <div class="unten">
     <div class="balken" role="progressbar" aria-label="Wird geladen"
          aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
@@ -778,7 +804,22 @@ function splashWeg(){
       <!-- ⚠️ Der Hinweis, der am 08.08.2026 gefehlt hat. Siehe `gesichertRendern()`. -->
       <span class="pill offen" id="st-cloud" role="button" tabindex="0" hidden></span>
     </div>
-    <input class="in" id="q" placeholder="Suchen: Art, Gewässer, Köder …" style="margin-top:10px">
+    <!-- Suchen und Sortieren nebeneinander (Karls Ansage vom 13.08.2026: „Filter für
+         suchfunktion für datum von alt bis jung und anders herum und fische a-z und
+         gewicht").
+         ⚠️ Die Sortierung ist bewusst **ein** Auswahlfeld und keine Filterzeile. Es geht
+            um die Reihenfolge, nicht um eine zweite Auswahl neben der Suche — zwei
+            Bedienelemente, die beide die Liste kürzen, verwechselt man sofort. -->
+    <div class="row" style="gap:8px; margin-top:10px; align-items:center">
+      <input class="in" id="q" placeholder="Suchen: Art, Gewässer, Köder …" style="flex:1; min-width:0">
+      <select class="in" id="sort" aria-label="Sortierung" style="flex:0 0 auto; width:auto; max-width:46%">
+        <option value="neu">Neueste zuerst</option>
+        <option value="alt">Älteste zuerst</option>
+        <option value="art">Fischart A–Z</option>
+        <option value="gewicht">Schwerste zuerst</option>
+        <option value="laenge">Längste zuerst</option>
+      </select>
+    </div>
     <div id="list"></div>
   </div>
 </section>
@@ -1575,6 +1616,25 @@ const EN = {
   'Karte nicht ladbar': 'Map not loadable',
   'Neu anfangen': 'Start fresh',
   'nur hier': 'this device only',
+  /* Sortierung der Fangliste (13.08.2026). */
+  'Neueste zuerst': 'Newest first',
+  'Älteste zuerst': 'Oldest first',
+  'Fischart A–Z': 'Species A–Z',
+  'Schwerste zuerst': 'Heaviest first',
+  'Längste zuerst': 'Longest first',
+  'Sortierung': 'Sort order',
+  /* Was die gelbe Leiste bedeutet, im Fang selbst (13.08.2026). */
+  'Woran es noch hängt': 'What is still open',
+  'Jetzt abgleichen': 'Sync now',
+  ['dieser Eintrag ist noch nicht fertig und zählt in keiner Auswertung mit. Zum '
+  + 'Fertigmachen in der Liste antippen: er öffnet sich im Formular, und der Haken oben '
+  + 'rechts macht einen richtigen Fang daraus.']:
+    'this entry is unfinished and counts in no chart. To finish it, tap it in the list: it '
+  + 'opens in the form, and the tick at the top right turns it into a proper catch.',
+  ['dieser Fang liegt bisher nur auf diesem Gerät. Sobald Netz da ist, geht er beim '
+  + 'nächsten Abgleich von selbst hoch; unten kannst du ihn auch sofort schicken.']:
+    'this catch is so far only on this device. Once you are online it goes up with the next '
+  + 'sync by itself; the button below sends it right away.',
   /* Home — Wetter und Fangprognose (13.08.2026). */
   'Home': 'Home',
   'Wetter am Wasser': 'Weather at the water',
@@ -3397,11 +3457,48 @@ function gesichertRendern(){
 }
 
 /* ---------------------------- Liste ---------------------------- */
+/* ---- Sortierung der Fangliste (13.08.2026, Karls Ansage) ----
+   ⚠️ **Ein fehlender Wert gehört immer ans Ende**, nie an den Anfang. Sortiert man nach
+   Gewicht und die Fänge ohne Gewicht stünden oben, sähe die Liste kaputt aus — genau die
+   Fänge, die zur Frage nichts sagen, lägen dann im Blickfeld. Deshalb bekommen sie
+   -Infinity statt 0: mit 0 stünden sie unter einem 30-g-Fisch, aber immer noch mitten in
+   der Liste, sobald jemand aufsteigend sortiert. */
+const SORT_KEY = 'angellog-sortierung';
+const zahlOderNichts = v => { const n = parseFloat(String(v).replace(',', '.'));
+                              return isFinite(n) ? n : -Infinity; };
+/* `ts` steht am Fang (aus `when` gerechnet, siehe Formular). Der Rückfall auf `when` ist
+   für Fänge aus sehr frühen Fassungen — ohne ihn stünden die alle beieinander auf 0. */
+const wannVon = c => c.ts || (c.when ? new Date(c.when).getTime() || 0 : 0);
+const SORTIERUNGEN = {
+  neu:     (a, b) => wannVon(b) - wannVon(a),
+  alt:     (a, b) => wannVon(a) - wannVon(b),
+  /* `localeCompare` und nicht `<`: sonst landet „Äsche" hinter „Zander", weil Umlaute
+     in der Zeichentabelle hinter Z stehen. Bei einer Liste deutscher Fischnamen ist das
+     kein Randfall. Ohne Art ans Ende, nicht unter „A". */
+  art:     (a, b) => (a.art || '￿').localeCompare(b.art || '￿', 'de',
+                                                       { sensitivity: 'base' }),
+  gewicht: (a, b) => zahlOderNichts(b.gewicht) - zahlOderNichts(a.gewicht),
+  laenge:  (a, b) => zahlOderNichts(b.laenge)  - zahlOderNichts(a.laenge)
+};
+function sortierungLesen(){
+  try { const s = localStorage.getItem(SORT_KEY); if (SORTIERUNGEN[s]) return s; } catch {}
+  return 'neu';
+}
+
 function renderList(){
   const q = $('#q').value.trim().toLowerCase();
+  /* ⚠️ Gesucht wird weiter über **alle** Felder, auch über die, die in der Kachel seit
+     v43 nicht mehr stehen (Köder, Farbe, Wetter, Mond, Notiz). Weniger anzeigen heißt
+     nicht weniger finden — die Suchleiste bietet den Köder ausdrücklich an. */
   const rows = state.catches.filter(c => !q || [c.art, c.gewaesser, c.koeder, ...farbenVon(c),
       wetterLabel(c.wetter), mondFor(c.when) && mondFor(c.when).name, c.notiz]
-    .filter(Boolean).join(' ').toLowerCase().includes(q));
+    .filter(Boolean).join(' ').toLowerCase().includes(q))
+    /* ⚠️ Eine **Kopie** sortieren. `state.catches` ist die Reihenfolge, in der die App
+       überall sonst rechnet (u. a. `heimatLesen()`, das den neuesten Fang mit Koordinaten
+       sucht) — sie hier umzudrehen, weil jemand nach Gewicht sortiert, wäre ein
+       Nebeneffekt an einer ganz anderen Stelle. `filter` liefert bereits eine neue Liste,
+       aber nur, solange oben wirklich gefiltert wird. */
+    .slice().sort(SORTIERUNGEN[sortierungLesen()]);
 
   const list = $('#list');
   list.innerHTML = '';
@@ -3492,6 +3589,14 @@ $('#list').addEventListener('click', e => {
   if (c && c.entwurf){ go('new'); resetForm(c); } else openDetail(it.dataset.id);
 });
 $('#q').addEventListener('input', renderList);
+/* Die Wahl bleibt stehen. Wer nach Gewicht sortiert, will das meist eine Weile —
+   und beim nächsten Öffnen wieder bei „Neueste zuerst" zu landen, sähe nach einem
+   Fehler aus, nicht nach einer Voreinstellung. */
+$('#sort').value = sortierungLesen();
+$('#sort').addEventListener('change', e => {
+  try { localStorage.setItem(SORT_KEY, e.target.value); } catch {}
+  renderList();
+});
 
 /* ---------------------------- Detail ---------------------------- */
 function openDetail(id){
@@ -3525,7 +3630,36 @@ function renderDetail(){
         `<img src="${objURL(p.thumb)}" data-full="${i}" alt="">`).join('')}</div></div>`
     : '';
 
-  $('#d-body').innerHTML = gal + `
+  /* ---- Was die gelbe Leiste bedeutet, und wie man sie loswird (13.08.2026) ----
+     Karls Ansage: „eine info wenn man auf den fang klickt für entwurf oder nur auf
+     diesem gerät, was man tun muss damit das weggeht."
+
+     ⚠️ Ein Warnschild ohne Ausweg ist die schlechtere Hälfte einer Warnung. Bis hierher
+     stand in der Liste „nur hier" — und nirgends, was zu tun ist. Wer das liest, kann
+     nur raten, ob er etwas falsch gemacht hat.
+     ⚠️ Beim Entwurf steht die Auskunft hier und nicht im Formular: ein Entwurf springt
+     beim Antippen direkt ins Formular, diese Ansicht sieht man also nur über einen
+     Umweg — aber wenn, dann soll die Erklärung dastehen. */
+  const zustand = [];
+  if (c.entwurf) zustand.push(
+    `<div><b>${T('Entwurf')}</b> — ${T('dieser Eintrag ist noch nicht fertig und zählt in '
+    + 'keiner Auswertung mit. Zum Fertigmachen in der Liste antippen: er öffnet sich im '
+    + 'Formular, und der Haken oben rechts macht einen richtigen Fang daraus.')}</div>`);
+  if (nichtGesichert().some(x => x.id === c.id)) zustand.push(
+    `<div><b>${T('nur hier')}</b> — ${T('dieser Fang liegt bisher nur auf diesem Gerät. '
+    + 'Sobald Netz da ist, geht er beim nächsten Abgleich von selbst hoch; unten kannst du '
+    + 'ihn auch sofort schicken.')}</div>
+     <button class="btn sm primary" id="d-sync" style="margin-top:10px">${
+       T('Jetzt abgleichen')}</button>`);
+
+  const zustandKarte = zustand.length
+    ? `<div class="card" style="border-color:var(--warn)">
+         <h2>${T('Woran es noch hängt')}</h2>
+         <div class="hint" style="margin:0; display:grid; gap:10px">${zustand.join('')}</div>
+       </div>`
+    : '';
+
+  $('#d-body').innerHTML = gal + zustandKarte + `
     <div class="card">
       ${kv('Datum', fmtDate(c.when))}
       ${kv('Fischart', c.art)}
@@ -3571,6 +3705,10 @@ function renderDetail(){
       $('#viewer').classList.add('on');
     };
   });
+  /* Nicht still: wer hier tippt, will eine Antwort — auch die, dass gerade kein Netz da
+     ist. Danach neu zeichnen, sonst bliebe die Karte stehen, obwohl der Fang oben liegt. */
+  const sy = $('#d-sync');
+  if (sy) sy.onclick = async () => { await syncJetzt(false); if (state.view === 'detail') renderDetail(); };
   window.scrollTo(0, 0);
 }
 $('#viewer').onclick = () => $('#viewer').classList.remove('on');
@@ -3726,7 +3864,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v45';
+const FASSUNG = 'v46';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
