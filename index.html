@@ -256,7 +256,10 @@ setTimeout(function(){
   .photos{display:flex; flex-wrap:wrap; gap:8px}
   .ph{position:relative; width:74px; height:74px; border-radius:12px; overflow:hidden;
     border:1px solid var(--line)}
-  .ph img{width:100%; height:100%; object-fit:cover; display:block}
+  /* ⚠️ `contain`, nicht `cover` (Karls Ansage vom 14.08.2026: „alle Fotos komplett
+     anzeigen egal welches format"). Auch die kleine Vorschau im Formular schnitt sonst
+     zu — und gerade dort schaut man nach, ob das richtige Bild dranhängt. */
+  .ph img{width:100%; height:100%; object-fit:contain; display:block; background:var(--card2)}
   .ph b{position:absolute; top:2px; right:2px; width:22px; height:22px; border-radius:99px;
     background:rgba(0,0,0,.65); color:#fff; display:grid; place-items:center; font-size:14px}
 
@@ -286,7 +289,20 @@ setTimeout(function(){
     border:1px solid var(--line); border-radius:14px; background:var(--card2); min-width:0}
   .item .th{position:absolute; inset:0; display:grid; place-items:center;
     color:var(--muted); font-size:34px}
-  .item .th img{width:100%; height:100%; object-fit:cover; display:block}
+  /* ---- 14.08.2026: das Foto wird ganz gezeigt (Karls Ansage) ----
+     „Alle Fotos komplett anzeigen egal welches format."
+     ⚠️ `cover` füllte die Kachel und schnitt dafür ab, was nicht ins Seitenverhältnis
+        passte. Am 13.08. war das für Hochformat gelöst worden, indem die Kachel selbst
+        hochkant wurde — für ein Querformat-Foto blieb der Schnitt. `contain` zeigt
+        jedes Format ganz und lässt dafür Rand.
+     ⚠️ **`object-position:top` ist hier kein Geschmack, sondern der Grund, warum der
+        Text nichts verdeckt.** Mittig ausgerichtet säße ein Querformat-Foto genau so
+        tief, dass die Textleiste unten in sein letztes Viertel liefe — und dort steht
+        beim Angeln der Fisch. Oben ausgerichtet endet es über der Leiste.
+     ⚠️ Der Rand trägt `--card2` und nicht die Kartenfarbe: sonst verschwimmt bei einem
+        schmalen Foto die Grenze zwischen Bild und Kachel. */
+  .item .th img{width:100%; height:100%; object-fit:contain; object-position:center top;
+    display:block; background:var(--card2)}
   .item .txt{position:absolute; left:0; right:0; bottom:0; padding:8px 8px 9px; z-index:1;
     background:linear-gradient(to top, rgba(0,0,0,.88) 0%, rgba(0,0,0,.62) 55%, rgba(0,0,0,0) 100%);
     color:#fff}
@@ -1671,6 +1687,14 @@ const EN = {
   'Ort': 'Place',
   'Stand': 'As of',
   'nicht mehr taufrisch': 'no longer fresh',
+  /* Wie lange die Vorhersage schon steht (14.08.2026).
+     ⚠️ **Ganze Sätze mit Platzhalter, keine zusammengeklebten Wortstücke.** „vor" + Zahl
+     + „Min" ergibt auf Englisch „ago 3 min" — im Deutschen steht das Wort vorn, im
+     Englischen hinten. Dieselbe Falle wie bei der Fangprognose. */
+  'gerade eben': 'just now',
+  'vor {n} Min': '{n} min ago',
+  'vor {h} Std': '{h} h ago',
+  'vor {h} Std {m} Min': '{h} h {m} min ago',
   'Lage unbekannt': 'Conditions unknown',
   'Für jetzt liegt kein Wert vor.': 'There is no value for right now.',
   'Sonnenaufgang': 'Sunrise',
@@ -3893,7 +3917,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v48';
+const FASSUNG = 'v49';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -6442,6 +6466,35 @@ function renderStats(){
 const HEIM_KEY      = 'angellog-heimat';
 const VORHER_KEY    = 'angellog-vorhersage';
 const VORHER_FRISCH = 30 * 60e3;      // so lange gilt eine geholte Vorhersage als frisch
+
+/* ---- Wie alt darf die Vorhersage sein, bevor es auffallen muss? (14.08.2026) ----
+   Karls Ansage: „Wetterprognose aktuell (Uhrzeit Datum nach oben und in min und Stunden
+   wielange letzte Aktualisierung her ist) nach 6 Stunden in gelb oder rot."
+
+   ⚠️ **Die 30 Minuten oben sind etwas anderes als diese sechs Stunden.** VORHER_FRISCH
+   entscheidet, wann die App **von selbst** neu holt; hier geht es darum, wann sie es
+   **sagen muss, dass sie es nicht konnte**. Solange Netz da ist, wird die Zeile nie
+   gelb — sie färbt sich genau dann, wenn seit Stunden nichts mehr durchkam. Das ist
+   dieselbe Sorte stille Strecke, die diese Woche dreimal zugeschlagen hat: es sieht
+   alles normal aus, nur die Zahlen sind von gestern.
+   ⚠️ Zwei Stufen statt einer: Gelb heißt „schau drauf", Rot heißt „das ist die
+   Wetterlage von vorgestern, und die Prognose darunter rechnet damit". */
+const VORHER_GELB = 6  * 3600e3;
+const VORHER_ROT  = 12 * 3600e3;
+
+/* „vor 12 Min", „vor 3 Std 5 Min". ⚠️ Ohne Minuten hinter den Stunden stünde eine
+   Vorhersage von 05:59 elf Stunden lang unverändert auf „vor 5 Std" — die Angabe soll
+   ja gerade zeigen, dass die Zeit läuft. */
+function seitWann(ms){
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 60) return T('gerade eben');
+  const min = Math.floor(s / 60);
+  if (min < 60) return T('vor {n} Min').replace('{n}', min);
+  const std = Math.floor(min / 60), rest = min % 60;
+  return rest
+    ? T('vor {h} Std {m} Min').replace('{h}', std).replace('{m}', rest)
+    : T('vor {h} Std').replace('{h}', std);
+}
 /* Unter so vielen Fängen wird gar keine Prognose gezeigt. Eine aus vier Fängen gerechnete
    Zahl ist keine Aussage, sondern ein Zufall mit Nachkommastelle. */
 const PROG_MIN_FAENGE = 10;
@@ -6637,6 +6690,32 @@ function jetztIndex(v){
   return bd <= 3 * 3600e3 ? best : -1;
 }
 
+/* ---- Die Stand-Zeile (14.08.2026) ----
+   ⚠️ Sie wird **nachgeführt, nicht einmal geschrieben.** Eine Zeile, die beim Zeichnen
+   „vor 1 Min" sagt und das drei Stunden lang stehen lässt, ist schlechter als gar keine
+   Angabe: sie behauptet Frische. Am Wasser bleibt eine PWA stundenlang offen, ohne neu
+   zu zeichnen — genau dort soll die Zeile ja etwas sagen. */
+function standFuellen(el){
+  const geholt = Number(el.dataset.geholt);
+  if (!geholt) return;
+  const alter = Date.now() - geholt;
+  const d = new Date(geholt);
+  el.textContent = `${T('Stand')} ${pad(d.getHours())}:${pad(d.getMinutes())} · `
+    + `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()} · ${seitWann(geholt)}`;
+  el.style.color = alter >= VORHER_ROT ? 'var(--danger)'
+                 : alter >= VORHER_GELB ? 'var(--warn)' : 'var(--muted)';
+  el.style.fontWeight = alter >= VORHER_GELB ? '700' : '';
+}
+function standTicken(){
+  const el = document.getElementById('home-stand');
+  if (el) standFuellen(el);
+}
+/* Jede halbe Minute. ⚠️ Nicht jede Sekunde: die Angabe wechselt frühestens im
+   Minutentakt, und ein Wecker, der am Handy sechzigmal so oft läuft wie nötig, kostet
+   genau dort Strom, wo es keins gibt. */
+setInterval(standTicken, 30e3);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) standTicken(); });
+
 let homeLaeuft = false;
 async function renderHome(){
   renderZeit();
@@ -6665,14 +6744,20 @@ async function renderHome(){
   try { v = await vorhersageHolen(false); } finally { homeLaeuft = false; }
   if (state.view !== 'home') return;      // inzwischen weitergetippt
 
-  const kopf = `<div class="row between" style="display:flex; align-items:baseline; gap:8px">
+  /* ⚠️ Der Zeitstempel steht seit dem 14.08.2026 **oben**, direkt unter dem Ort (Karls
+     Ansage). Vorher stand er als letzte Zeile unter dem Stundenstreifen — also hinter
+     allem, was er einordnen soll. Wer die Werte liest, hat dann längst geglaubt, sie
+     seien von jetzt. */
+  const kopf = (v) => `<div class="row between" style="display:flex; align-items:baseline; gap:8px">
       <h2 style="margin:0">${T('Wetter am Wasser')}</h2>
       <button class="btn sm" id="home-gps" style="flex:0 0 auto">📍 ${T('Ort')}</button>
     </div>
-    <div class="tiny muted" style="margin:4px 0 12px">${esc(ortName)}</div>`;
+    <div class="tiny muted" style="margin:4px 0 2px">${esc(ortName)}</div>
+    ${v ? `<div class="tiny" id="home-stand" data-geholt="${v.geholt}"
+             style="margin:0 0 12px"></div>` : ''}`;
 
   if (!v){
-    wBox.innerHTML = `<div class="card">${kopf}
+    wBox.innerHTML = `<div class="card">${kopf(null)}
       <div class="hint" style="margin:0">${T('Keine Vorhersage — und auch keine gespeicherte. '
       + 'Sobald wieder Netz da ist, steht sie hier.')}</div></div>`;
     pBox.innerHTML = '';
@@ -6680,7 +6765,6 @@ async function renderHome(){
   }
 
   const i = jetztIndex(v);
-  const alt = Date.now() - v.geholt > VORHER_FRISCH;
   const nun = i >= 0 ? bedingungAusStunde(v, i) : null;
   const mond = mondFor(new Date().toISOString());
   const tagIdx = v.daily && v.daily.time ? v.daily.time.indexOf(new Date(v.hourly.time[Math.max(i,0)]).toISOString().slice(0,10)) : -1;
@@ -6728,9 +6812,12 @@ async function renderHome(){
       border-top:1px solid var(--line)"><div style="display:flex; gap:10px">${zellen.join('')}</div></div>`;
   }
 
-  wBox.innerHTML = `<div class="card">${kopf}${jetztBlock}${streifen}
-    <div class="tiny muted" style="margin-top:10px">${T('Stand')} ${fmtDate(new Date(v.geholt).toISOString())}${
-      alt ? ' · ' + T('nicht mehr taufrisch') : ''}</div></div>`;
+  wBox.innerHTML = `<div class="card">${kopf(v)}${jetztBlock}${streifen}</div>`;
+  /* ⚠️ Erst nach dem Einhängen füllen — vorher gibt es das Element noch nicht, und die
+     Zeile bliebe leer stehen. Sie wird bewusst nicht als fertiger Text eingesetzt,
+     sondern durch dieselbe Funktion wie der Wecker: eine zweite Stelle, an der dasselbe
+     Datum formatiert wird, ist eine Stelle, an der es irgendwann auseinanderläuft. */
+  standTicken();
 
   prognoseZeichnen(v);
 }

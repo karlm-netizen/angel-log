@@ -4133,6 +4133,72 @@ window.addEventListener('error', e => {
               && /4 von 10/.test(r.prognose))
           || 'zeigt: ' + r.prognose.slice(0, 300);
     });
+    /* ====== Der Stand der Vorhersage (14.08.2026, Karls Ansage) ======
+       „Wetterprognose aktuell (Uhrzeit Datum nach oben und in min und Stunden wielange
+       letzte Aktualisierung her ist) nach 6 Stunden in gelb oder rot."
+
+       ⚠️ Die Farb- und Weckerpruefungen gehen bewusst **nicht** ueber renderHome().
+       Eine Vorhersage, die aelter als VORHER_FRISCH ist, laesst die App neu holen -- die
+       Pruefung haenge dann am Netz und daran, ob Open-Meteo gerade antwortet. Gemessen
+       wird stattdessen standFuellen() an einem eigenen Element: dieselbe Funktion, die
+       auch die echte Zeile schreibt. */
+    ta('der Stand steht oben, vor den Werten', async () => {
+      const r = await homeBauen(faengeBauen(20));
+      const iStand = r.wetter.indexOf('Stand');
+      const iWert  = r.wetter.indexOf('Lufttemperatur');
+      return (iStand !== -1 && iWert !== -1 && iStand < iWert)
+          || ('Stand bei ' + iStand + ', Werte bei ' + iWert + ' | ' + r.wetter.slice(0, 160));
+    });
+    ta('er nennt Uhrzeit, Datum und wie lange es her ist', async () => {
+      const r = await homeBauen(faengeBauen(20));
+      return /Stand \d\d:\d\d · \d\d\.\d\d\.\d{4} · (gerade eben|vor \d)/.test(r.wetter)
+          || r.wetter.slice(0, 200);
+    });
+    (function(){
+      const zeileMit = (alterMs) => {
+        const el = document.createElement('div');
+        el.dataset.geholt = String(Date.now() - alterMs);
+        document.body.appendChild(el);
+        standFuellen(el);
+        const erg = { text: el.textContent, farbe: getComputedStyle(el).color };
+        el.remove();
+        return erg;
+      };
+      t('nach 6 Stunden faerbt sich die Zeile', () => {
+        const frisch = zeileMit(60e3), gelb = zeileMit(7 * 3600e3);
+        return (gelb.farbe !== frisch.farbe) || ('beide ' + gelb.farbe);
+      });
+      t('und nach 12 Stunden noch einmal anders', () => {
+        const gelb = zeileMit(7 * 3600e3), rot = zeileMit(13 * 3600e3);
+        return (rot.farbe !== gelb.farbe) || ('beide ' + rot.farbe);
+      });
+      /* ⚠️ Gegenprobe. Ohne sie waere die Pruefung oben auch dann gruen, wenn die Zeile
+         **immer** gelb stuende -- und eine Warnung, die immer leuchtet, ist keine. */
+      t('eine frische Vorhersage steht nicht in Warnfarbe', () => {
+        const frisch = zeileMit(60e3), gelb = zeileMit(7 * 3600e3), rot = zeileMit(13 * 3600e3);
+        return (frisch.farbe !== gelb.farbe && frisch.farbe !== rot.farbe)
+            || ('frisch ' + frisch.farbe + ', gelb ' + gelb.farbe + ', rot ' + rot.farbe);
+      });
+      /* ⚠️ Der eigentliche Punkt der Ansage: die Angabe muss **mitlaufen**. Am Wasser
+         bleibt die App stundenlang offen, ohne neu zu zeichnen -- eine Zeile, die dabei
+         auf „gerade eben" stehenbleibt, behauptet Frische, die es nicht gibt. */
+      t('die Angabe laeuft mit, statt stehenzubleiben', () => {
+        const a = zeileMit(30e3).text, b = zeileMit(2 * 3600e3 + 5 * 60e3).text;
+        return (/gerade eben/.test(a) && /vor 2 Std 5 Min/.test(b))
+            || ('frisch: ' + a + ' | alt: ' + b);
+      });
+      t('und der Wecker fuehrt die vorhandene Zeile nach', () => {
+        const el = document.createElement('div');
+        el.id = 'home-stand';
+        el.dataset.geholt = String(Date.now() - 3 * 3600e3);
+        document.body.appendChild(el);
+        standTicken();                       // genau das, was der Wecker tut
+        const txt = el.textContent;
+        el.remove();
+        return /vor 3 Std/.test(txt) || ('steht: ' + txt);
+      });
+    })();
+
     ta('ohne Ort steht dort ein Weg statt einer leeren Karte', async () => {
       const alt = state.catches;
       state.catches = [];
@@ -4242,6 +4308,96 @@ window.addEventListener('error', e => {
                 + Math.round(rt.top) + ' bis ' + Math.round(rt.bottom));
       } finally { zurueck(); }
     });
+    /* ====== Das Foto wird ganz gezeigt (14.08.2026, Karls Ansage) ======
+       „Alle Fotos komplett anzeigen egal welches format."
+
+       ⚠️ **Das ist nicht dasselbe wie die Pruefung darueber**, und beide gelten
+       gleichzeitig. Die dort misst den **Bildkasten** `.th` gegen die Textleiste -- er
+       fuellt die Kachel weiterhin ganz, der Text liegt also weiter darin (Karls Ansage
+       vom 13.08.). Hier wird das **tatsaechlich gezeichnete Bild** darin gemessen: bei
+       `contain` ist es kleiner als sein Kasten, und genau darum wird nichts mehr
+       abgeschnitten. Wer nur den Kasten misst, sieht den Unterschied zwischen cover und
+       contain ueberhaupt nicht -- die Pruefung waere gruen aus dem falschen Grund.
+
+       Gerechnet wird die contain-Flaeche aus naturalWidth/Height und der Kastengroesse,
+       nicht aus dem CSS-Text. */
+    (function(){
+      const bildBlob = (w, h) => new Promise(res => {
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const g = c.getContext('2d');
+        g.fillStyle = '#3a7'; g.fillRect(0, 0, w, h);
+        c.toBlob(res, 'image/png');
+      });
+      /* ⚠️ Die Kachel wird hier mit den **echten CSS-Klassen** in die sichtbare Liste
+         gehaengt, statt ueber renderList() erzeugt zu werden. Gemessen wird damit
+         weiterhin echte Geometrie im echten Stylesheet -- nur der Weg dorthin ist ein
+         anderer. Grund: renderList() ueber kachelSichtbar() lieferte an dieser Stelle
+         keine Kachel, obwohl ein Fang gesetzt war; das ist ein Zustandsproblem des
+         Prueflaufs (die async-Pruefungen laufen nach allen synchronen) und hat mit dem
+         Foto nichts zu tun. Eine Pruefung, die daran haengt, misst den Prueflauf und
+         nicht die App.
+         ⚠️ Die Struktur unten muss dieselbe sein wie in renderList -- steht dort
+         irgendwann `.th` nicht mehr um das Bild, faellt diese Pruefung, und das ist
+         richtig so. */
+      const mitFoto = async (w, h) => {
+        const b = await bildBlob(w, h);
+        const url = URL.createObjectURL(b);
+        const alteAnsicht = state.view;
+        go('log');
+        const el = document.createElement('div');
+        el.className = 'item';
+        el.innerHTML = '<div class="th"><img alt=""></div>'
+                     + '<div class="txt"><div class="t1">Hecht</div>'
+                     + '<div class="t2">78 cm</div><div class="t3">12.08.2026</div></div>';
+        document.getElementById('list').appendChild(el);
+        const img = el.querySelector('.th img');
+        await new Promise(r => { img.onload = r; img.onerror = r; img.src = url; });
+        const kasten = el.querySelector('.th').getBoundingClientRect();
+        const txt    = el.querySelector('.txt').getBoundingClientRect();
+        /* ⚠️ Die Werte **sofort abschreiben**, nicht das Objekt von getComputedStyle
+           mitgeben. Das ist eine lebende Ansicht: nach `el.remove()` steht dort nichts
+           mehr, und die Pruefung meldete „objectFit ist leer", obwohl die Geometrie
+           daneben bewies, dass contain wirkt. Ein Fehlschlag aus dem falschen Grund. */
+        const fit = getComputedStyle(img).objectFit;
+        const pos = getComputedStyle(img).objectPosition;
+        // Die Flaeche, die `contain` daraus macht -- dieselbe Rechnung wie der Browser.
+        const skala  = Math.min(kasten.width / img.naturalWidth, kasten.height / img.naturalHeight);
+        const bw = img.naturalWidth * skala, bh = img.naturalHeight * skala;
+        el.remove();
+        URL.revokeObjectURL(url);
+        go(alteAnsicht);
+        return { kasten, txt, fit, pos, bw, bh, natW: img.naturalWidth, natH: img.naturalHeight };
+      };
+
+      ta('ein Querformat-Foto wird ganz gezeigt, nicht beschnitten', async () => {
+        const r = await mitFoto(1200, 900);
+        return (r.fit === 'contain'
+                && r.bw <= r.kasten.width + 1 && r.bh <= r.kasten.height + 1)
+            || (r.fit + ', Bild ' + Math.round(r.bw) + '×' + Math.round(r.bh)
+                + ' in Kasten ' + Math.round(r.kasten.width) + '×' + Math.round(r.kasten.height));
+      });
+      /* ⚠️ Der Grund fuer `object-position:top`. Mittig ausgerichtet endete ein
+         Querformat-Foto mitten hinter der Textleiste -- und dort steht der Fisch. */
+      ta('und die Textleiste liegt unter ihm, nicht darauf', async () => {
+        const r = await mitFoto(1200, 900);
+        const unterkante = r.kasten.top + r.bh;      // oben ausgerichtet
+        return (unterkante <= r.txt.top + 1)
+            || ('Bild endet bei ' + Math.round(unterkante) + ', Text beginnt bei '
+                + Math.round(r.txt.top));
+      });
+      /* Gegenprobe in die andere Richtung: ein hochkantes Foto darf durch `contain`
+         nichts verschenken -- es hat dasselbe Verhaeltnis wie die Kachel und muss sie
+         weiterhin fuellen. Sonst haette der Umbau das haeufigste Foto verschlechtert,
+         um das seltenere zu retten. */
+      ta('ein Hochformat-Foto fuellt die Kachel weiterhin', async () => {
+        const r = await mitFoto(900, 1200);
+        return (r.bh >= r.kasten.height - 1)
+            || ('Bild ' + Math.round(r.bw) + '×' + Math.round(r.bh)
+                + ', Kasten ' + Math.round(r.kasten.width) + '×' + Math.round(r.kasten.height));
+      });
+    })();
+
     /* Karls Ansage: „kannst du die oben sozusagen auf die gelbe linie machen wenn sie da
        sind." Die Leiste muss also oben sitzen -- und nur dann da sein, wenn es etwas zu
        sagen gibt. Eine Leiste an jeder Kachel waere keine Warnung mehr. */

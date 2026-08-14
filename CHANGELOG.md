@@ -6,6 +6,59 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 14.08.2026 (v49) — Wie alt die Vorhersage ist, und Fotos in jedem Format
+
+Zwei Ansagen von Karl.
+
+### 🕒 Der Stand der Wettervorhersage steht oben — und läuft mit
+
+*„Wetterprognose aktuell (Uhrzeit Datum nach oben und in min und Stunden wielange letzte
+Aktualisierung her ist) nach 6 Stunden in gelb oder rot."*
+
+Der Zeitstempel stand als **letzte** Zeile unter dem Stundenstreifen — also hinter allem, was er
+einordnen soll. Jetzt steht er direkt unter dem Ort, ganz oben, und nennt drei Dinge:
+**Uhrzeit, Datum und wie lange es her ist** („Stand 16:42 · 14.08.2026 · vor 12 Min").
+
+- **Nach 6 Stunden wird die Zeile gelb, nach 12 Stunden rot.**
+- ⚠️ **Die Angabe wird nachgeführt, nicht einmal geschrieben.** Eine Zeile, die beim Zeichnen
+  „vor 1 Min" sagt und das drei Stunden lang stehen lässt, ist schlechter als gar keine: sie
+  behauptet Frische. Am Wasser bleibt die App stundenlang offen, ohne neu zu zeichnen — genau
+  dort soll sie ja etwas sagen. Ein Wecker führt sie alle 30 Sekunden nach, und beim
+  Zurückholen der App aus dem App-Switcher sofort.
+- ⚠️ **Die 30 Minuten, nach denen die App von selbst neu holt, sind etwas anderes als diese
+  sechs Stunden.** Solange Netz da ist, wird die Zeile nie gelb. Sie färbt sich genau dann,
+  wenn seit Stunden nichts mehr durchkam — dieselbe stille Strecke, die diese Woche dreimal
+  zugeschlagen hat: es sieht alles normal aus, nur die Zahlen sind von gestern.
+- ⚠️ Ganze Sätze mit Platzhalter statt zusammengeklebter Wortstücke: „vor" + Zahl + „Min"
+  ergäbe auf Englisch „ago 3 min".
+
+### 📷 Alle Fotos werden komplett angezeigt, egal welches Format
+
+*„Alle Fotos komplett anzeigen egal welches format."*
+
+Die Kachel war am 13.08. hochkant geworden, damit Handyfotos nicht mehr oben und unten
+beschnitten werden. **Für ein Querformat-Foto blieb der Schnitt** — `cover` füllt die Kachel und
+schneidet ab, was nicht ins Verhältnis passt. Jetzt `contain`: jedes Format wird ganz gezeigt,
+dafür bleibt Rand. Auch die kleine Vorschau im Formular schnitt zu und tut es nicht mehr.
+
+- ⚠️ **`object-position:top` ist hier kein Geschmack, sondern der Grund, warum der Text nichts
+  verdeckt.** Mittig ausgerichtet säße ein Querformat-Foto genau so tief, dass die Textleiste
+  in sein letztes Viertel liefe — und dort steht beim Angeln der Fisch.
+- ⚠️ **Karls Ansage vom 13.08. gilt weiter** („der Text liegt auf dem Foto"). Beides zusammen
+  geht, weil der **Bildkasten** die Kachel weiterhin ganz füllt und nur das **gezeichnete Bild**
+  darin kleiner ist. Die alte Prüfung misst den Kasten, die neue das Bild — wer nur den Kasten
+  misst, sieht den Unterschied zwischen cover und contain überhaupt nicht.
+- ⚠️ **Gegenprobe in die andere Richtung:** ein hochkantes Foto muss die Kachel weiterhin
+  füllen. Sonst hätte der Umbau das häufigste Foto verschlechtert, um das seltenere zu retten.
+
+**620 Prüfungen grün** (von 610). Zwei eigene Fehler unterwegs, beide gefangen:
+
+1. **Die Farbprüfungen hätten grün sein können, ohne etwas zu messen.** Gegenprobe gemacht —
+   Farblogik ausgebaut, drei Prüfungen fielen sofort. Erst danach war klar, dass sie greifen.
+2. **`getComputedStyle` ist eine lebende Ansicht.** Die Werte wurden erst nach `el.remove()`
+   gelesen — dort steht dann nichts mehr. Die Prüfung meldete „objectFit ist leer", während die
+   Geometrie daneben bewies, dass es wirkt: ein Fehlschlag aus dem falschen Grund.
+
 ## 13.08.2026 (v48) — Die Benachrichtigung nennt den App-Namen nicht zweimal
 
 Karls Meldung, direkt nach dem ersten echten Push: am iPhone standen drei Zeilen —
