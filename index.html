@@ -1839,6 +1839,14 @@ const EN = {
   'Hilfe & Fehler melden': 'Help & report a problem',
   'Etwas geht nicht oder sieht falsch aus? Schreib es auf — auch ohne Netz. Die Meldung wartet dann im Gerät und geht beim nächsten Abgleich raus.': 'Something not working or looking wrong? Write it down — offline too. The report then waits on your device and goes out with the next sync.',
   'Kurze Einführung ansehen': 'View the short introduction',
+  /* Einführung, auf den Aufbau vom 13.08. nachgezogen (14.08.2026). */
+  'Du trägst jeden Fang ein: Art, Länge, Gewicht, Köder und Fotos. Unter „Fänge" stehen sie danach als Bildkacheln nebeneinander — mit Suche, Sortierung und Karte, statt verstreut in der Kamerarolle.':
+    'You log every catch: species, length, weight, bait and photos. Under “Catches” they then sit side by side as picture tiles — with search, sorting and a map, instead of scattered through your camera roll.',
+  'Beim nächsten Öffnen landest du hier': 'Next time you open the app, you land here',
+  'Home ist die erste Ansicht: deine Angelzeit, das Wetter am Wasser mit den nächsten Stunden — und sobald genug Fänge drin sind, wann es bei dir bisher am besten lief. Unten kommst du in vier Schritten überall hin: Home, Fänge, Neuer Fang, Einstellungen.':
+    'Home is the first view: your fishing time, the weather at the water with the hours ahead — and once there are enough catches, when things went best for you so far. The bar at the bottom takes you anywhere in four steps: Home, Catches, New catch, Settings.',
+  'Beißt der Hecht wirklich bei fallendem Luftdruck? Welche Köderfarbe bringt bei dir mehr? Solche Fragen stellst du dir unter „Fänge" selbst zusammen — du wählst, was gezählt wird und worüber. Gerechnet wird ausschließlich mit deinen eigenen Fängen.':
+    'Does pike really bite on falling pressure? Which bait colour works better for you? You put questions like that together yourself under “Catches” — you choose what gets counted and against what. The maths uses your own catches and nothing else.',
   '🐞 Fehler melden': '🐞 Report a problem',
   '📬 Postfach': '📬 Mailbox',
   /* Die Frage nach dem Abschicken einer Meldung (14.08.2026). */
@@ -3941,7 +3949,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v50';
+const FASSUNG = 'v51';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -5227,11 +5235,20 @@ const TOUR_KEY = 'angellog-tour';
    Neu ist die zweite Sorte (Karls Ansage vom 12.08.2026): eine Einrichtung, bei
    der man selbst etwas einstellt, statt nur durchzuklicken. Deshalb steht hinter
    jeder Frage eine sichtbare Folge, und die Karte danach sagt sie an. */
+/* ⚠️ **Am 14.08.2026 auf den Aufbau der App nachgezogen** (Karls Ansage: „Einführung
+   aktualisieren das die auf das neue app dising zugeschnitten ist und ergänzen").
+   Zwischen dem 12. und 13.08. hat sich die Bedienung geändert — vier Reiter unten statt
+   Kacheln, Home als erste Ansicht, Einstellungen als eigene Seite —, und die Einführung
+   beschrieb noch den Stand davor. **Home kam darin überhaupt nicht vor**, obwohl die App
+   dort aufgeht: die erste Ansicht, die jemand sieht, war die einzige, die niemand erklärt.
+   ⚠️ Die alte Regel gilt trotzdem weiter: **keine Bedienungsanleitung.** Die Karten sagen
+   weiter, was die App tut, und nennen die Bereiche nur nebenbei — wer eine Liste von
+   Knöpfen lesen wollte, hätte sie nicht gelesen. */
 const TOUR = [
   { bild: '🎣', titel: 'Dein Fangbuch',
-    text: 'Du trägst jeden Fang ein: Art, Länge, Gewicht, Köder und Fotos. '
-        + 'Danach steht alles an einem Ort statt verstreut in der Kamerarolle — '
-        + 'du kannst suchen, filtern und jederzeit nachlesen, was wann gebissen hat.' },
+    text: 'Du trägst jeden Fang ein: Art, Länge, Gewicht, Köder und Fotos. Unter '
+        + '„Fänge" stehen sie danach als Bildkacheln nebeneinander — mit Suche, '
+        + 'Sortierung und Karte, statt verstreut in der Kamerarolle.' },
 
   { bild: '🗺️', titel: 'Wo angelst du?',
     text: 'Danach richtet sich, welche Fische dir beim Eintragen vorgeschlagen werden.',
@@ -5255,9 +5272,19 @@ const TOUR = [
         + 'Am besten trägst du gleich einen Fang ein, dann siehst du es.',
     fuehrung: true, knopf: 'Ersten Fang eintragen' },
 
+  /* ⚠️ Diese Karte steht **direkt hinter der Führung**, und das mit Absicht: davor ist
+     die App leer, und eine Home-Ansicht ohne einen einzigen Fang kann weder Angelzeit
+     noch Prognose zeigen. Sie käme sonst als Versprechen auf einen leeren Bildschirm. */
+  { bild: '🏠', titel: 'Beim nächsten Öffnen landest du hier',
+    text: 'Home ist die erste Ansicht: deine Angelzeit, das Wetter am Wasser mit den '
+        + 'nächsten Stunden — und sobald genug Fänge drin sind, wann es bei dir bisher '
+        + 'am besten lief. Unten kommst du in vier Schritten überall hin: Home, Fänge, '
+        + 'Neuer Fang, Einstellungen.' },
+
   { bild: '📈', titel: 'Und dann wird es interessant',
     text: 'Beißt der Hecht wirklich bei fallendem Luftdruck? Welche Köderfarbe bringt bei dir '
-        + 'mehr? Solche Fragen stellst du dir selbst zusammen — aus deinen eigenen Fängen.' },
+        + 'mehr? Solche Fragen stellst du dir unter „Fänge" selbst zusammen — du wählst, was '
+        + 'gezählt wird und worüber. Gerechnet wird ausschließlich mit deinen eigenen Fängen.' },
   { bild: '📍', titel: 'Alles bleibt deins',
     text: 'Jeder Fang liegt auf der Karte, wo er gebissen hat. Alles ist in deinem Konto '
         + 'gesichert und auf jedem Gerät da — und du kannst es jederzeit als Datei mitnehmen.' },
@@ -5402,6 +5429,13 @@ const FUEHRUNG = [
   { ziel: '#fab-save', titel: 'Speichern, fertig',
     text: 'Damit liegt dein erster Fang im Buch. Ab dem zweiten oder dritten fangen die '
         + 'Auswertungen an, etwas zu zeigen.' }
+  /* ⚠️ **Hier stand kurzzeitig ein sechster Schritt auf die Reiterleiste** (14.08.2026),
+     und er ist wieder raus: `#fab-save` ruft `fuehrungBeenden()`, bevor gespeichert wird.
+     Wer dem Schritt davor folgt und wirklich speichert, hätte ihn also nie gesehen — ein
+     Schritt, den nur erreicht, wer statt auf Speichern auf „Weiter" tippt.
+     ➡️ Die Leiste erklärt stattdessen die Home-Karte der Einführung, und die kommt
+     **genau nach dem Speichern**: `fuehrungBeenden()` schaltet die Einführung eine Karte
+     weiter. Damit steht die Erklärung dort, wo der Benutzer wirklich landet. */
 ];
 let fuNr = 0;
 

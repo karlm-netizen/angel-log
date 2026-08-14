@@ -6,6 +6,45 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 14.08.2026 (v51) — Die Einführung passt wieder zur App
+
+Karls Ansage: *„Einführung aktualisieren das die auf das neue app dising zugeschnitten ist und
+ergänzen."*
+
+Zwischen dem 12. und 13.08. hat sich die Bedienung geändert — **vier Reiter unten statt Kacheln,
+Home als erste Ansicht, Einstellungen als eigene Seite**. Die Einführung beschrieb noch den Stand
+davor. **Home kam darin überhaupt nicht vor**, obwohl die App dort aufgeht: die erste Ansicht,
+die jemand sieht, war die einzige, die niemand erklärt hat.
+
+- 🏠 **Neue Karte: „Beim nächsten Öffnen landest du hier."** Angelzeit, Wetter am Wasser mit den
+  nächsten Stunden, und — sobald genug Fänge da sind — wann es bisher am besten lief. Dazu die
+  vier Bereiche der Leiste.
+  ⚠️ **Sie steht direkt hinter der Führung, und das ist kein Zufall.** `fuehrungBeenden()`
+  schaltet die Einführung genau eine Karte weiter — die Karte erscheint also **im Moment des
+  Speicherns**, wenn der Benutzer tatsächlich auf Home landet. Davor stünde sie vor einer leeren
+  App: ohne einen einzigen Fang kann Home weder Angelzeit noch Prognose zeigen.
+- 🎣 **„Dein Fangbuch"** nennt jetzt, was die Liste seit dem 13.08. wirklich ist: Bildkacheln
+  nebeneinander, mit Suche, Sortierung und Karte.
+- 📈 **„Und dann wird es interessant"** sagt, wo die Auswertungen stecken (unter „Fänge") und
+  dass man sie selbst zusammenstellt — und dass ausschließlich mit den eigenen Fängen gerechnet
+  wird.
+- ⚠️ **Ein sechster Führungsschritt auf die Reiterleiste war gebaut und ist wieder raus.**
+  `#fab-save` ruft `fuehrungBeenden()`, bevor gespeichert wird — wer dem Schritt davor folgt und
+  wirklich speichert, hätte ihn nie gesehen. Er wäre nur für die erreichbar gewesen, die statt
+  auf „Speichern" auf „Weiter" tippen. Die Leiste erklärt stattdessen die Home-Karte, und die
+  kommt genau an der richtigen Stelle.
+- ⚠️ **Die alte Regel gilt weiter: keine Bedienungsanleitung.** Die Karten sagen weiter, was die
+  App tut, und nennen die Bereiche nur nebenbei. Wer eine Liste von Knöpfen lesen wollte, hätte
+  sie nicht gelesen.
+
+**632 Prüfungen grün** (von 630). Eine davon leitet die Bereiche **aus der Leiste selbst** ab:
+kommt ein Reiter dazu oder wird einer umbenannt, fällt sie. Ohne das beschreibt die Einführung
+irgendwann wieder einen Aufbau von vorgestern, und niemand merkt es, weil beides für sich
+genommen stimmig aussieht.
+
+⚠️ Die Prüfung fiel zuerst mit „Bereich *0* wird nicht genannt" — der Einstellungen-Reiter trägt
+die rote Zahl als Kindelement, und die zählt zum Text, auch wenn sie versteckt ist.
+
 ## 14.08.2026 (v50) — Nach dem Abschicken einer Meldung kommt die Frage
 
 Karls Ansage: *„Nachdem man ein Ticket abgeschickt hat fragen ob benachrichtiguen angezeigt

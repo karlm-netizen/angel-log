@@ -2730,6 +2730,38 @@ window.addEventListener('error', e => {
     // "Spinnangeln"/"Fliegenangeln" sind gewollt; blosses "fischen" nicht.
     return treffer.length === 0 || 'steht noch drin: ' + treffer.join(', ');
   });
+  /* ====== Die Einfuehrung passt zum Aufbau der App (14.08.2026, Karls Ansage) ======
+     „Einführung aktualisieren das die auf das neue app dising zugeschnitten ist und
+     ergänzen."
+
+     ⚠️ **Abgeleitet aus der Leiste, nicht aus einer Liste von Hand.** Kommt ein Reiter
+     dazu oder wird einer umbenannt, faellt diese Pruefung -- genau das ist gewollt.
+     Ohne sie beschreibt die Einfuehrung irgendwann wieder einen Aufbau von vorgestern,
+     und niemand merkt es, weil beides fuer sich genommen stimmig aussieht. */
+  t('die Einfuehrung nennt jeden Bereich, den es unten gibt', () => {
+    const alles = TOUR.map(k => [k.titel, k.text].join(' ')).join(' ');
+    /* ⚠️ Erst die rote Zahl herausnehmen. Der Einstellungen-Reiter traegt ein
+       .badge-Element, und dessen Inhalt zaehlt zum textContent -- auch wenn es
+       versteckt ist. Ohne das suchte die Pruefung nach einem Bereich namens „0". */
+    const reiter = [...document.querySelectorAll('nav.tabs .tab')].map(b => {
+      const k = b.cloneNode(true);
+      k.querySelectorAll('.badge').forEach(x => x.remove());
+      return k.textContent.trim();
+    }).filter(Boolean);
+    if (!reiter.length) return 'keine Reiter gefunden';
+    const fehlt = reiter.filter(r => alles.indexOf(r) === -1);
+    return fehlt.length === 0 || ('in der Einfuehrung nicht genannt: ' + fehlt.join(', '));
+  });
+  /* ⚠️ Die Home-Karte muss **direkt hinter der Fuehrung** stehen. fuehrungBeenden()
+     schaltet die Einfuehrung genau eine Karte weiter -- steht dort etwas anderes, sieht
+     der Benutzer die Erklaerung der Ansicht, in der er gerade gelandet ist, nie.
+     Und davor darf sie nicht stehen: vor dem ersten Fang ist Home leer. */
+  t('die Home-Karte kommt direkt nach der Fuehrung', () => {
+    const iFu = TOUR.findIndex(k => k.fuehrung);
+    const iHome = TOUR.findIndex(k => /Home/.test(k.text || ''));
+    return (iFu >= 0 && iHome === iFu + 1)
+        || ('Fuehrung bei ' + iFu + ', Home-Karte bei ' + iHome);
+  });
   t('die Support-Karte verspricht ein bis zwei Tage', () => {
     const k = TOUR[TOUR.length - 1];
     return (/ein bis zwei Tagen/.test(k.text) && /Fehler melden/.test(k.text))
