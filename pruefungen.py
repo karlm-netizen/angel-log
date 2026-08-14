@@ -2884,6 +2884,77 @@ window.addEventListener('error', e => {
     const box = document.querySelector('#bug-form');
     return /Datenschutzerklärung/.test(box.textContent) || box.textContent.slice(0, 120);
   });
+  /* ====== Nach dem Abschicken nach der Benachrichtigung fragen (14.08.2026) ======
+     Karls Ansage: „Nachdem man ein Ticket abgeschickt hat fragen ob benachrichtiguen
+     angezeigt werden sollen."
+
+     ⚠️ Geprueft wird die **Regel**, nicht die Umgebung. pushFrageZeigen() liest den
+     Zustand aus dem Browser -- ob es dort einen PushManager gibt, ob ein Konto
+     angemeldet ist und was das Geraet zur Erlaubnis sagt, entscheidet im Prueflauf der
+     Prueflauf und nicht die App. Deshalb steht die Entscheidung in pushFrageNoetig(),
+     und die bekommt ihren Zustand als Angabe. */
+  (function(){
+    const JA = { moeglich: true, konto: true, erlaubnis: 'default',
+                 gefragt: false, angemeldet: false };
+    t('nach einer Meldung wird gefragt', () =>
+      pushFrageNoetig(JA) === true || 'wird nicht gefragt');
+    t('ohne Konto wird nicht gefragt', () =>
+      pushFrageNoetig({ ...JA, konto: false }) === false || 'fragt trotzdem');
+    t('wo es keine Benachrichtigungen gibt, wird nicht gefragt', () =>
+      pushFrageNoetig({ ...JA, moeglich: false }) === false || 'fragt trotzdem');
+    /* ⚠️ Abgelehnt heisst am iPhone endgueltig -- die App kann das nie wieder aendern,
+       nur die Geraete-Einstellungen. Eine zweite Frage waere dort eine Frage ohne
+       jeden Ausgang. */
+    t('nach einer Ablehnung des Geraets wird nicht mehr gefragt', () =>
+      pushFrageNoetig({ ...JA, erlaubnis: 'denied' }) === false || 'fragt trotzdem');
+    t('einmal Nein danke, und die Frage kommt nicht wieder', () =>
+      pushFrageNoetig({ ...JA, gefragt: true }) === false || 'fragt trotzdem');
+    t('wer schon angemeldet ist, wird nicht gefragt', () =>
+      pushFrageNoetig({ ...JA, angemeldet: true }) === false || 'fragt trotzdem');
+
+    /* ⚠️ Der Kasten darf **nicht** im Meldeformular liegen: das wird beim Abschicken
+       zugeklappt, und der Kasten ginge mit zu -- die Frage waere nie zu sehen. */
+    t('die Frage liegt ausserhalb des Meldeformulars', () => {
+      const form = document.getElementById('bug-form');
+      const frage = document.getElementById('push-frage');
+      if (!frage) return 'es gibt keinen Kasten';
+      return !form.contains(frage) || 'der Kasten steckt im Formular';
+    });
+    t('sie hat beide Antworten und beginnt versteckt', () => {
+      const frage = document.getElementById('push-frage');
+      return (!!document.getElementById('pf-ja') && !!document.getElementById('pf-nein')
+              && frage.hidden)
+          || 'ja/nein oder das Verstecken fehlt';
+    });
+    /* ⚠️ **Die wichtigste Pruefung hier.** Ein Geraet fragt genau einmal; wer wegtippt,
+       hat Benachrichtigungen dauerhaft aus. Die Frage der App darf deshalb von sich aus
+       **keinen** Systemdialog ausloesen -- der kommt erst nach einem Tipp auf „Ja".
+       Zusaetzlich verlangt iOS dafuer ohnehin eine Nutzergeste: ohne sie waere die eine
+       Chance verbrannt, und zwar wirkungslos. */
+    ta('die Frage allein loest keinen Systemdialog aus', async () => {
+      if (typeof Notification === 'undefined') return true;   // hier gibt es nichts zu fragen
+      const echt = Notification.requestPermission;
+      let gerufen = 0;
+      Notification.requestPermission = () => { gerufen++; return Promise.resolve('default'); };
+      try { await pushFrageZeigen(); }
+      finally { Notification.requestPermission = echt; }
+      return gerufen === 0 || ('der Systemdialog kam ' + gerufen + '-mal von allein');
+    });
+    t('„Nein danke" merkt sich das', () => {
+      const alt = localStorage.getItem('angellog-push-gefragt');
+      localStorage.removeItem('angellog-push-gefragt');
+      try {
+        document.getElementById('pf-nein').click();
+        return (!!localStorage.getItem('angellog-push-gefragt')
+                && document.getElementById('push-frage').hidden)
+            || 'der Merker fehlt oder der Kasten bleibt stehen';
+      } finally {
+        if (alt === null) localStorage.removeItem('angellog-push-gefragt');
+        else localStorage.setItem('angellog-push-gefragt', alt);
+      }
+    });
+  })();
+
   t('Die Webhook-Adresse steht nirgends im Quelltext', () => {
     /* ⚠️ Das Repo ist oeffentlich. Wer die Adresse hat, kann in Karls Kanal
        schreiben. Sie gehoert in die Tabelle angel_konfig, die per API fuer

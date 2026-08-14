@@ -1219,6 +1219,24 @@ function splashWeg(){
       <button class="btn" id="btn-bug-ab">Abschicken</button>
       <p class="tiny muted" id="bug-warten" style="margin:8px 0 0" hidden></p>
     </div>
+    <!-- Die Frage nach der Benachrichtigung, direkt nach dem Abschicken einer Meldung
+         (14.08.2026, Karls Ansage: „Nachdem man ein Ticket abgeschickt hat fragen ob
+         benachrichtiguen angezeigt werden sollen").
+         ⚠️ Sie steht bewusst **außerhalb** von #bug-form: das Formular wird beim
+            Abschicken zugeklappt, und ein Kasten darin ginge mit zu. -->
+    <div id="push-frage" hidden class="card"
+         style="margin-bottom:12px; border-color:var(--accent)">
+      <b style="font-size:14px">Sollen wir dich benachrichtigen?</b>
+      <p class="tiny muted" style="margin:6px 0 10px; line-height:1.5">
+        Sobald jemand auf deine Meldung antwortet, bekommst du eine Nachricht aufs
+        Gerät — auch wenn die App zu ist. Sonst siehst du die Antwort erst, wenn du
+        das nächste Mal ins Postfach schaust.
+      </p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap">
+        <button class="btn sm primary" id="pf-ja">🔔 Ja, benachrichtigen</button>
+        <button class="btn sm" id="pf-nein">Nein danke</button>
+      </div>
+    </div>
     <label class="f">Datenschutz</label>
     <p class="tiny muted" style="margin:0 0 12px" id="sicherung-text"></p>
     <button class="btn" id="btn-datenschutz" style="margin-bottom:8px">Datenschutzerklärung</button>
@@ -1823,6 +1841,12 @@ const EN = {
   'Kurze Einführung ansehen': 'View the short introduction',
   '🐞 Fehler melden': '🐞 Report a problem',
   '📬 Postfach': '📬 Mailbox',
+  /* Die Frage nach dem Abschicken einer Meldung (14.08.2026). */
+  'Sollen wir dich benachrichtigen?': 'Shall we notify you?',
+  'Sobald jemand auf deine Meldung antwortet, bekommst du eine Nachricht aufs Gerät — auch wenn die App zu ist. Sonst siehst du die Antwort erst, wenn du das nächste Mal ins Postfach schaust.':
+    'As soon as someone replies to your report, your device gets a message — even when the app is closed. Otherwise you will only see the reply the next time you open your mailbox.',
+  '🔔 Ja, benachrichtigen': '🔔 Yes, notify me',
+  'Nein danke': 'No thanks',
   'Führung beenden': 'End walkthrough',
   'Alles klar': 'Got it',
   'Ersten Fang eintragen': 'Log your first catch',
@@ -3917,7 +3941,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v49';
+const FASSUNG = 'v50';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -5749,6 +5773,70 @@ $('#btn-bug-ab').onclick = async () => {
   try { await meldungenNachreichen(); } catch {}
   bugWartendZeigen();
   sperreZeichnen();
+  /* ⚠️ Die Frage kommt **nach** dem Abschicken, nicht davor und nicht beim Aufklappen:
+     erst jetzt gibt es etwas, worauf geantwortet werden kann. Vorher wäre sie eine
+     Hürde vor dem Melden — und genau das Melden soll leicht bleiben. */
+  try { await pushFrageZeigen(); } catch {}
+};
+
+/* ---- Nach dem Abschicken einer Meldung nach der Benachrichtigung fragen ----
+   Karls Ansage vom 14.08.2026: „Nachdem man ein Ticket abgeschickt hat fragen ob
+   benachrichtiguen angezeigt werden sollen."
+
+   ⚠️ **Erst die eigene Frage, dann der Systemdialog — und das ist hier keine Höflichkeit.**
+   Ein Gerät fragt genau **einmal**; wer wegtippt, hat Benachrichtigungen dauerhaft aus, und
+   die App kann das nie wieder ändern (nur die Geräte-Einstellungen können es). Deshalb
+   kommt der Systemdialog erst nach einem Tipp auf „Ja". Dasselbe Argument steht schon in
+   pushEinschalten() — hier ist es wichtiger, weil die Frage jetzt von selbst auftaucht.
+   ⚠️ **Und sie muss an einem Tipp hängen.** `Notification.requestPermission()` ohne
+   Nutzergeste wird am iPhone abgelehnt — eine Frage, die beim Abschicken von allein den
+   Systemdialog aufriefe, verbrennt also genau die eine Chance, und zwar wirkungslos.
+   ⚠️ Der Kasten steht **außerhalb** von `#bug-form`, das beim Abschicken zugeklappt wird. */
+const PUSH_GEFRAGT = 'angellog-push-gefragt';
+
+/* ⚠️ Die Entscheidung steht **getrennt vom Zustand-Einsammeln**, und zwar damit sie
+   prüfbar ist. Fragt man sie direkt im Browser ab, hängt jede Prüfung daran, ob dieser
+   Browser gerade einen PushManager hat, ob ein Konto angemeldet ist und was das Gerät
+   zur Erlaubnis sagt — dann misst die Prüfung die Umgebung des Prüflaufs und nicht die
+   Regel. Fünf Gründe, die Frage nicht zu stellen; jeder einzelne würde sie zu einer
+   Frage machen, auf die es keine brauchbare Antwort gibt. */
+function pushFrageNoetig(z){
+  if (!z.moeglich)   return false;   // in Safari selbst gibt es keinen PushManager
+  if (!z.konto)      return false;   // ohne Konto weiß niemand, wohin die Antwort geht
+  if (z.erlaubnis === 'denied') return false;   // kann die App nicht mehr ändern
+  if (z.gefragt)     return false;   // einmal Nein ist ein Nein
+  if (z.angemeldet)  return false;   // läuft längst
+  return true;
+}
+
+async function pushFrageZeigen(){
+  const box = $('#push-frage');
+  if (!box) return;
+  box.hidden = true;
+  let gefragt = false;
+  try { gefragt = !!localStorage.getItem(PUSH_GEFRAGT); } catch {}
+  box.hidden = !pushFrageNoetig({
+    moeglich:   pushMoeglich(),
+    konto:      cloudAn() && !!konto,
+    erlaubnis:  pushMoeglich() ? Notification.permission : 'denied',
+    gefragt,
+    angemeldet: !!(await pushAnmeldungHolen())
+  });
+}
+
+$('#pf-ja').onclick = async () => {
+  $('#push-frage').hidden = true;
+  /* ⚠️ Den Merker **auch bei Ja** setzen. Sonst stünde die Frage beim nächsten Mal
+     wieder da, falls das Anmelden schiefgeht — und dann fragt die App bei jeder Meldung
+     erneut nach etwas, das gerade nicht funktioniert. */
+  try { localStorage.setItem(PUSH_GEFRAGT, String(Date.now())); } catch {}
+  await pushEinschalten();
+};
+$('#pf-nein').onclick = () => {
+  $('#push-frage').hidden = true;
+  try { localStorage.setItem(PUSH_GEFRAGT, String(Date.now())); } catch {}
+  /* Kein Toast. Wer „Nein danke" tippt, hat die Sache damit erledigt; eine Bestätigung
+     wäre eine zweite Meldung für eine Entscheidung, die keine war. */
 };
 
 $('#btn-datenschutz').onclick = () => {

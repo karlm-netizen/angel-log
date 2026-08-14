@@ -6,6 +6,35 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 14.08.2026 (v50) — Nach dem Abschicken einer Meldung kommt die Frage
+
+Karls Ansage: *„Nachdem man ein Ticket abgeschickt hat fragen ob benachrichtiguen angezeigt
+werden sollen."*
+
+Bisher stand die Benachrichtigung als Knopf in den Einstellungen — man musste wissen, dass es
+sie gibt. Jetzt kommt die Frage im einzigen Moment, in dem sie sich von selbst erklärt:
+**direkt nachdem eine Meldung rausgegangen ist.** Zwei Antworten, „Ja, benachrichtigen" und
+„Nein danke".
+
+- ⚠️ **Erst die eigene Frage, dann der Systemdialog — und das ist keine Höflichkeit.** Ein
+  Gerät fragt genau **einmal**. Wer wegtippt, hat Benachrichtigungen dauerhaft aus, und die App
+  kann das nie wieder ändern; nur die Geräte-Einstellungen können es. Deshalb löst der Kasten
+  von sich aus nichts aus — der Systemdialog kommt erst nach einem Tipp auf „Ja".
+  ⚠️ **iOS verlangt dafür ohnehin eine Nutzergeste.** Eine Frage, die beim Abschicken
+  automatisch den Systemdialog aufriefe, verbrennt die eine Chance also wirkungslos.
+- **Gefragt wird nur, wenn die Antwort etwas ändert.** Nicht ohne Konto (dann weiß niemand,
+  wohin die Antwort gehört), nicht in Safari ohne Home-Bildschirm (dort gibt es keinen
+  PushManager), nicht nach einer Ablehnung des Geräts, nicht wenn es schon läuft — und nach
+  einem „Nein danke" nie wieder.
+- ⚠️ Der Kasten steht **außerhalb** des Meldeformulars. Darin wäre er beim Abschicken
+  mit zugeklappt worden und nie zu sehen gewesen.
+- ⚠️ **Die Entscheidung steht in einer eigenen Funktion, getrennt vom Einsammeln des
+  Zustands.** Sonst hinge jede Prüfung daran, ob der Prüf-Browser gerade einen PushManager hat
+  und ein Konto angemeldet ist — dann misst die Prüfung den Prüflauf und nicht die Regel.
+
+**630 Prüfungen grün** (von 620), darunter eine, die den Systemdialog abfängt und zählt: die
+Frage allein darf ihn nicht auslösen.
+
 ## 14.08.2026 (v49) — Wie alt die Vorhersage ist, und Fotos in jedem Format
 
 Zwei Ansagen von Karl.
