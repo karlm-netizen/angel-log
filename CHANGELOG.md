@@ -6,6 +6,74 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 16.08.2026 (v52) — Luftfeuchtigkeit, Melder im Ticket, doppelte Namen
+
+Drei Ansagen von Karl. **Die erste kam nicht von ihm** — sein Kollege hat sie über das
+Ticketsystem gemeldet. Das ist der erste Wunsch, der den Weg gegangen ist, für den das System
+am 12.08. gebaut wurde.
+
+- 💧 **Luftfeuchtigkeit auf der Wetterkarte** (Wunsch des Kollegen). `relative_humidity_2m` kommt
+  von Open-Meteo mit und steht als eigene Kachel zwischen Lufttemperatur und Luftdruck.
+  ⚠️ **Eine gespeicherte Vorhersage von vor v52 kennt das Feld nicht.** Die Kachel fällt dann
+  still weg statt „NaN %" zu zeigen — und heilt sich nach spätestens 30 Minuten von selbst
+  (`VORHER_FRISCH`). Zwei Prüfungen halten genau diesen Fall fest.
+  ⚠️ Sie steht **nicht** in den sechs Maßen der Fangprognose. Die rechnen mit dem, was am Fang
+  gespeichert ist — dafür bräuchte es ein neues Feld am Fang und eine neue Spalte. Nicht
+  angefragt, deshalb nicht gebaut.
+- 🎫 **Im Ticket steht jetzt, wer gemeldet hat** — Zeile 2, „Von: karl". Bisher stand dort nur
+  Nummer und Text; wer es war, musste Karl im Dashboard nachsehen. Bei vier Meldern ist das
+  keine Nebensache: dieselbe Meldung von jemandem mit 200 Fängen und von jemandem am ersten Tag
+  bedeutet nicht dasselbe.
+- 🔔 **Und Discord pingt dabei.** Die ID steht in `angel_konfig` unter `discord_ping`, nicht im
+  Quelltext — sie ändert sich, wenn der Server wechselt.
+  ⚠️ **`allowed_mentions.parse` bleibt leer.** `parse` sagt, was aus dem *Text* aufgelöst werden
+  darf (nichts), `users` ist die ausdrückliche Freigabe für genau diese eine ID. Mit
+  `parse: ["users"]` wäre das Loch vom 12.08. sofort wieder offen — dann pingt jeder Melder
+  jeden, dessen ID er ins Meldefeld tippt.
+  ⚠️ **Zeile 1 ist unverändert geblieben.** Der Bot liest die Ticketnummer mit
+  `^🐞 Angel-Log — Meldung #(\d+)` wieder heraus; alles Neue steht deshalb in Zeile 2.
+- 🔴 **Doppelte Benutzernamen — der Fehler saß woanders, als er aussah.** Die Sperre hat nie
+  gefehlt: `unique` steht seit dem 03.08. auf `profil.username` und hat immer gehalten.
+  Kaputt war die **Vorabfrage**: `rpc()` gibt bei jedem Fehlschlag `null` zurück, und
+  `null === false` ist falsch. Ohne Netz, bei einem Serverfehler oder an der Mengengrenze fiel
+  die Prüfung damit **stillschweigend aus und die Registrierung lief weiter, als wäre der Name
+  frei**. Aufgehalten hat es am Ende nur die Datenbank — mit „Registrieren hat nicht geklappt",
+  einem Satz, aus dem niemand auf den Namen schließt.
+  ➡️ Neu: `nameFrei()` mit **drei** Ergebnissen (frei / vergeben / nicht gefragt). Bleibt die
+  Frage unbeantwortet, bricht die Registrierung mit einem Satz ab, der das sagt. Und schlägt
+  doch einmal `unique` zu, wird die Meldung der Datenbank als „Name vergeben" gedeutet.
+  ⚠️ **Dieselbe stille Strecke wie beim toten Webhook (12.08.), beim Ticket-Rückweg (13.08.)
+  und beim Bot (13.08.):** ein Stück des Weges ist unterbrochen, jedes Teil sieht in Ordnung
+  aus, und nichts sagt etwas. Vierter Fall in fünf Tagen.
+- 🔧 **Der Prüfrahmen läuft jetzt auch unter Linux.** `pruefungen.py` kannte nur Windows-Pfade zu
+  Chrome und brach auf dem Laptop sofort ab — noch bevor die statischen Prüfungen liefen. Jetzt
+  stehen die üblichen Linux-Pfade mit drin, und `CHROME=/pfad` überschreibt sie.
+  ⚠️ **Snap-Chromium kommt nur an sichtbare Ordner im Home-Verzeichnis heran.** Ein Prüflauf
+  aus `/tmp` oder einem Punkt-Ordner endet mit `ERR_FILE_NOT_FOUND` bzw. `ERR_ACCESS_DENIED` —
+  das sieht nach einem kaputten Prüfrahmen aus und ist keiner.
+
+### 🔴 Und dann hat der erste Linux-Prüflauf sofort einen echten Fehler gefunden
+
+**Er lief um 00:50, und genau da fällt der Fehler auf.** `heute` und `morgen` wurden mit
+`new Date().toISOString().slice(0,10)` gebildet — also **nach UTC**. Open-Meteo liefert mit
+`timezone=auto` aber **Ortszeit** ohne Zonenangabe (`2026-08-16T05:00`), und `bestesFenster()`
+vergleicht genau diese Zeichen.
+
+➡️ **Zwischen 0:00 und 2:00 (Sommerzeit) stand als „heute" der Vortag.** Die Folge war keine
+falsche Zahl, sondern: **die Heute-Karte fiel ganz weg** — ihr Tag lag in der Vergangenheit und
+wurde weggefiltert — **und der heutige Tag stand unter der Überschrift „Morgen".** Im Winter ist
+das Fenster 0:00–1:00.
+
+⚠️ **Dieselbe Umrechnung stand ein zweites Mal drin**, für Sonnenauf- und -untergang: dort war
+`v.hourly.time[i]` bereits der lokale Tag und wurde über `new Date(...).toISOString()` nach UTC
+zurückgerechnet. Zwischen 0 und 2 Uhr zeigte die Karte die Sonnenzeiten von **gestern**.
+
+⚠️ **Und es trifft ausgerechnet die Stunden, in denen jemand nachts nachsieht, wann er morgens
+losfahren soll.** Beides behoben; eine neue Prüfung stellt die Uhr fest auf 00:50, damit der
+Fall nicht wieder nur zufällig auffällt.
+
+**644 Prüfungen grün** (von 631 in v51), 0 rot. Gelaufen auf dem Laptop unter Linux.
+
 ## 14.08.2026 (v51) — Die Einführung passt wieder zur App
 
 Karls Ansage: *„Einführung aktualisieren das die auf das neue app dising zugeschnitten ist und

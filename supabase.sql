@@ -368,9 +368,33 @@ declare
   ziel     text;
   txt      text;
   abgleich text;
+  melder   text;
+  ping_id  text;
 begin
   select wert into ziel from public.angel_konfig where schluessel = 'discord_webhook';
   if ziel is null or ziel = '' then return new; end if;
+
+  /* ---- Wer hat gemeldet? (16.08.2026, Karls Ansage) ----
+     ⚠️ Bis hierher stand in Discord nur die Nummer und der Text. Bei vier Meldern ist
+     „wer war das" keine Nebensache: dieselbe Meldung von jemandem mit 200 Fängen und von
+     jemandem am ersten Tag bedeutet nicht dasselbe. Karl musste dafür bisher im
+     Dashboard nachsehen.
+     ⚠️ Diese Funktion ist `security definer` — sie darf `profil` lesen, obwohl RLS dort
+     nur die eigene Zeile freigibt. Genau dafür steht das oben.
+     ⚠️ `coalesce` auf 'unbekannt': wer sich nur mit E-Mail registriert hat, hat keine
+     Zeile in `profil` (siehe angel_profil_anlegen). Ohne das fiele die ganze Zeile
+     stillschweigend weg -- und es sähe aus, als sei der Name vergessen worden. */
+  select p.username into melder from public.profil p where p.id = new.user_id;
+  melder := coalesce(melder, 'unbekannt');
+
+  /* ---- Wen soll Discord anpingen? (16.08.2026, Karls Ansage) ----
+     Die ID steht in `angel_konfig`, nicht hier im Quelltext: sie ändert sich, wenn Karl
+     den Server wechselt, und dann soll niemand eine Funktion neu einspielen müssen.
+        insert into public.angel_konfig values ('discord_ping','647688538816774154')
+          on conflict (schluessel) do update set wert = excluded.wert;
+     Steht dort nichts, wird nicht gepingt -- und nicht etwa `<@>` geschrieben. */
+  select wert into ping_id from public.angel_konfig where schluessel = 'discord_ping';
+  if ping_id is not null and ping_id !~ '^\d+$' then ping_id := null; end if;
 
   -- Ein Zeitpunkt in ISO-Schreibweise ist zum Lesen nichts. 'nie' bleibt 'nie'.
   abgleich := coalesce(new.umfeld->>'letzterAbgleich', '?');
@@ -388,7 +412,12 @@ begin
      wenn Karl mit Discords Antworten-Funktion auf die Meldung antwortet -- ohne
      sie gibt es kein Band zwischen Antwort und Ticket, und die Antwort weiss
      nicht, zu wem sie gehoert. Format genau "#<zahl>", daran haengt der Bot. */
-  txt := '🐞 Angel-Log — Meldung #' || new.nummer || E'\n\n'
+  /* ⚠️ Zeile 1 bleibt UNVERAENDERT. Der Bot liest die Nummer mit
+     `^🐞 Angel-Log — Meldung #(\d+)` wieder heraus; alles Neue gehoert deshalb in
+     Zeile 2, nicht davor und nicht dazwischen. */
+  txt := '🐞 Angel-Log — Meldung #' || new.nummer || E'\n'
+      || 'Von: ' || melder
+      || coalesce('  <@' || ping_id || '>', '') || E'\n\n'
       || coalesce(new.text, '') || E'\n\n'
       || 'Fassung ' || coalesce(new.umfeld->>'fassung', '?')
       || ' · ' || coalesce(new.umfeld->>'netz', '?')
@@ -427,10 +456,22 @@ begin
        Mit leerem `parse` wird nichts mehr aufgeloest: @everyone, @here und
        Rollen stehen dann als Text da, was sie auch sein sollen.
        ⚠️ Der Text selbst bleibt unangetastet -- eine Meldung soll ankommen,
-       wie sie getippt wurde. Entschaerft wird die Wirkung, nicht der Inhalt. */
+       wie sie getippt wurde. Entschaerft wird die Wirkung, nicht der Inhalt.
+
+       ⚠️ **Nachtrag 16.08.2026 -- warum `parse` LEER bleibt, obwohl jetzt gepingt wird.**
+       `parse: []` und `users: [...]` schliessen sich nicht aus, sie ergaenzen sich:
+       `parse` sagt, was aus dem TEXT aufgeloest werden darf (nichts), `users` ist eine
+       ausdrueckliche Freigabe fuer genau diese eine ID. Schriebe man stattdessen
+       `parse: ["users"]`, waere das Loch von oben sofort wieder offen -- dann pingt
+       jeder Melder jeden, dessen ID er in sein Meldefeld tippt.
+       Ohne konfigurierte ID bleibt es exakt beim alten Verhalten. */
     body    := jsonb_build_object(
                  'content', left(txt, 1900),
-                 'allowed_mentions', jsonb_build_object('parse', '[]'::jsonb))
+                 'allowed_mentions', case
+                   when ping_id is null then jsonb_build_object('parse', '[]'::jsonb)
+                   else jsonb_build_object('parse', '[]'::jsonb,
+                                           'users', jsonb_build_array(ping_id))
+                 end)
   );
   return new;
 end $$;
@@ -439,6 +480,22 @@ drop trigger if exists angel_meldungen_zustellen on public.angel_meldungen;
 create trigger angel_meldungen_zustellen
   after insert on public.angel_meldungen
   for each row execute function public.angel_meldung_zustellen();
+
+-- ---------------------------------------------------------------------
+--  Wen Discord bei einer neuen Meldung anpingen soll  (16.08.2026)
+--
+--  Karls Ansage: "@dermoench148 pingen". Der Handle im Server heisst
+--  tatsaechlich `dermoench1305` (Anzeigename "DerMoench") -- es ist der
+--  einzige "dermoench" dort, deshalb diese ID. Stimmt das nicht, hier
+--  aendern; im Quelltext der Funktion steht sie bewusst nicht.
+--
+--  ⚠️ Anders als der Webhook ist das KEIN Geheimnis. Eine Discord-User-ID
+--     ist oeffentlich sichtbar, sobald jemand eine Nachricht schreibt --
+--     sie darf deshalb hier im Repo stehen, der Webhook nicht.
+-- ---------------------------------------------------------------------
+insert into public.angel_konfig (schluessel, wert)
+values ('discord_ping', '647688538816774154')
+on conflict (schluessel) do update set wert = excluded.wert;
 
 -- ---------------------------------------------------------------------
 --  4. Konto löschen

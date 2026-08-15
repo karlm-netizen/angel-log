@@ -15,13 +15,21 @@ import subprocess, re, pathlib, shutil, sys, os
 
 SRC  = pathlib.Path(__file__).resolve().parent
 WORK = SRC / '.testrun'
-CHROME = next((c for c in [
+# ⚠️ Seit dem 16.08.2026 stehen auch Linux-Pfade hier. Der Laptop ist inzwischen ein
+# Arbeitsgeraet und nicht mehr nur Reserve -- bis dahin brach der Prueflauf dort sofort
+# mit "Chrome nicht gefunden" ab, und zwar bevor auch nur die statischen Pruefungen
+# unten liefen. Wer am Laptop arbeitet, arbeitet sonst ohne Netz darunter.
+CHROME = os.environ.get('CHROME') or next((c for c in [
     r'C:\Program Files\Google\Chrome\Application\chrome.exe',
     r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
     os.path.expandvars(r'%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe'),
+    '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium', '/usr/bin/chromium-browser', '/snap/bin/chromium',
 ] if pathlib.Path(c).exists()), None)
 if not CHROME:
-    sys.exit('Chrome nicht gefunden — Pfad in pruefungen.py anpassen.')
+    sys.exit('Chrome/Chromium nicht gefunden — Pfad in pruefungen.py ergaenzen oder '
+             'CHROME=/pfad/zum/browser setzen.\n'
+             'Unter Linux: sudo apt install chromium-browser')
 
 # OneDrive haelt Ordner gelegentlich fest, deshalb ueberschreiben statt loeschen.
 if WORK.exists(): shutil.rmtree(WORK, ignore_errors=True)
@@ -1982,6 +1990,59 @@ window.addEventListener('error', e => {
   t('Normale Namen gehen durch', () =>
     (['karl','angler_42','max.mustermann','a-b-c'].every(n => namePruefen(n) === null)) || 'einer abgelehnt');
   t('Gross geschrieben ist derselbe Name', () => namePruefen('KARL') === null || namePruefen('KARL'));
+
+  /* ==== Doppelte Benutzernamen (16.08.2026, Karls Ansage) ====
+     ⚠️ Was hier festgehalten wird, ist NICHT eine fehlende Sperre -- `unique` steht
+     seit dem 03.08. auf `profil.username` und hat immer gehalten. Der Fehler war,
+     dass die Vorabfrage stillschweigend ausfiel: `rpc()` gibt bei jedem Fehlschlag
+     `null` zurueck, und `null === false` ist falsch. Die Registrierung lief dann
+     weiter, als waere der Name frei -- ausgerechnet dann, wenn etwas nicht stimmte.
+     Deshalb pruefen die beiden mittleren Faelle den AUSFALL, nicht die Antwort. */
+  const echtesFetch = window.fetch;
+  const fetchGibt = (fn) => { window.fetch = fn; };
+  const fetchWeg  = () => { window.fetch = echtesFetch; };
+
+  ta('vergebener Name wird als vergeben erkannt', async () => {
+    fetchGibt(async () => ({ ok: true, json: async () => false }));
+    try { return (await nameFrei('karl')) === false || 'nicht erkannt'; }
+    finally { fetchWeg(); }
+  });
+  ta('freier Name wird als frei erkannt', async () => {
+    fetchGibt(async () => ({ ok: true, json: async () => true }));
+    try { return (await nameFrei('neuling')) === true || 'nicht erkannt'; }
+    finally { fetchWeg(); }
+  });
+  ta('ein Serverfehler gilt NICHT als frei', async () => {
+    fetchGibt(async () => ({ ok: false, json: async () => ({}) }));
+    try { return (await nameFrei('karl')) === null || 'Fehlschlag als Antwort gewertet'; }
+    finally { fetchWeg(); }
+  });
+  ta('kein Netz gilt NICHT als frei', async () => {
+    fetchGibt(async () => { throw new Error('offline'); });
+    try { return (await nameFrei('karl')) === null || 'Netzausfall als Antwort gewertet'; }
+    finally { fetchWeg(); }
+  });
+  /* ⚠️ Die entscheidende: der alte Fehler sass nicht in der Abfrage, sondern darin,
+     was der Aufrufer aus einem ausgebliebenen Ergebnis macht. nameFrei() koennte
+     sauber `null` liefern und registrieren() trotzdem weiterlaufen. */
+  ta('bei unbeantworteter Frage wird nicht registriert', async () => {
+    fetchGibt(async () => { throw new Error('offline'); });
+    try {
+      await registrieren('a@b.c', 'geheim123', 'karl');
+      return 'registrieren() ist durchgelaufen';
+    } catch (e) { return /nicht prüfen|not check/.test(e.message) || e.message; }
+    finally { fetchWeg(); }
+  });
+  /* Der letzte Waechter: schlaegt `unique` in der Datenbank zu, meldet Supabase nur
+     "Database error saving new user". Das muss beim Melder als Satz ueber den Namen
+     ankommen, nicht als "Registrieren hat nicht geklappt". */
+  t('Datenbankfehler wird als vergebener Name gedeutet', () =>
+    /vergeben/.test(authFehler({ msg: 'Database error saving new user' }, 'Registrieren hat nicht geklappt.'))
+    || authFehler({ msg: 'Database error saving new user' }, 'x'));
+  t('auch der rohe unique-Fehler wird gedeutet', () =>
+    /vergeben/.test(authFehler({ message: 'duplicate key value violates unique constraint "profil_username_key"' }, 'x'))
+    || 'nicht erkannt');
+
   t('Registrieren ohne Namen wird abgefangen', () => {
     gateModus = 'reg'; renderGate();
     document.querySelector('#g-name').value = '';
@@ -4083,11 +4144,12 @@ window.addEventListener('error', e => {
     const vorhersageBauen = (aendern) => {
       const t0 = new Date(); t0.setMinutes(0, 0, 0);
       const time = [], temp = [], druck = [], code = [], wind = [], richt = [], wolken = [], regen = [];
+      const feuchte = [];
       for (let k = -2; k < 58; k++){
         const d = new Date(t0.getTime() + k * 3600e3);
         time.push(isoLokal(d));
         temp.push(18); druck.push(1015); code.push(2); wind.push(9);
-        richt.push(240); wolken.push(50); regen.push(0);
+        richt.push(240); wolken.push(50); regen.push(0); feuchte.push(72);
       }
       const tage = [];
       for (let k = 0; k < 4; k++){
@@ -4098,7 +4160,8 @@ window.addEventListener('error', e => {
         lat: 54.32, lon: 10.13, geholt: Date.now(),
         hourly: { time, temperature_2m: temp, pressure_msl: druck, weather_code: code,
                   wind_speed_10m: wind, wind_direction_10m: richt,
-                  cloud_cover: wolken, precipitation: regen },
+                  cloud_cover: wolken, precipitation: regen,
+                  relative_humidity_2m: feuchte },
         daily: { time: tage,
                  sunrise: tage.map(s => s + 'T05:30'), sunset: tage.map(s => s + 'T21:15') }
       };
@@ -4201,6 +4264,38 @@ window.addEventListener('error', e => {
         .filter(s => r.wetter.indexOf(s) === -1);
       return fehlt.length === 0 || 'fehlt: ' + fehlt.join(', ') + '  |  ' + r.wetter.slice(0, 200);
     });
+    /* ====== Luftfeuchtigkeit (16.08.2026) ======
+       Der erste Wunsch, der über das Ticketsystem hereingekommen ist statt über Karl —
+       vom Kollegen. Das ist der Weg, für den das System am 12.08. gebaut wurde. */
+    ta('die Wetterkarte zeigt die Luftfeuchtigkeit', async () => {
+      const r = await homeBauen(faengeBauen(20));
+      return (/Luftfeuchtigkeit/.test(r.wetter) && r.wetter.indexOf('72 %') !== -1)
+          || r.wetter.slice(0, 300);
+    });
+    /* ⚠️ Sie darf nicht mit der Bewoelkung verwechselt werden — beide stehen in Prozent.
+       Deshalb tragen sie in dieser Pruefung verschiedene Werte (72 gegen 50). */
+    ta('Luftfeuchtigkeit und Bewoelkung sind zwei verschiedene Kacheln', async () => {
+      const r = await homeBauen(faengeBauen(20));
+      return (r.wetter.indexOf('72 %') !== -1 && r.wetter.indexOf('50 %') !== -1)
+          || r.wetter.slice(0, 300);
+    });
+    /* ⚠️ Der Fall, der in echt zuerst eintritt: eine Vorhersage, die noch VOR dieser
+       Fassung gespeichert wurde, kennt das Feld nicht. Dann darf dort keine Kachel
+       stehen — und schon gar keine mit "NaN %" oder "undefined". */
+    ta('eine alte gespeicherte Vorhersage zeigt keine erfundene Feuchtigkeit', async () => {
+      const r = await homeBauen(faengeBauen(20),
+        v => { delete v.hourly.relative_humidity_2m; });
+      return (!/Luftfeuchtigkeit/.test(r.wetter) && !/NaN|undefined/.test(r.wetter))
+          || r.wetter.slice(0, 300);
+    });
+    /* Und wenn nur die eine Stunde kein Ergebnis hat, gilt dasselbe. */
+    ta('eine Luecke in der Stunde erfindet keinen Wert', async () => {
+      const r = await homeBauen(faengeBauen(20),
+        v => { v.hourly.relative_humidity_2m = v.hourly.time.map(() => null); });
+      return (!/Luftfeuchtigkeit/.test(r.wetter) && !/NaN|undefined/.test(r.wetter))
+          || r.wetter.slice(0, 300);
+    });
+
     ta('sie nennt Sonnenauf- und -untergang und die Mondphase', async () => {
       const r = await homeBauen(faengeBauen(20));
       return (r.wetter.indexOf('05:30') !== -1 && r.wetter.indexOf('21:15') !== -1
@@ -4214,6 +4309,27 @@ window.addEventListener('error', e => {
       const r = await homeBauen(faengeBauen(20),
         v => { v.hourly.wind_direction_10m = v.hourly.time.map(() => null); });
       return /\d+ km\/h(?!\s*[NSOW])/.test(r.wetter) || 'Wind: ' + r.wetter.slice(0, 200);
+    });
+    /* ⚠️ Diese hier stellt die Uhr auf 00:50 (16.08.2026 gefunden, weil der Prueflauf
+       zufaellig um diese Zeit lief). `toISOString()` rechnet nach UTC -- in der
+       Sommerzeit zwei Stunden zurueck --, waehrend Open-Meteo mit `timezone=auto`
+       ORTSZEIT liefert. Zwischen 0 und 2 Uhr stand als "heute" deshalb der Vortag:
+       die Heute-Karte fiel weg, und der heutige Tag stand unter "Morgen".
+       Ohne feste Uhrzeit faellt das nur auf, wer nachts prueft. */
+    ta('auch um 00:50 heisst heute noch heute', async () => {
+      const echteDate = Date;
+      const t = new Date(); t.setHours(0, 50, 0, 0);
+      const fest = t.getTime();
+      // eslint-disable-next-line no-global-assign
+      Date = class extends echteDate {
+        constructor(...a){ super(...(a.length ? a : [fest])); }
+        static now(){ return fest; }
+      };
+      try {
+        const r = await homeBauen(faengeBauen(20));
+        return (r.prognose.indexOf('Heute') !== -1)
+            || 'keine Heute-Karte um 00:50: ' + r.prognose.slice(0, 200);
+      } finally { Date = echteDate; }
     });
     ta('die Prognose steht mit Heute und Morgen da', async () => {
       const r = await homeBauen(faengeBauen(20));
@@ -5059,6 +5175,20 @@ if mf.group(1) != mc.group(1):
     sys.exit(f'FASSUNG sagt {mf.group(1)}, der Service-Worker-Cache heisst '
              f'angellog-{mc.group(1)} — eine Fehlermeldung nennte dann die falsche Fassung.')
 print(f'Fassung: index.html und Service Worker stehen beide auf {mf.group(1)}.')
+
+# ⚠️ Die Wetterwerte muessen an ZWEI Stellen zusammenpassen: in der Anfrage an
+# Open-Meteo und beim Zeichnen. Die Pruefungen im Browser bauen sich ihre Vorhersage
+# selbst -- sie wuerden also weiter gruen bleiben, wenn jemand das Feld aus der URL
+# entfernt. Dann stuende in der echten App still keine Feuchtigkeit mehr da.
+# Genau dieselbe Falle wie bei den Splash-Fotos oben.
+for feld in ['temperature_2m', 'relative_humidity_2m', 'pressure_msl', 'cloud_cover']:
+    if f'{feld},' not in html_roh and f'{feld}&' not in html_roh:
+        sys.exit(f'{feld} wird bei Open-Meteo nicht angefragt — die Karte zeigt den '
+                 f'Wert dann nie, ohne dass etwas meldet.')
+if 'relative_humidity_2m[i]' not in html_roh:
+    sys.exit('relative_humidity_2m wird angefragt, aber nirgends gezeichnet — '
+             'dann kostet es nur Bandbreite.')
+print('Wetter: alle vier Werte werden angefragt und die Feuchtigkeit auch gezeichnet.')
 
 # ⚠️ Jeder T()-Aufruf braucht einen Eintrag im Woerterbuch. Fehlt einer, faellt das
 # NICHT als Fehler auf: T() gibt dann den deutschen Text zurueck, und die englische

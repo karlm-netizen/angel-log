@@ -1624,6 +1624,7 @@ const EN = {
   'Wassertiefe': 'Water depth',
   'Lufttemperatur': 'Air temperature',
   'Luftdruck': 'Air pressure',
+  'Luftfeuchtigkeit': 'Humidity',
   'Bewölkung': 'Cloud cover',
   'Regen davor (24 h)': 'Rain before (24 h)',
   'Größe': 'Size',
@@ -1972,6 +1973,7 @@ const EN = {
   'Kein Netz — zum Anmelden wird einmal Verbindung gebraucht. Danach läuft die App auch offline.': 'No connection — signing in needs one once. After that the app also runs offline.',
   'Diesen Benutzernamen gibt es nicht. Oder melde dich mit deiner E-Mail an.': 'That username does not exist. Or sign in with your e-mail.',
   'Dieser Benutzername ist schon vergeben.': 'That username is already taken.',
+  'Ob dieser Benutzername frei ist, ließ sich gerade nicht prüfen. Bist du online?': 'We could not check whether that username is free. Are you online?',
   'Konto angelegt. Bitte E-Mail bestätigen und dann anmelden.': 'Account created. Please confirm your e-mail, then sign in.',
   'Weiter': 'Next',
   'Überspringen': 'Skip',
@@ -3949,7 +3951,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v51';
+const FASSUNG = 'v52';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -4004,6 +4006,18 @@ async function api(pfad, opt = {}, zweiterVersuch){
 function authFehler(d, standard){
   const m = (d && (d.msg || d.error_description || d.message || d.error)) || '';
   if (/already registered|already been registered/i.test(m)) return 'Für diese E-Mail gibt es schon ein Konto — melde dich an.';
+  /* ⚠️ Der letzte Wächter gegen doppelte Benutzernamen ist die `unique`-Bedingung auf
+     `profil.username`. Schlägt sie zu, bricht der Trigger und damit die ganze
+     Registrierung — Supabase meldet das aber nur als „Database error saving new user".
+     Ohne diese Zeile stünde dann „Registrieren hat nicht geklappt" da, und niemand käme
+     darauf, dass es am Namen liegt. Der Fall tritt nur ein, wenn die Vorabfrage nicht
+     durchkam oder zwei Leute im selben Moment denselben Namen nehmen. */
+  if (/duplicate key|profil_username|unique constraint|database error saving new user/i.test(m))
+    return T('Dieser Benutzername ist schon vergeben.');
+  /* ⚠️ Nebenbefund, nicht mitrepariert: die Sätze darüber gehen ohne T() hinaus und
+     stehen deshalb auch in der englischen App auf Deutsch. Das ist so, seit es diese
+     Funktion gibt, und betrifft fünf Zeilen — gehört einmal am Stück gemacht, nicht
+     nebenbei in einer Änderung, die von etwas anderem handelt. */
   if (/invalid login|invalid credentials/i.test(m))          return 'E-Mail oder Passwort stimmt nicht.';
   if (/password.*6|at least 6/i.test(m))                     return 'Das Passwort braucht mindestens 6 Zeichen.';
   if (/email.*invalid|unable to validate/i.test(m))          return 'Diese E-Mail-Adresse sieht nicht richtig aus.';
@@ -4030,13 +4044,40 @@ function namePruefen(name){
   return null;
 }
 
+/* Ist der Name noch frei? Gibt bewusst DREI Ergebnisse zurück, nicht zwei:
+   true = frei, false = vergeben, null = konnte nicht gefragt werden.
+
+   ⚠️ **Genau hier war die Lücke (gefunden am 16.08.2026).** Vorher stand da
+   `if (await rpc(...) === false)`. `rpc()` liefert bei jedem Fehlschlag `null` —
+   kein Netz, Serverfehler, Mengengrenze —, und `null === false` ist **falsch**.
+   Die Prüfung fiel damit stillschweigend aus und die Registrierung lief weiter,
+   als wäre der Name frei. Sie hat also ausgerechnet dann nicht geprüft, wenn
+   etwas nicht stimmte.
+   ⚠️ Aufgehalten hat das am Ende nur die `unique`-Bedingung in der Datenbank —
+   mit einem Fehler, den niemand lesen kann („Registrieren hat nicht geklappt").
+   **Dieselbe stille Strecke wie beim toten Webhook und beim Bot:** ein Stück des
+   Weges ist unterbrochen, alles sieht in Ordnung aus, und nichts sagt etwas. */
+async function nameFrei(name){
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/rpc/username_frei`,
+      { method: 'POST', headers: kopf(false), body: JSON.stringify({ uname: name }) });
+    if (!r.ok) return null;
+    const w = await r.json();
+    return typeof w === 'boolean' ? w : null;
+  } catch { return null; }
+}
+
 async function registrieren(email, passwort, username){
   const fehler = namePruefen(username);
   if (fehler) throw new Error(fehler);
   const name = username.trim().toLowerCase();
   // Vorher fragen, damit der Fehlschlag nicht erst beim Anlegen auftaucht.
-  if (await rpc('username_frei', { uname: name }) === false)
-    throw new Error(T('Dieser Benutzername ist schon vergeben.'));
+  const frei = await nameFrei(name);
+  if (frei === false) throw new Error(T('Dieser Benutzername ist schon vergeben.'));
+  /* ⚠️ Nicht weitermachen, wenn die Frage unbeantwortet blieb. Registrieren geht
+     ohne Netz ohnehin nicht — hier bricht es nur eine Stufe früher ab, dafür mit
+     einem Satz, der sagt, was los ist, statt mit „Registrieren hat nicht geklappt". */
+  if (frei === null) throw new Error(T('Ob dieser Benutzername frei ist, ließ sich gerade nicht prüfen. Bist du online?'));
 
   const r = await fetch(`${SUPA_URL}/auth/v1/signup`,
     { method: 'POST', headers: kopf(false),
@@ -6655,10 +6696,14 @@ async function vorhersageHolen(force){
   if (!force && passt && Date.now() - c.geholt < VORHER_FRISCH) return c;
   if (!navigator.onLine) return passt ? c : null;
 
+  /* ⚠️ `relative_humidity_2m` kam am 16.08.2026 dazu (Wunsch des Kollegen, über das
+     Ticketsystem gemeldet). Eine gespeicherte Vorhersage von vorher hat das Feld nicht —
+     die Kachel fällt dann still weg, statt „—" zu zeigen. Das ist gewollt und heilt sich
+     von selbst: VORHER_FRISCH sind 30 Minuten, danach wird ohnehin neu geholt. */
   const url = 'https://api.open-meteo.com/v1/forecast'
     + `?latitude=${h.lat}&longitude=${h.lon}`
-    + '&hourly=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,'
-    + 'weather_code,cloud_cover,precipitation'
+    + '&hourly=temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m,'
+    + 'wind_direction_10m,weather_code,cloud_cover,precipitation'
     + '&daily=sunrise,sunset&timezone=auto&past_days=1&forecast_days=3';
   try {
     const r = await fetch(url);
@@ -6889,7 +6934,14 @@ async function renderHome(){
   const i = jetztIndex(v);
   const nun = i >= 0 ? bedingungAusStunde(v, i) : null;
   const mond = mondFor(new Date().toISOString());
-  const tagIdx = v.daily && v.daily.time ? v.daily.time.indexOf(new Date(v.hourly.time[Math.max(i,0)]).toISOString().slice(0,10)) : -1;
+  /* ⚠️ Dieselbe Falle wie bei der Prognose weiter unten, hier für Sonnenauf- und
+     -untergang: `v.hourly.time[i]` IST schon der lokale Tag ("2026-08-16T05:00"). Der
+     Umweg über `new Date(...).toISOString()` hat ihn nach UTC zurückgerechnet und
+     zwischen 0 und 2 Uhr den Vortag getroffen — also die Sonnenzeiten von gestern.
+     Die ersten zehn Zeichen direkt zu nehmen ist nicht nur richtig, sondern auch
+     das, womit `daily.time` gefüllt ist. */
+  const tagIdx = v.daily && v.daily.time
+    ? v.daily.time.indexOf(String(v.hourly.time[Math.max(i, 0)]).slice(0, 10)) : -1;
 
   const zeile = (l, w) => w == null || w === '' ? ''
     : `<div><div class="f" style="margin:0 0 2px 2px">${l}</div><div style="font-size:14px">${w}</div></div>`;
@@ -6906,6 +6958,8 @@ async function renderHome(){
       wetterLabel(nun.wetter) || T('Lage unbekannt')}</div>
     <div class="tiles" style="gap:10px">
       ${zeile(T('Lufttemperatur'), nun.luft  != null ? Math.round(nun.luft) + ' °C' : null)}
+      ${zeile(T('Luftfeuchtigkeit'), v.hourly.relative_humidity_2m && v.hourly.relative_humidity_2m[i] != null
+        ? Math.round(v.hourly.relative_humidity_2m[i]) + ' %' : null)}
       ${zeile(T('Luftdruck'), nun.druck != null ? Math.round(nun.druck) + ' hPa' + nachDruckTrend(v, i) : null)}
       ${zeile(T('Wind'), v.hourly.wind_speed_10m && v.hourly.wind_speed_10m[i] != null
         ? Math.round(v.hourly.wind_speed_10m[i]) + ' km/h' + windRi : null)}
@@ -6973,8 +7027,20 @@ function prognoseZeichnen(v){
     return;
   }
 
-  const heute  = new Date().toISOString().slice(0, 10);
-  const morgen = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+  /* ⚠️ **Ortszeit, nicht UTC** (behoben am 16.08.2026, gefunden vom Prüfrahmen um 00:50).
+     Open-Meteo liefert mit `timezone=auto` lokale Zeitstempel ohne Zonenangabe
+     ("2026-08-16T05:00"), und `bestesFenster()` vergleicht die ersten zehn Zeichen davon
+     mit dem Tag hier. Ein `toISOString()` rechnet aber nach UTC um — in der Sommerzeit
+     also zwei Stunden zurück.
+     ➡️ **Zwischen 0:00 und 2:00 stand hier deshalb der VORTAG.** Die Folge war nicht etwa
+     eine falsche Zahl, sondern: die Heute-Karte fiel ganz weg (ihr Tag lag in der
+     Vergangenheit und wurde gefiltert), und der heutige Tag stand unter der Überschrift
+     „Morgen". Im Winter ist das Fenster 0:00–1:00.
+     ⚠️ Und es trifft genau die Stunden, in denen jemand nachts nachsieht, wann er
+     morgens los soll. */
+  const tagKey = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const heute  = tagKey(new Date());
+  const morgen = tagKey(new Date(Date.now() + 864e5));
   const karte = (tag, titel) => {
     const b = bestesFenster(modell, v, tag);
     if (!b) return '';
