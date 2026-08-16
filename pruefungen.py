@@ -3940,6 +3940,57 @@ window.addEventListener('error', e => {
     return weiter || `Tour steht auf ${tourNr}, erwartet ${nr + 1}`;
   });
 
+  /* ==================== Der Fehler des Kollegen (16.08.2026) ====================
+     Meldung: „nach jedem fang wird das tutorial angezeigt".
+
+     ⚠️ **Warum keine der elf Pruefungen darueber ihn gesehen hat:** sie rufen ALLE
+     zuerst `fuehrungStarten()`. Damit steht `fuNr` auf 0, weil die Fuehrung wirklich
+     laeuft -- und genau der Fall, in dem sie NICHT laeuft, kam nie vor. Elf Pruefungen
+     auf einen Ablauf, keine einzige auf seinen Normalfall.
+
+     Die Ursache war ein Wert, der zwei Dinge gleichzeitig bedeutete: `let fuNr = 0`
+     hiess sowohl „Schritt 1" als auch „nie gestartet". Beim Laden der Seite stand er
+     wieder auf 0, also ging nach dem ersten gespeicherten Fang die Einfuehrung auf. */
+  t('ein Fang ohne vorherige Fuehrung oeffnet die Einfuehrung nicht', () => {
+    /* ⚠️ **Diese Pruefung stand einmal falsch da und war deshalb wertlos.** Sie setzte
+       `fuNr = -1` selbst und pruefte dann, ob nichts passiert -- am kaputten Stand
+       gegengeprueft: gruen. Sie hat den richtigen Wert vorausgesetzt, um zu zeigen,
+       dass mit dem richtigen Wert alles stimmt.
+       ➡️ Jetzt nimmt sie den Startwert **aus der Datei** und drueckt den **echten
+       Speichern-Knopf**. Damit laeuft genau das ab, was beim Kollegen ablief.
+
+       ⚠️ **Der Beweis ist `tourNr`, nicht der sichtbare Zustand.** Die Einfuehrung geht
+       erst 260 ms spaeter auf (`setTimeout`) -- `classList` waere unmittelbar danach
+       auch im kaputten Fall noch leer. Synchron passiert nur das `tourNr++`. */
+    const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
+    const m = js.match(/let\s+fuNr\s*=\s*(-?\d+)\s*;/);
+    if (!m) return 'let fuNr = ... nicht gefunden';
+
+    fuAus();
+    tourSchliessen();
+    fuNr = parseInt(m[1], 10);   // genau der Wert eines frisch geladenen Fensters
+    tourNr = 0;
+    go('new');
+    /* Der echte Knopf, mitsamt seinem Waechter. `saveNow()` weist den leeren Fang
+       ab -- fuer diese Frage egal, gespeichert werden soll hier nichts. */
+    try { document.getElementById('fab-save').onclick(); } catch (e) {}
+    const stand = tourNr;        // haette der Fehler zugeschlagen, stuende hier 1
+    fuNr = -1;
+    fuAus();
+    return stand === 0
+        || `Tour steht auf ${stand} statt 0 -- die Einfuehrung geht nach dem Fang auf`;
+  });
+  /* ⚠️ Die Pruefung darueber setzt `fuNr` selbst -- sie wuerde also auch dann gruen,
+     wenn im Quelltext wieder eine 0 als Startwert stuende. Deshalb hier zusaetzlich der
+     Startwert selbst, direkt aus der Datei gelesen. Ohne das kaeme der Fehler beim
+     naechsten Umbau unbemerkt zurueck. */
+  t('der Startwert von fuNr heisst "laeuft nicht", nicht "Schritt 1"', () => {
+    const js = Array.from(document.scripts).map(s => s.textContent).join('\n');
+    const m = js.match(/let\s+fuNr\s*=\s*(-?\d+)\s*;/);
+    if (!m) return 'let fuNr = ... nicht gefunden';
+    return m[1] === '-1' || `steht auf ${m[1]} -- 0 ist zugleich Schritt 1`;
+  });
+
   /* ====== Die Kacheln unten (12.08.2026, erweitert am 13.08.2026) ======
      Am 12.08. Karls Ansage: Liste, Karte und Statistiken zusammenwerfen, dann Neuer
      Fang, dann Einstellungen. Am 13.08. kam Home dazu, und zwar **vorn**:

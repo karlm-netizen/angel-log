@@ -4017,7 +4017,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v54';
+const FASSUNG = 'v55';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -5544,7 +5544,17 @@ const FUEHRUNG = [
      **genau nach dem Speichern**: `fuehrungBeenden()` schaltet die Einführung eine Karte
      weiter. Damit steht die Erklärung dort, wo der Benutzer wirklich landet. */
 ];
-let fuNr = 0;
+/* ⚠️ **−1 heißt „läuft nicht", und das ist der ganze Punkt.** Hier stand bis v54 eine 0 —
+   also derselbe Wert, den der **erste Schritt** der Führung hat. Damit war „die Führung
+   steht auf Schritt 1" nicht von „die Führung lief nie" zu unterscheiden, und beide
+   Stellen, die genau das fragen, lagen falsch:
+     · `#fab-save` prüft `fuNr >= 0`, bevor es `fuehrungBeenden()` ruft,
+     · `fuehrungBeenden()` prüft dasselbe, bevor es die Einführung eine Karte weiterschaltet.
+   Folge: **nach jedem Speichern eines Fangs ging die Einführung auf** — bei jedem, der die
+   App frisch geöffnet hatte, denn beim Laden stand `fuNr` wieder auf 0. Gemeldet vom
+   Kollegen am 16.08.2026: „nach jedem Fang wird das Tutorial angezeigt."
+   ➡️ `fuehrungStarten()` setzt den Wert auf 0; nur dann läuft sie wirklich. */
+let fuNr = -1;
 
 function fuehrungLief(){
   try { return !!localStorage.getItem(FUEHRUNG_KEY); } catch { return false; }

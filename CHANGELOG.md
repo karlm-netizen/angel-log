@@ -6,6 +6,44 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 16.08.2026 (v55) — Die Einführung ging nach jedem Fang auf
+
+**Gemeldet vom Kollegen:** *„nach jedem Fang wird das Tutorial angezeigt."* Die erste
+Fehlermeldung, die aus der echten Benutzung kommt und nicht von Karl.
+
+**Die Ursache ist eine Zahl, die zwei Dinge gleichzeitig bedeutete.** `fuNr` merkt sich, bei
+welchem Schritt die Führung durch den ersten Fang steht, und stand beim Laden auf `0` — also
+auf demselben Wert wie **Schritt 1**. „Die Führung steht ganz am Anfang" und „die Führung lief
+nie" waren damit nicht zu unterscheiden. Zwei Stellen fragen aber genau das:
+
+- `#fab-save` prüft `fuNr >= 0`, bevor es die Führung beendet,
+- `fuehrungBeenden()` prüft dasselbe, bevor es die Einführung **eine Karte weiterschaltet**
+  (die Home-Karte, die seit v51 direkt hinter der Führung steht).
+
+➡️ **Folge: Wer die App öffnete und einen Fang speicherte, bekam die Einführung vorgesetzt** —
+und zwar nach jedem Neuladen wieder, weil `fuNr` dabei erneut auf `0` stand.
+
+- ✅ **`let fuNr = -1`** — „läuft nicht" hat jetzt einen eigenen Wert. `fuehrungStarten()` setzt
+  auf `0`; nur dann läuft sie wirklich. Beide Abfragen oben stimmen damit wieder.
+
+### ⚠️ Warum elf bestehende Prüfungen das nicht gesehen haben
+
+Es gab elf Prüfungen zur Führung, darunter vier eigene nur für ihre Ausgänge. **Alle rufen
+zuerst `fuehrungStarten()`.** Damit steht `fuNr` auf `0`, weil die Führung wirklich läuft — und
+der Fall, in dem sie *nicht* läuft, kam in keiner einzigen vor. Geprüft war der Sonderfall,
+nicht der Normalfall.
+
+- ✅ **Zwei Prüfungen dazu**, beide am kaputten Stand gegengeprüft und dort rot:
+  eine drückt den echten Speichern-Knopf mit dem Startwert **aus der Datei** und schlägt an,
+  wenn die Einführung weiterschaltet; die zweite liest den Startwert selbst.
+  ⚠️ **Die erste stand zwischenzeitlich falsch da** — sie setzte `fuNr = -1` selbst und war
+  damit am kaputten Stand grün: sie hat den richtigen Wert vorausgesetzt, um zu zeigen, dass
+  mit dem richtigen Wert alles stimmt. Erst die Gegenprobe hat das aufgedeckt.
+- 💡 **Der Beweis ist `tourNr`, nicht der sichtbare Zustand.** Die Einführung geht erst 260 ms
+  später auf; unmittelbar nach dem Klick sieht auch der kaputte Stand unauffällig aus.
+
+**659 Prüfungen grün** (von 657), 0 rot.
+
 ## 16.08.2026 (v54) — Gerade bei einer Blockade wird gefragt
 
 Karls Ansage: *„sie soll gerade wenn der nutzer es blockiert hat nochmal fragen."*
