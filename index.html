@@ -571,6 +571,13 @@ setTimeout(function(){
   .pupup .fenster h3{font-size:15.5px; margin:0 0 6px}
   .pupup .fenster p{font-size:13px; line-height:1.5; color:var(--muted); margin:0 0 12px}
   .pupup .knoepfe{display:flex; gap:8px; flex-wrap:wrap}
+  /* ⚠️ `[hidden]` muss hier NOCHMAL stehen. `display:flex` aus der Zeile darüber ist
+     spezifischer als das eingebaute `[hidden]{display:none}` und gewinnt sonst — dann
+     stehen beide Knopfreihen gleichzeitig im Fenster. Am 16.08.2026 genau so passiert.
+     ⚠️ Und die Prüfung war dabei grün: sie hat gemessen, in welchem Kasten der Ja-Knopf
+     steckt, nicht ob er zu sehen ist. Aufgefallen ist es erst beim Ansehen des Bildes.
+     Dieselbe Falle wie beim Fenster selbst, zwanzig Zeilen weiter oben. */
+  .pupup .knoepfe[hidden]{display:none}
   .pupup .knoepfe .btn{margin:0; width:auto; flex:1 1 auto; padding:9px 14px}
 
   /* Die rote Zahl — am Zahnrad oben und am Postfach-Knopf in den Einstellungen.
@@ -1294,16 +1301,36 @@ function splashWeg(){
      aria-labelledby="pf-titel">
   <div class="schatten" id="pf-schatten"></div>
   <div class="fenster">
-    <h3 id="pf-titel">Sollen wir dich benachrichtigen?</h3>
-    <!-- ⚠️ Dieser Absatz ist EIN Textknoten und muss einer bleiben. Der Sprach-Rundgang
-         sammelt Textknoten einzeln ein; ein <b> mittendrin zerlegte ihn in drei Stücke,
-         von denen keins mehr im Wörterbuch stünde — die englische App zeigte dort dann
-         stillschweigend Deutsch. Die Betonung steht deshalb als eigener Satz darunter. -->
-    <p>Sobald jemand auf deine Meldung antwortet, bekommst du eine Nachricht aufs Gerät — auch wenn die App zu ist. Sonst siehst du die Antwort erst, wenn du das nächste Mal ins Postfach schaust.</p>
+    <!-- ⚠️ Zwei Fassungen im Markup statt einer, die per JS umgeschrieben wird.
+         Der Sprach-Rundgang sammelt die festen Beschriftungen EINMAL beim Start ein;
+         was danach per textContent gesetzt wird, kennt er nicht und lässt es auf Deutsch
+         stehen. Zwei Blöcke zum Ein- und Ausblenden sind deshalb nicht umständlicher,
+         sondern der einzige Weg, der auf Englisch auch stimmt. -->
+    <div id="pf-fragen">
+      <h3 id="pf-titel">Sollen wir dich benachrichtigen?</h3>
+      <!-- ⚠️ Dieser Absatz ist EIN Textknoten und muss einer bleiben. Der Sprach-Rundgang
+           sammelt Textknoten einzeln ein; ein <b> mittendrin zerlegte ihn in drei Stücke,
+           von denen keins mehr im Wörterbuch stünde — die englische App zeigte dort dann
+           stillschweigend Deutsch. -->
+      <p>Sobald jemand auf deine Meldung antwortet, bekommst du eine Nachricht aufs Gerät — auch wenn die App zu ist. Sonst siehst du die Antwort erst, wenn du das nächste Mal ins Postfach schaust.</p>
+    </div>
+    <!-- Seit 16.08.2026 (Karls Ansage: „sie soll gerade wenn der nutzer es blockiert hat
+         nochmal fragen"). ⚠️ Hier steht bewusst KEIN „Ja"-Knopf: bei „blockiert" tut
+         Notification.requestPermission() nichts mehr, der Browser zeigt den Systemdialog
+         kein zweites Mal. Ein Knopf, der garantiert wirkungslos ist, wäre schlimmer als
+         keiner — deshalb der Weg statt des Knopfes. -->
+    <div id="pf-blockiert" hidden>
+      <h3 id="pf-titel-b">Benachrichtigungen sind blockiert</h3>
+      <p>Für diese Seite stehen sie auf „nicht erlauben". Das kann die App nicht selbst ändern, nur du im Browser: am Rechner auf das Zeichen links neben der Adresse tippen und Benachrichtigungen erlauben, am iPhone unter Einstellungen → Mitteilungen → Angel-Log.</p>
+    </div>
     <p class="tiny" style="margin:-6px 0 12px">Die Einstellung gilt nur für dieses Gerät.</p>
-    <div class="knoepfe">
+    <div class="knoepfe" id="pf-knoepfe-fragen">
       <button class="btn sm primary" id="pf-ja">🔔 Ja, benachrichtigen</button>
       <button class="btn sm" id="pf-nein">Nein danke</button>
+    </div>
+    <div class="knoepfe" id="pf-knoepfe-blockiert" hidden>
+      <button class="btn sm primary" id="pf-ok">Alles klar</button>
+      <button class="btn sm" id="pf-nie">Nicht mehr fragen</button>
     </div>
   </div>
 </div>
@@ -1885,6 +1912,16 @@ const EN = {
   '🔔 Ja, benachrichtigen': '🔔 Yes, notify me',
   'Nein danke': 'No thanks',
   'Die Einstellung gilt nur für dieses Gerät.': 'This setting applies to this device only.',
+  /* Die blockierte Fassung des Fensters (16.08.2026). */
+  'Benachrichtigungen sind blockiert': 'Notifications are blocked',
+  ['Für diese Seite stehen sie auf „nicht erlauben". Das kann die App nicht selbst ändern, '
+   + 'nur du im Browser: am Rechner auf das Zeichen links neben der Adresse tippen und '
+   + 'Benachrichtigungen erlauben, am iPhone unter Einstellungen → Mitteilungen → Angel-Log.']:
+    'They are set to "block" for this site. The app cannot change that itself — only you can, '
+    + 'in your browser: on a computer, tap the icon to the left of the address and allow '
+    + 'notifications; on an iPhone go to Settings → Notifications → Angel-Log.',
+  'Alles klar': 'Got it',
+  'Nicht mehr fragen': 'Stop asking',
   'Führung beenden': 'End walkthrough',
   'Alles klar': 'Got it',
   'Ersten Fang eintragen': 'Log your first catch',
@@ -3980,7 +4017,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v53';
+const FASSUNG = 'v54';
 
 const KONTO_KEY = 'angellog-konto';
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
@@ -5904,13 +5941,23 @@ const PUSH_GEFRAGT = 'angellog-push-gefragt';
    zur Erlaubnis sagt — dann misst die Prüfung die Umgebung des Prüflaufs und nicht die
    Regel. Fünf Gründe, die Frage nicht zu stellen; jeder einzelne würde sie zu einer
    Frage machen, auf die es keine brauchbare Antwort gibt. */
+/* Gibt bewusst DREI Werte zurück, seit dem 16.08.2026:
+   false = gar nicht fragen · 'fragen' = die normale Frage · 'blockiert' = der Weg zurück.
+
+   ⚠️ **Bis v53 war „blockiert" ein Grund zu schweigen.** Meine Überlegung: die App kann
+   eine abgelehnte Erlaubnis nicht mehr ändern, also sei eine Frage sinnlos. **Karls
+   Einwand am 16.08.: „sie soll gerade wenn der nutzer es blockiert hat nochmal fragen."**
+   Er hat recht, und der Fall vom selben Tag beweist es — er hat eine Meldung abgeschickt,
+   ein Fenster erwartet, nichts bekommen, und niemand hat gesagt warum. Genau die stille
+   Strecke, die diese Woche fünfmal zugeschlagen hat.
+   ➡️ Richtig ist: nicht die Frage weglassen, sondern die Antwort ändern. Statt eines
+   wirkungslosen „Ja"-Knopfes steht dort jetzt, wie man es im Browser wieder anschaltet. */
 function pushFrageNoetig(z){
   if (!z.moeglich)   return false;   // in Safari selbst gibt es keinen PushManager
   if (!z.konto)      return false;   // ohne Konto weiß niemand, wohin die Antwort geht
-  if (z.erlaubnis === 'denied') return false;   // kann die App nicht mehr ändern
-  if (z.gefragt)     return false;   // einmal Nein ist ein Nein
+  if (z.gefragt)     return false;   // einmal „Nein danke" ist ein Nein — auch hier
   if (z.angemeldet)  return false;   // läuft längst
-  return true;
+  return z.erlaubnis === 'denied' ? 'blockiert' : 'fragen';
 }
 
 async function pushFrageZeigen(){
@@ -5919,17 +5966,27 @@ async function pushFrageZeigen(){
   box.hidden = true;
   let gefragt = false;
   try { gefragt = !!localStorage.getItem(PUSH_GEFRAGT); } catch {}
-  box.hidden = !pushFrageNoetig({
+  const art = pushFrageNoetig({
     moeglich:   pushMoeglich(),
     konto:      cloudAn() && !!konto,
     erlaubnis:  pushMoeglich() ? Notification.permission : 'denied',
     gefragt,
     angemeldet: !!(await pushAnmeldungHolen())
   });
-  /* Seit dem 16.08.2026 ist das ein Fenster über der Seite. Wer eines aufmacht, muss
-     auch sagen, wohin der Finger als Nächstes gehört — sonst tippt man am iPhone
-     zuerst dorthin, wo eben noch das Formular war. */
-  if (!box.hidden){ try { $('#pf-ja').focus(); } catch {} }
+  box.hidden = !art;
+  if (!art) return;
+
+  /* Welche der beiden Fassungen im Fenster steht. */
+  const blockiert = art === 'blockiert';
+  $('#pf-fragen').hidden           = blockiert;
+  $('#pf-knoepfe-fragen').hidden   = blockiert;
+  $('#pf-blockiert').hidden        = !blockiert;
+  $('#pf-knoepfe-blockiert').hidden = !blockiert;
+  box.setAttribute('aria-labelledby', blockiert ? 'pf-titel-b' : 'pf-titel');
+
+  /* Wer ein Fenster aufmacht, muss auch sagen, wohin der Finger als Nächstes gehört —
+     sonst tippt man am iPhone zuerst dorthin, wo eben noch das Formular war. */
+  try { $(blockiert ? '#pf-ok' : '#pf-ja').focus(); } catch {}
 }
 
 /* ---- Das Fenster wieder zumachen, ohne zu entscheiden ----
@@ -5942,6 +5999,16 @@ function pushFrageWeg(){
   if (box) box.hidden = true;
 }
 $('#pf-schatten').onclick = pushFrageWeg;
+
+/* Die zwei Knöpfe der blockierten Fassung.
+   ⚠️ „Alles klar" setzt den Merker **nicht** — wer gleich in die Browser-Einstellungen
+   geht, soll beim nächsten Ticket sehen, ob es geklappt hat. Nur „Nicht mehr fragen"
+   macht Schluss, und zwar endgültig: es ist derselbe Merker wie bei „Nein danke". */
+$('#pf-ok').onclick  = pushFrageWeg;
+$('#pf-nie').onclick = () => {
+  pushFrageWeg();
+  try { localStorage.setItem(PUSH_GEFRAGT, String(Date.now())); } catch {}
+};
 document.addEventListener('keydown', e => {
   const box = $('#push-frage');
   if (e.key === 'Escape' && box && !box.hidden){ e.preventDefault(); pushFrageWeg(); }

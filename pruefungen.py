@@ -2990,20 +2990,34 @@ window.addEventListener('error', e => {
     const JA = { moeglich: true, konto: true, erlaubnis: 'default',
                  gefragt: false, angemeldet: false };
     t('nach einer Meldung wird gefragt', () =>
-      pushFrageNoetig(JA) === true || 'wird nicht gefragt');
+      pushFrageNoetig(JA) === 'fragen' || 'wird nicht gefragt');
     t('ohne Konto wird nicht gefragt', () =>
       pushFrageNoetig({ ...JA, konto: false }) === false || 'fragt trotzdem');
     t('wo es keine Benachrichtigungen gibt, wird nicht gefragt', () =>
       pushFrageNoetig({ ...JA, moeglich: false }) === false || 'fragt trotzdem');
-    /* ⚠️ Abgelehnt heisst am iPhone endgueltig -- die App kann das nie wieder aendern,
-       nur die Geraete-Einstellungen. Eine zweite Frage waere dort eine Frage ohne
-       jeden Ausgang. */
-    t('nach einer Ablehnung des Geraets wird nicht mehr gefragt', () =>
-      pushFrageNoetig({ ...JA, erlaubnis: 'denied' }) === false || 'fragt trotzdem');
+    /* ⚠️ **Umgedreht am 16.08.2026, auf Karls Ansage:** „sie soll gerade wenn der nutzer
+       es blockiert hat nochmal fragen." Vorher stand hier das Gegenteil, mit der
+       Begruendung, die App koenne eine Ablehnung ohnehin nicht mehr aendern. Das stimmt
+       -- und war trotzdem der falsche Schluss: statt zu schweigen zeigt sie jetzt den
+       Weg zurueck. Am selben Tag hat genau dieses Schweigen Karl eine halbe Stunde
+       Suche gekostet. */
+    t('gerade bei einer Blockade wird gefragt, aber anders', () =>
+      pushFrageNoetig({ ...JA, erlaubnis: 'denied' }) === 'blockiert' || 'schweigt weiter');
+    /* ⚠️ „Nein danke" und „Nicht mehr fragen" muessen AUCH die blockierte Fassung
+       beenden. Sonst kaeme sie bei jeder Meldung wieder, und aus dem Hinweis wuerde
+       die Plage, wegen der ich sie urspruenglich weggelassen hatte. */
     t('einmal Nein danke, und die Frage kommt nicht wieder', () =>
       pushFrageNoetig({ ...JA, gefragt: true }) === false || 'fragt trotzdem');
+    t('das gilt auch fuer die blockierte Fassung', () =>
+      pushFrageNoetig({ ...JA, erlaubnis: 'denied', gefragt: true }) === false
+      || 'die Blockade-Fassung laesst sich nicht abstellen');
     t('wer schon angemeldet ist, wird nicht gefragt', () =>
       pushFrageNoetig({ ...JA, angemeldet: true }) === false || 'fragt trotzdem');
+    /* Und wer angemeldet ist, bekommt auch bei „denied" nichts -- der Fall ist
+       widerspruechlich, aber er darf nicht in einer Meldung enden. */
+    t('angemeldet schlaegt blockiert', () =>
+      pushFrageNoetig({ ...JA, erlaubnis: 'denied', angemeldet: true }) === false
+      || 'fragt trotzdem');
 
     /* ⚠️ Der Kasten darf **nicht** im Meldeformular liegen: das wird beim Abschicken
        zugeklappt, und der Kasten ginge mit zu -- die Frage waere nie zu sehen. */
@@ -3075,6 +3089,75 @@ window.addEventListener('error', e => {
     t('Escape entscheidet auch nichts', () =>
       ohneMerker(() => document.dispatchEvent(
         new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))));
+    /* „Alles klar" ist Zurkenntnisnahme, keine Entscheidung: wer gleich in die
+       Browser-Einstellungen geht, soll beim naechsten Ticket sehen, ob es half. */
+    t('„Alles klar" entscheidet ebenfalls nichts', () =>
+      ohneMerker(() => document.getElementById('pf-ok').click()));
+
+    /* ==== Die blockierte Fassung (16.08.2026) ==== */
+    /* ⚠️ Diese Pruefung war am 16.08.2026 schon einmal gruen -- aus dem falschen Grund.
+       Sie hat gemessen, in WELCHEM Kasten der Ja-Knopf steckt, und dabei uebersehen,
+       dass beide Kaesten gleichzeitig zu sehen waren (`display:flex` schlug `[hidden]`).
+       Deshalb misst sie jetzt die SICHTBARKEIT, nicht die Verschachtelung. */
+    t('bei einer Blockade steht dort kein wirkungsloser Ja-Knopf', () => {
+      const box = document.getElementById('push-frage');
+      const sichtbar = el => getComputedStyle(el).display !== 'none';
+      box.hidden = false;
+      document.getElementById('pf-knoepfe-fragen').hidden = true;
+      document.getElementById('pf-knoepfe-blockiert').hidden = false;
+      try {
+        const klagen = [];
+        if (sichtbar(document.getElementById('pf-knoepfe-fragen')))
+          klagen.push('die Ja/Nein-Reihe ist trotzdem zu sehen');
+        if (!sichtbar(document.getElementById('pf-knoepfe-blockiert')))
+          klagen.push('die blockierte Reihe fehlt');
+        return klagen.length === 0 || klagen.join(', ');
+      } finally {
+        box.hidden = true;
+        document.getElementById('pf-knoepfe-fragen').hidden = false;
+        document.getElementById('pf-knoepfe-blockiert').hidden = true;
+      }
+    });
+    /* Und umgekehrt: im Normalfall darf die blockierte Reihe nicht mitlaufen. */
+    t('im Normalfall steht nur die Ja/Nein-Reihe da', () => {
+      const box = document.getElementById('push-frage');
+      const sichtbar = el => getComputedStyle(el).display !== 'none';
+      box.hidden = false;
+      try {
+        return !sichtbar(document.getElementById('pf-knoepfe-blockiert'))
+            || 'die blockierte Reihe laeuft mit';
+      } finally { box.hidden = true; }
+    });
+    t('und sie sagt, wo man es wieder anschaltet', () => {
+      const txt = document.getElementById('pf-blockiert').textContent;
+      return (/Browser/.test(txt) && /iPhone|Einstellungen/.test(txt))
+          || 'kein Weg zurueck genannt: ' + txt.slice(0, 120);
+    });
+    t('„Nicht mehr fragen" macht endgueltig Schluss', () => {
+      const alt = localStorage.getItem('angellog-push-gefragt');
+      localStorage.removeItem('angellog-push-gefragt');
+      try {
+        document.getElementById('pf-nie').click();
+        return (!!localStorage.getItem('angellog-push-gefragt')
+                && document.getElementById('push-frage').hidden)
+            || 'der Merker fehlt oder das Fenster bleibt stehen';
+      } finally {
+        if (alt === null) localStorage.removeItem('angellog-push-gefragt');
+        else localStorage.setItem('angellog-push-gefragt', alt);
+      }
+    });
+    /* ⚠️ Und die eine, die den Unterschied wirklich misst: bei „denied" darf
+       requestPermission() gar nicht erst gerufen werden. Der Browser zeigt den
+       Systemdialog nicht wieder -- ein Aufruf waere nur ein stiller Fehlschlag. */
+    ta('bei einer Blockade wird der Systemdialog nicht gerufen', async () => {
+      if (typeof Notification === 'undefined') return true;
+      const echt = Notification.requestPermission;
+      let gerufen = 0;
+      Notification.requestPermission = () => { gerufen++; return Promise.resolve('denied'); };
+      try { await pushFrageZeigen(); }
+      finally { Notification.requestPermission = echt; }
+      return gerufen === 0 || ('gerufen: ' + gerufen);
+    });
 
     t('„Nein danke" merkt sich das', () => {
       const alt = localStorage.getItem('angellog-push-gefragt');

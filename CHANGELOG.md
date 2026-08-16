@@ -6,6 +6,45 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 16.08.2026 (v54) — Gerade bei einer Blockade wird gefragt
+
+Karls Ansage: *„sie soll gerade wenn der nutzer es blockiert hat nochmal fragen."*
+
+**Bis v53 war „blockiert" ein Grund zu schweigen**, und die Begründung dafür war meine:
+die App kann eine abgelehnte Erlaubnis nicht mehr ändern, also sei eine Frage sinnlos.
+**Der Halbsatz stimmt, der Schluss war falsch.** Am selben Tag hat Karl eine Meldung
+abgeschickt, ein Fenster erwartet, nichts bekommen — und nichts hat gesagt, warum. Genau die
+stille Strecke, die diese Woche fünfmal zugeschlagen hat, nur diesmal selbst eingebaut.
+
+➡️ **Richtig ist nicht, die Frage wegzulassen, sondern die Antwort zu ändern.**
+
+- 🔔 **`pushFrageNoetig()` gibt jetzt drei Werte statt zwei:** `false`, `'fragen'`,
+  `'blockiert'`. Bei einer Blockade erscheint dasselbe Fenster mit anderem Inhalt.
+- ⚠️ **Dort steht bewusst KEIN „Ja"-Knopf.** Bei `denied` tut `Notification.requestPermission()`
+  nichts mehr — der Browser zeigt den Systemdialog kein zweites Mal. Ein Knopf, der garantiert
+  wirkungslos ist, wäre schlechter als keiner. Stattdessen steht dort der Weg zurück: am
+  Rechner das Zeichen links neben der Adresse, am iPhone Einstellungen → Mitteilungen.
+  Eine Prüfung stellt sicher, dass der Systemdialog dabei nicht doch gerufen wird.
+- ✅ **„Alles klar" entscheidet nichts** (wer gleich in die Einstellungen geht, soll beim
+  nächsten Ticket sehen, ob es half). **„Nicht mehr fragen" macht Schluss** — derselbe Merker
+  wie „Nein danke", damit aus dem Hinweis keine Plage wird.
+- ✅ Angemeldet schlägt blockiert: wer Push schon laufen hat, bekommt gar nichts.
+
+### 🔴 Und das Rendern hat einen Fehler gefunden, den die Prüfung nicht sah
+
+**Beide Knopfreihen standen gleichzeitig im Fenster.** `.pupup .knoepfe{display:flex}` ist
+spezifischer als das eingebaute `[hidden]{display:none}` und gewinnt — dieselbe Falle, die
+zwanzig Zeilen weiter oben beim Fenster selbst schon abgefangen war.
+
+⚠️ **Die Prüfung dazu war grün, und zwar aus dem falschen Grund:** sie hat gemessen, in
+*welchem Kasten* der Ja-Knopf steckt, nicht ob er *zu sehen* ist. Aufgefallen ist es erst
+beim Ansehen des gerenderten Bildes. **Sie misst jetzt `getComputedStyle().display`**, und
+eine zweite prüft die Gegenrichtung.
+💡 Das ist der zweite Fund an einem Tag, der nur daher kam, dass jemand hingesehen hat statt
+auf „grün" zu vertrauen — der erste war die UTC-Verschiebung um 00:50.
+
+**657 Prüfungen grün** (von 649), 0 rot.
+
 ## 16.08.2026 (v53) — Die Frage nach der Benachrichtigung ist jetzt ein Fenster
 
 Karls Ansage: *„ich möchte wenn ich ein problem abschicke ein pop up ob die benachrichtungen
