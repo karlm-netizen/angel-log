@@ -6,6 +6,44 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 16.08.2026 (v53) — Die Frage nach der Benachrichtigung ist jetzt ein Fenster
+
+Karls Ansage: *„ich möchte wenn ich ein problem abschicke ein pop up ob die benachrichtungen
+aktiviert werden soll, natürlich nicht wenn sie schon aktiviert sind"* — und nachgeschoben:
+*„ich will ein kleines fenster ferstehst du pop up."*
+
+⚠️ **Die Frage gab es seit v50 schon** — sie war nur ein `.card` mitten in den Einstellungen.
+Sachlich richtig einsortiert und trotzdem übersehen: dort stehen sechs Kästen untereinander,
+und der siebte sieht aus wie der sechste. **Das ist der Unterschied zwischen „steht da" und
+„wird gelesen".**
+
+- 🪟 **Jetzt ein kleines Fenster über der Seite**, mit abgedunkeltem Hintergrund und zwei
+  Knöpfen. `position:fixed`, zentriert, max. 340 px breit.
+  ⚠️ **z-index 2600 — über der Führung (2400), aber unter Anmeldung (3000) und Einführung
+  (3200).** Andersherum läge es über einem Anmeldedialog, den es voraussetzt: ohne Konto wird
+  die Frage gar nicht erst gestellt.
+- ✅ **Wegtippen ist keine Antwort.** Ein Tipp neben das Fenster und die Escape-Taste machen es
+  zu, setzen den Merker aber **nicht**. „Ja" und „Nein danke" sind Antworten, Wegtippen ist
+  keine — sonst hieße „schau ich mir später an" stillschweigend „nein, nie".
+  💡 Das nervt auch nicht: die Frage taucht nur nach dem Abschicken einer Meldung auf.
+- ✅ **„Die Einstellung gilt nur für dieses Gerät."** steht jetzt im Fenster.
+  ⚠️ **Das war schon immer so, es stand nur nirgends.** Der Merker liegt im `localStorage`,
+  und ob Push läuft, liest die App aus `pushManager.getSubscription()` des Browsers — beides
+  ist von Natur aus gerätegebunden. **Keine einzige Einstellung der App wird in die Cloud
+  gesynct** (nachgesehen: 18 `angellog-*`-Schlüssel, alle nur lokal). Hier wurde also nichts
+  umgebaut, sondern hingeschrieben, was gilt.
+- ⚠️ **Nicht gefragt wird weiterhin, wenn** Push schon läuft, das Gerät es nicht kann, die
+  Erlaubnis abgelehnt wurde, kein Konto da ist oder schon einmal gefragt wurde. Diese fünf
+  Regeln stehen unverändert in `pushFrageNoetig()` und sind einzeln geprüft.
+- ⚠️ **Der Absatz im Fenster ist bewusst EIN Textknoten geblieben.** Ein `<b>dieses Gerät</b>`
+  mittendrin hätte ihn in drei Stücke zerlegt, von denen keins mehr im Wörterbuch stünde — die
+  englische App zeigte dort dann stillschweigend Deutsch. Die Betonung steht deshalb als
+  eigener Satz darunter.
+
+**649 Prüfungen grün** (von 644), 0 rot. Dazu einmal headless gerendert und angesehen — bei
+einem Fenster, das jemand sehen soll, ist „die Prüfung ist grün" nicht dasselbe wie „es sieht
+richtig aus".
+
 ## 16.08.2026 (v52) — Luftfeuchtigkeit, Melder im Ticket, doppelte Namen
 
 Drei Ansagen von Karl. **Die erste kam nicht von ihm** — sein Kollege hat sie über das

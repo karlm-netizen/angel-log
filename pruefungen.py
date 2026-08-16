@@ -3033,6 +3033,49 @@ window.addEventListener('error', e => {
       finally { Notification.requestPermission = echt; }
       return gerufen === 0 || ('der Systemdialog kam ' + gerufen + '-mal von allein');
     });
+    /* ==== Das kleine Fenster (16.08.2026, Karls Ansage) ====
+       „ich will ein kleines fenster ferstehst du pop up." Bis dahin war es ein `.card`
+       mitten in den Einstellungen -- richtig einsortiert und trotzdem uebersehen. */
+    t('die Frage ist ein Fenster ueber der Seite, kein Kasten darin', () => {
+      const s = getComputedStyle(document.getElementById('push-frage'));
+      return (s.position === 'fixed' && s.zIndex !== 'auto' && Number(s.zIndex) > 1000)
+          || ('position: ' + s.position + ', z-index: ' + s.zIndex);
+    });
+    /* ⚠️ Und zwar UNTER der Anmeldung. Andersherum laege die Frage ueber einem Dialog,
+       den sie voraussetzt -- ohne Konto wird sie gar nicht erst gestellt. */
+    t('das Fenster liegt unter der Anmeldung, nicht darueber', () => {
+      const f = Number(getComputedStyle(document.getElementById('push-frage')).zIndex);
+      const g = Number(getComputedStyle(document.querySelector('.gate')).zIndex);
+      return f < g || ('Fenster ' + f + ' vs. Anmeldung ' + g);
+    });
+    t('es sagt, dass die Einstellung nur fuer dieses Geraet gilt', () =>
+      /nur für dieses Gerät|this device only/.test(
+        document.getElementById('push-frage').textContent) || 'steht nicht dabei');
+    /* ⚠️ Wegtippen ist KEINE Antwort. Ein Tipp neben das Fenster und Escape machen es
+       zu, setzen aber den Merker nicht -- sonst hiesse „ich schau es mir spaeter an"
+       stillschweigend „nein, nie". */
+    const ohneMerker = (tun) => {
+      const alt = localStorage.getItem('angellog-push-gefragt');
+      localStorage.removeItem('angellog-push-gefragt');
+      const box = document.getElementById('push-frage');
+      box.hidden = false;
+      try {
+        tun();
+        if (!box.hidden) return 'das Fenster bleibt stehen';
+        return !localStorage.getItem('angellog-push-gefragt')
+            || 'der Merker wurde gesetzt, obwohl nichts entschieden wurde';
+      } finally {
+        box.hidden = true;
+        if (alt === null) localStorage.removeItem('angellog-push-gefragt');
+        else localStorage.setItem('angellog-push-gefragt', alt);
+      }
+    };
+    t('ein Tipp neben das Fenster entscheidet nichts', () =>
+      ohneMerker(() => document.getElementById('pf-schatten').click()));
+    t('Escape entscheidet auch nichts', () =>
+      ohneMerker(() => document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))));
+
     t('„Nein danke" merkt sich das', () => {
       const alt = localStorage.getItem('angellog-push-gefragt');
       localStorage.removeItem('angellog-push-gefragt');
