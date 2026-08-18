@@ -585,31 +585,44 @@ as $$
   );
 $$;
 
--- Welche E-Mail gehoert zu diesem Namen? Wird beim Anmelden gebraucht.
+-- 🔒 email_fuer_username() — ENTFERNT am 18.08.2026 (App-Fassung v56).
 --
--- ⚠️ Das ist bewusst oeffentlich aufrufbar und muss es auch sein — gefragt
---    wird, BEVOR jemand angemeldet ist. Die Folge: wer einen Benutzernamen
---    kennt oder errraet, erfaehrt die zugehoerige E-Mail-Adresse. Das ist der
---    Preis fuer "Anmelden mit Benutzername" und bei Supabase der uebliche Weg
---    (Gym-Log macht es genauso). Fuer eine App mit einer Handvoll bekannter
---    Leute vertretbar; wuerde sie oeffentlich beworben, gehoerte das neu
---    bewertet — dann lieber nur E-Mail-Anmeldung.
-create or replace function public.email_fuer_username(uname text)
-returns text
-language sql
-security definer
-set search_path = public, auth
-as $$
-  select u.email
-    from auth.users u
-    join public.profil p on p.id = u.id
-   where p.username = lower(trim(uname));
-$$;
+-- Hier stand eine Funktion, die zu einem Benutzernamen die E-Mail-Adresse
+-- zurueckgab. Sie war fuer `anon` freigegeben und musste es sein: gefragt wurde,
+-- BEVOR jemand angemeldet ist. Der Kommentar an dieser Stelle lautete:
+--
+--   "Fuer eine App mit einer Handvoll bekannter Leute vertretbar; wuerde sie
+--    oeffentlich beworben, gehoerte das neu bewertet — dann lieber nur
+--    E-Mail-Anmeldung."
+--
+-- 📣 Genau das ist am 18.08.2026 eingetreten: Karl hat dem Kollegen erlaubt,
+--    die App auf Instagram zu bewerben. Wer einen Benutzernamen kennt oder erraet,
+--    haette damit die zugehoerige E-Mail-Adresse abfragen koennen — und bei einer
+--    oeffentlich beworbenen Adresse sind Benutzernamen leicht zu erraten, weil
+--    Leute ihren Instagram-Handle nehmen.
+--
+-- ⚖️ Ehrlich zur Groessenordnung: an die Faenge kam dadurch nie jemand, dafuer
+--    sorgt RLS. Es ging allein um die E-Mail-Adresse. Der Grund fuer das Zumachen
+--    ist trotzdem gut: es ist die einzige Sache an dieser App, die sich hinterher
+--    nicht reparieren laesst — herausgegebene Adressen holt man nicht zurueck.
+--
+-- ✅ Was stattdessen gilt: angemeldet wird nur noch mit E-Mail (`anmelden()` in
+--    index.html). Der Benutzername bleibt Anzeigename — im Ticket, im Profil.
+--    Damit die Umstellung nichts kostet, merkt sich die App die zuletzt benutzte
+--    Adresse geraeteintern und schreibt sie beim naechsten Mal ins Feld.
+--
+-- ⚠️ `username_frei()` bleibt oeffentlich und MUSS es bleiben — die Registrierung
+--    fragt damit, ob ein Name noch frei ist. Ob es einen Namen gibt, ist also
+--    weiterhin abfragbar; nur die E-Mail dahinter nicht mehr. Wer das auch noch
+--    zumachen will, muesste die Registrierung selbst umbauen.
+--
+-- ⚠️ Das `drop` steht hier bewusst statt eines blossen `revoke`. Diese Datei
+--    wird von Hand im SQL-Editor ausgefuehrt, teils mehrfach: bliebe die Funktion
+--    samt `grant` stehen, waere sie beim naechsten Durchlauf wieder offen.
+drop function if exists public.email_fuer_username(text);
 
-revoke all on function public.username_frei(text)        from public;
-revoke all on function public.email_fuer_username(text)  from public;
-grant execute on function public.username_frei(text)       to anon, authenticated;
-grant execute on function public.email_fuer_username(text) to anon, authenticated;
+revoke all on function public.username_frei(text) from public;
+grant execute on function public.username_frei(text) to anon, authenticated;
 
 -- ---------------------------------------------------------------------
 --  6. Noch von Hand im Dashboard (nicht per SQL):

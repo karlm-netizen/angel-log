@@ -6,6 +6,87 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 18.08.2026 (v56) — Angemeldet wird nur noch mit E-Mail
+
+**Der Anlass ist keine Fehlermeldung, sondern eine Erlaubnis.** Karl hat seinem Kollegen an
+diesem Tag gesagt, dass er die App auf Instagram bewerben darf. Passiert ist noch nichts —
+aber der Zeitpunkt liegt damit nicht mehr bei Karl, und eine Sache musste vorher zu sein.
+
+### 🔒 `email_fuer_username()` ist entfernt
+
+Bis v55 ging Anmelden mit **E-Mail oder Benutzername**. Stand kein `@` in der Eingabe, holte
+die App über eine Datenbank-Funktion erst die zugehörige Adresse. Diese Funktion war für
+`anon` freigegeben und **musste** es sein — gefragt wird, bevor jemand angemeldet ist.
+
+**Die Folge: wer einen Benutzernamen kannte oder erriet, bekam die E-Mail dazu.** Der Kommentar
+über der Funktion hatte genau diesen Tag vorgesehen:
+
+> *„Für eine App mit einer Handvoll bekannter Leute vertretbar; würde sie öffentlich beworben,
+> gehörte das neu bewertet — dann lieber nur E-Mail-Anmeldung."*
+
+⚖️ **Ehrlich zur Größenordnung:** an die Fänge kam dadurch nie jemand, dafür sorgt RLS. Es ging
+allein um die E-Mail-Adresse. Der Grund fürs Zumachen ist trotzdem gut — **es ist die einzige
+Sache an dieser App, die sich hinterher nicht reparieren lässt.** Herausgegebene Adressen holt
+man nicht zurück, und man erfährt nicht einmal, dass es passiert ist.
+
+⚠️ **Was NICHT gewonnen ist:** `username_frei()` bleibt öffentlich und muss es bleiben — die
+Registrierung fragt damit. **Ob es einen Namen gibt, ist weiterhin abfragbar**, nur die E-Mail
+dahinter nicht mehr.
+
+- **Registrieren** bleibt unverändert: Benutzername + E-Mail + Passwort.
+- **Anmelden** geht nur noch mit E-Mail. Der Benutzername bleibt **Anzeigename** — im Ticket,
+  im Profil.
+- Wer seinen Namen eintippt, bekommt eine **eigene Meldung** („Zum Anmelden brauchst du deine
+  E-Mail-Adresse, nicht deinen Benutzernamen.") statt „Anmelden hat nicht geklappt" — sonst
+  hielte er sein Passwort für falsch.
+- Das Feld ist jetzt ein echtes E-Mail-Feld (`type`, `inputmode`, `autocomplete`). Am Handy
+  kommt damit die Tastatur mit `@`.
+- Die allgemeine `rpc()`-Hilfsfunktion ist mit entfernt — sie hatte keinen Aufrufer mehr und
+  war der bequeme Weg zurück zu genau der Funktion, die zu sein soll.
+- ⚠️ **`supabase.sql` muss von Hand ausgeführt werden.** Ein `git push` liefert die Datenbank
+  nicht mit aus — bis dahin ist die Funktion dort weiter offen, auch wenn die App sie nicht
+  mehr ruft. Es steht ein `drop function` in der Datei, kein bloßes `revoke`: die Datei wird
+  mehrfach ausgeführt, und ein stehengebliebener `grant` hätte sie wieder geöffnet.
+
+### 💡 Und die Bequemlichkeit kommt an anderer Stelle zurück
+
+**Karls Ansage:** *„wenn man sich schonmal an dem gerät angemeldet hat soll die alte email schon
+fertig drinne stehn bei anmelden."*
+
+Die zuletzt an diesem Gerät benutzte Adresse steht beim nächsten Anmelden im Feld.
+
+- Sie liegt in einem **eigenen** Speicherschlüssel, nicht im Konto: `kontoSchreiben(null)` räumt
+  beim Abmelden das ganze Konto weg — und genau danach soll sie ja noch dastehen. **Sie überlebt
+  das Abmelden** und stirbt nur mit „Konto löschen".
+- **Beim Registrieren bleibt das Feld leer.** Dort wäre es die Adresse eines anderen Kontos,
+  und das fällt beim Tippen niemandem auf.
+- **Kein automatischer Sprung ins Passwortfeld** — am Handy spränge sonst beim Öffnen der App
+  die Tastatur auf, bevor jemand etwas tun wollte.
+- Sie verlässt das Gerät nicht (reiner `localStorage`), steht deshalb auch nicht in der
+  Datenschutzerklärung bei den Wegen nach außen.
+
+### 🔎 Zwei Funde am Prüfrahmen, die nichts mit der Anmeldung zu tun haben
+
+**1. Eine Prüfung war jeden Abend rot, ohne dass jemand etwas geändert hatte.**
+*„das beste Fenster ist drei zusammenhängende Stunden"* lief gegen die **echte Uhrzeit**. Ab
+etwa 21:00 bleiben für heute keine drei Stunden mehr übrig, `bestesFenster()` gibt dann
+richtigerweise kein Fenster zurück — und die Prüfung meldete „kein Fenster gefunden".
+Am 16.08. lief der Prüflauf um 19:55 und war grün, am 18.08. um 23:04 und war rot.
+**Gemessen hat sie die Tageszeit, nicht den Code.** Die Uhr wird jetzt festgehalten, und der
+Fall selbst steht als eigene Prüfung daneben (*„spät abends wird kein Fenster mehr behauptet"*).
+⚠️ **Der Fehler war schon in v55** — an v55 nachgeprüft, nicht angenommen.
+
+**2. Eine neue Prüfung war selbst wertlos — zum zweiten Mal in drei Tagen.**
+Die Gegenprobe *„eine E-Mail kommt weiterhin durch"* suchte nach `/E-Mail-Adresse brauchst/`.
+Die Meldung lautet aber *„brauchst du deine E-Mail-Adresse"*, also andersherum. Der Suchtext
+traf nie, die Verneinung war immer wahr, **die Prüfung immer grün.** Aufgefallen ist das nur,
+weil sie gegen einen absichtlich kaputten Stand laufen gelassen wurde — dort blieb sie grün.
+💡 **Die Regel vom 16.08. hat sich damit zum zweiten Mal bezahlt gemacht: eine neue Prüfung
+muss einmal rot gewesen sein.**
+
+**668 Prüfungen grün** (von 659), 0 rot. Die neuen sind gegen v55 und gegen zwei absichtlich
+kaputte Fassungen laufen gelassen worden und waren dort rot.
+
 ## 16.08.2026 (v55) — Die Einführung ging nach jedem Fang auf
 
 **Gemeldet vom Kollegen:** *„nach jedem Fang wird das Tutorial angezeigt."* Die erste

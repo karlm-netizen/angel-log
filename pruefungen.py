@@ -1968,9 +1968,24 @@ window.addEventListener('error', e => {
     konto = null; gateModus = 'login'; gateZeigen();
     return (!document.querySelector('#g-name')) || 'Namensfeld beim Anmelden';
   });
-  t('Beim Anmelden geht E-Mail ODER Name', () =>
-    /E-Mail oder Benutzername/.test(document.querySelector('#g-mail').placeholder)
-      || document.querySelector('#g-mail').placeholder);
+  /* ==== Anmelden nur noch mit E-Mail (v56, 18.08.2026) ====
+     Bis v55 ging beides. Der Umweg ueber den Namen brauchte `email_fuer_username()`,
+     und die war fuer `anon` offen -- wer einen Namen erriet, bekam die E-Mail dazu.
+     Seit Karl dem Kollegen erlaubt hat, die App auf Instagram zu bewerben, ist das
+     nicht mehr vertretbar. Die Funktion ist aus supabase.sql entfernt. */
+  t('Beim Anmelden fragt das Feld nach der E-Mail', () => {
+    const f = document.querySelector('#g-mail');
+    return /^E-Mail$/.test(f.placeholder) || `Platzhalter "${f.placeholder}"`;
+  });
+  t('Das Anmeldefeld ist ein echtes E-Mail-Feld', () => {
+    /* ⚠️ Bis v55 stand hier beim Anmelden type=text und inputmode=text, damit auch
+       ein Name hineinpasste. Am Handy bekommt man dann die normale Tastatur ohne @
+       -- fuer ein Feld, in das ab jetzt nur noch eine Adresse gehoert. */
+    const f = document.querySelector('#g-mail');
+    return (f.type === 'email' && f.getAttribute('inputmode') === 'email'
+            && f.getAttribute('autocomplete') === 'email')
+        || `type=${f.type} inputmode=${f.getAttribute('inputmode')} autocomplete=${f.getAttribute('autocomplete')}`;
+  });
   t('Beim Registrieren gibt es ein Namensfeld', () => {
     gateModus = 'reg'; renderGate();
     return !!document.querySelector('#g-name') || 'fehlt';
@@ -1985,11 +2000,82 @@ window.addEventListener('error', e => {
   t('Leerer Name wird abgelehnt',     () => !!namePruefen('') || 'durchgelassen');
   t('Umlaute werden abgelehnt',       () => !!namePruefen('köder') || 'durchgelassen');
   t('Leerzeichen werden abgelehnt',   () => !!namePruefen('karl meyer') || 'durchgelassen');
-  // ⚠️ Am @ wird beim Anmelden unterschieden, ob es eine E-Mail oder ein Name ist.
+  /* ⚠️ Das @-Verbot bleibt, sein Grund hat sich mit v56 nur verschoben. Frueher
+     wurde am @ unterschieden, ob die Eingabe eine E-Mail oder ein Name ist. Heute
+     ist Anmelden ohnehin nur mit E-Mail -- aber ein Anzeigename, der aussieht wie
+     eine Adresse, ist im Ticket und im Profil irrefuehrend. */
   t('@ im Namen wird abgelehnt', () => /@/.test(namePruefen('karl@mail.de') || '') || 'durchgelassen');
   t('Normale Namen gehen durch', () =>
     (['karl','angler_42','max.mustermann','a-b-c'].every(n => namePruefen(n) === null)) || 'einer abgelehnt');
   t('Gross geschrieben ist derselbe Name', () => namePruefen('KARL') === null || namePruefen('KARL'));
+
+  /* ==== Der Umweg ueber den Namen ist zu (v56) ==== */
+  /* ⚠️ `ta` statt `t` -- diese beiden sind async. `t()` ruft die Funktion synchron auf
+     und bekaeme ein Promise zurueck, das nie `true` ist: die Pruefung waere dauerhaft
+     rot mit "[object Promise]". Genau so ist sie beim ersten Lauf am 18.08. gescheitert. */
+  ta('Anmelden mit dem Benutzernamen sagt, was zu tun ist', async () => {
+    /* ⚠️ Der Wurf kommt VOR dem fetch -- diese Pruefung braucht kein Netz.
+       Und sie prueft mehr als das Ablehnen: wer bis gestern seinen Namen eingetippt
+       hat, bekaeme ohne eigene Meldung "Anmelden hat nicht geklappt" und hielte sein
+       Passwort fuer falsch. Genau die Sorte stiller Strecke, die diese Woche
+       siebenmal zugeschlagen hat. */
+    try { await anmelden('karl', 'irgendwas'); return 'durchgelassen'; }
+    catch (e){ return /E-Mail-Adresse/.test(e.message || '') || `Meldung: "${e.message}"`; }
+  });
+  ta('Eine E-Mail kommt weiterhin durch die Eingangspruefung', async () => {
+    /* Gegenprobe zur Pruefung darueber: sie darf nicht einfach alles ablehnen, sonst
+       waere "kein Anmelden mit Namen" auch dann gruen, wenn gar nichts mehr geht.
+       ⚠️ `fetch` wird dabei ersetzt -- eine Pruefung, die ins echte Netz greift, ist
+       vom Netz abhaengig und faellt irgendwann grundlos aus. */
+    /* ⚠️ Der Suchtext hier stand zuerst als /E-Mail-Adresse brauchst/ da -- und traf
+       die Meldung nie, weil sie "brauchst du deine E-Mail-Adresse" lautet, also
+       andersherum. Die Verneinung war damit immer wahr und die Pruefung IMMER gruen.
+       Aufgefallen ist das nur, weil sie gegen einen absichtlich kaputten Stand
+       (anmelden() lehnt alles ab) laufen gelassen wurde und dort gruen blieb.
+       **Zweiter Fall dieser Sorte in drei Tagen** -- der erste war am 16.08. bei den
+       Fuehrungs-Pruefungen. Die Regel dahinter: eine neue Pruefung muss einmal rot
+       gewesen sein, sonst weiss niemand, ob sie etwas misst. */
+    const echt = window.fetch;
+    window.fetch = async () => ({ ok: false, json: async () => ({ error_description: 'Attrappe' }) });
+    try { await anmelden('gibtsnicht@example.org', 'irgendwas'); return 'durchgelassen'; }
+    catch (e){ return !/nicht deinen Benutzernamen/.test(e.message || '') || 'schon am @ gescheitert'; }
+    finally { window.fetch = echt; }
+  });
+
+  /* ==== Die zuletzt benutzte Adresse steht schon da (Karls Ansage 18.08.2026) ==== */
+  t('Die zuletzt benutzte E-Mail steht beim Anmelden im Feld', () => {
+    letzteMailMerken('karl@example.org');
+    konto = null; gateModus = 'login'; gateZeigen();
+    const v = document.querySelector('#g-mail').value;
+    return v === 'karl@example.org' || `Feld enthaelt "${v}"`;
+  });
+  t('Beim Registrieren bleibt das Feld leer', () => {
+    /* ⚠️ Sonst stuende dort die Adresse eines ANDEREN Kontos, und zwar in dem
+       Moment, in dem jemand ein neues anlegt. Das faellt beim Tippen nicht auf. */
+    gateModus = 'reg'; renderGate();
+    const v = document.querySelector('#g-mail').value;
+    return v === '' || `Feld enthaelt "${v}"`;
+  });
+  t('Anmelden merkt sich die Adresse', () => {
+    letzteMailMerken(null);
+    kontoSchreiben({ access_token: 'x', email: 'neu@example.org', seit: Date.now() });
+    const g = letzteMailLesen();
+    kontoSchreiben(null);
+    return g === 'neu@example.org' || `gemerkt: "${g}"`;
+  });
+  t('Abmelden loescht die gemerkte Adresse NICHT', () => {
+    /* ⚠️ Das ist der ganze Zweck der Sache. `kontoSchreiben(null)` raeumt beim
+       Abmelden das Konto weg -- genau danach soll die Adresse noch dastehen.
+       Ein `else`-Zweig in kontoSchreiben() waere hier der Fehler. */
+    letzteMailMerken('karl@example.org');
+    kontoSchreiben(null);
+    return letzteMailLesen() === 'karl@example.org' || `gemerkt: "${letzteMailLesen()}"`;
+  });
+  // Aufraeumen, damit nachfolgende Pruefungen einen sauberen Stand vorfinden.
+  t('Aufraeumen nach den Anmelde-Pruefungen', () => {
+    letzteMailMerken(null); konto = null;
+    return letzteMailLesen() === '' || letzteMailLesen();
+  });
 
   /* ==== Doppelte Benutzernamen (16.08.2026, Karls Ansage) ====
      ⚠️ Was hier festgehalten wird, ist NICHT eine fehlende Sperre -- `unique` steht
@@ -4403,7 +4489,27 @@ window.addEventListener('error', e => {
       return (nah(6, 7) && nah(6, 5) && !nah(6, 9) && nah(23, 0))
           || 'Fenster stimmt nicht (auch ueber Mitternacht pruefen)';
     });
-    t('das beste Fenster ist drei zusammenhaengende Stunden', () => {
+    /* ⚠️ Die Uhr wird festgehalten, und das ist der ganze Punkt dieser Pruefung.
+       Bis zum 18.08.2026 lief sie gegen die echte Uhrzeit -- und war damit **jeden
+       Abend ab etwa 21:00 rot**, ohne dass jemand etwas geaendert hatte: fuer heute
+       bleiben dann keine drei Stunden mehr uebrig, `bestesFenster` gibt richtigerweise
+       kein Fenster zurueck, und die Pruefung meldete "kein Fenster gefunden".
+       Am 16.08. lief der Prueflauf um 19:55 und war gruen, am 18.08. um 23:04 und war
+       rot. **Gemessen hat sie die Tageszeit, nicht den Code.**
+       Der Fall selbst ist richtiges Verhalten und steht jetzt als eigene Pruefung
+       darunter, statt diese hier zufaellig umzufaerben. */
+    const mitUhr = (stunde, fn) => {
+      const echteDate = Date;
+      const t = new echteDate(); t.setHours(stunde, 0, 0, 0);
+      const fest = t.getTime();
+      // eslint-disable-next-line no-global-assign
+      Date = class extends echteDate {
+        constructor(...a){ super(...(a.length ? a : [fest])); }
+        static now(){ return fest; }
+      };
+      try { return fn(); } finally { Date = echteDate; }
+    };
+    t('das beste Fenster ist drei zusammenhaengende Stunden', () => mitUhr(8, () => {
       const v = vorhersageBauen();
       const m = prognoseModell(faengeBauen(20));
       const heute = v.hourly.time[2].slice(0, 10);
@@ -4411,7 +4517,18 @@ window.addEventListener('error', e => {
       if (!b || !b.von) return 'kein Fenster gefunden';
       const spanne = new Date(b.bis).getTime() - new Date(b.von).getTime();
       return spanne === 2 * 3600e3 || 'Spanne: ' + (spanne / 3600e3) + ' h';
-    });
+    }));
+    t('spaet abends wird kein Fenster mehr behauptet', () => mitUhr(23, () => {
+      /* Genau die Lage, die die Pruefung darueber jahrelang zufaellig getroffen hat:
+         um 23 Uhr ist von heute noch eine Stunde uebrig. Ein Drei-Stunden-Fenster
+         waere dann erfunden -- die App darf hoechstens die eine Stunde zurueckgeben,
+         aber kein `von`/`bis` ueber einen Zeitraum, den es nicht mehr gibt. */
+      const v = vorhersageBauen();
+      const m = prognoseModell(faengeBauen(20));
+      const heute = v.hourly.time[2].slice(0, 10);
+      const b = bestesFenster(m, v, heute);
+      return (!b || !b.von) || 'behauptet ein Fenster ' + b.von + ' bis ' + b.bis;
+    }));
 
     /* ---- Die Ansicht ---- */
     const homeBauen = async (faenge, vAendern) => {
@@ -5352,6 +5469,33 @@ if mf.group(1) != mc.group(1):
     sys.exit(f'FASSUNG sagt {mf.group(1)}, der Service-Worker-Cache heisst '
              f'angellog-{mc.group(1)} — eine Fehlermeldung nennte dann die falsche Fassung.')
 print(f'Fassung: index.html und Service Worker stehen beide auf {mf.group(1)}.')
+
+# 🔒 email_fuer_username() ist am 18.08.2026 aus supabase.sql entfernt worden, weil die
+# App oeffentlich beworben wird. Bliebe irgendwo ein Aufruf stehen, faellt das im Browser
+# NICHT auf: die Anfrage liefe ins Leere und gaebe null zurueck -- die Anmeldung sagte
+# dann "gibt es nicht", und niemand kaeme auf die Datenbank. Deshalb hier statisch.
+# ⚠️ Gesucht wird nach ECHTER Benutzung, nicht nach dem blossen Wort. Der Name steht
+# an beiden Stellen absichtlich noch in Kommentaren -- dort erklaert er, warum es die
+# Funktion nicht mehr gibt. Ein Filter ueber Kommentarzeichen faellt darauf herein
+# (in einem /* */-Block faengt nicht jede Zeile mit * an); deshalb die Aufrufmuster.
+sql_roh = (SRC / 'supabase.sql').read_text(encoding='utf-8')
+verboten = [
+    ('index.html',   html_roh, ["rpc/email_fuer_username",
+                                "'email_fuer_username'", '"email_fuer_username"']),
+    ('supabase.sql', sql_roh,  ["create or replace function public.email_fuer_username",
+                                "create function public.email_fuer_username",
+                                "grant execute on function public.email_fuer_username"]),
+]
+for datei, roh, muster in verboten:
+    treffer = [m for m in muster if m in roh.lower()]
+    if treffer:
+        sys.exit(f'email_fuer_username lebt in {datei} noch: {treffer[0]!r} — die Funktion '
+                 'ist am 18.08.2026 entfernt worden, weil die App beworben wird.')
+if 'drop function if exists public.email_fuer_username' not in sql_roh.lower():
+    sys.exit('In supabase.sql fehlt das `drop function` fuer email_fuer_username. Ohne das '
+             'bleibt eine bestehende Datenbank offen, auch wenn die App sie nicht mehr ruft.')
+print('Sicherheit: email_fuer_username wird nirgends mehr aufgerufen und wird beim '
+      'naechsten SQL-Durchlauf entfernt.')
 
 # ⚠️ Die Wetterwerte muessen an ZWEI Stellen zusammenpassen: in der Anfrage an
 # Open-Meteo und beim Zeichnen. Die Pruefungen im Browser bauen sich ihre Vorhersage

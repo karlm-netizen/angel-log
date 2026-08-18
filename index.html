@@ -2021,23 +2021,21 @@ const EN = {
   'Nicht angemeldet — es wird gerade nichts abgeglichen. Die Fänge auf diesem Gerät sind unverändert da.': 'Not signed in — nothing is being synced right now. The catches on this device are untouched.',
   'Willkommen zurück': 'Welcome back',
   'Fangbuch einrichten': 'Set up your logbook',
-  'Melde dich an, um deine Fänge zu sehen — mit E-Mail oder Benutzername.': 'Sign in to see your catches — with e-mail or username.',
+  'Melde dich mit deiner E-Mail an, um deine Fänge zu sehen.': 'Sign in with your e-mail to see your catches.',
   'Mit einem Konto sind deine Fänge gesichert und auf jedem Gerät da.': 'With an account your catches are backed up and available on every device.',
   'Benutzername': 'Username',
   'E-Mail': 'E-mail',
-  'E-Mail oder Benutzername': 'E-mail or username',
   'Passwort': 'Password',
   ' (mind. 6 Zeichen)': ' (at least 6 characters)',
   'Konto erstellen': 'Create account',
   'Noch kein Konto? Registrieren': 'No account yet? Sign up',
   'Schon ein Konto? Anmelden': 'Already have an account? Sign in',
   'Deine Fänge liegen dann auf einem Server in der EU.': 'Your catches will then be held on a server inside the EU.',
-  'E-Mail oder Benutzername und Passwort eingeben.': 'Enter e-mail or username and password.',
   'E-Mail und Passwort eingeben.': 'Enter e-mail and password.',
   'Einen Moment …': 'One moment …',
   'Hat nicht geklappt.': 'That did not work.',
   'Kein Netz — zum Anmelden wird einmal Verbindung gebraucht. Danach läuft die App auch offline.': 'No connection — signing in needs one once. After that the app also runs offline.',
-  'Diesen Benutzernamen gibt es nicht. Oder melde dich mit deiner E-Mail an.': 'That username does not exist. Or sign in with your e-mail.',
+  'Zum Anmelden brauchst du deine E-Mail-Adresse, nicht deinen Benutzernamen.': 'To sign in you need your e-mail address, not your username.',
   'Dieser Benutzername ist schon vergeben.': 'That username is already taken.',
   'Ob dieser Benutzername frei ist, ließ sich gerade nicht prüfen. Bist du online?': 'We could not check whether that username is free. Are you online?',
   'Konto angelegt. Bitte E-Mail bestätigen und dann anmelden.': 'Account created. Please confirm your e-mail, then sign in.',
@@ -4017,9 +4015,27 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v55';
+const FASSUNG = 'v56';
 
 const KONTO_KEY = 'angellog-konto';
+/* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
+   „wenn man sich schonmal an dem gerät angemeldet hat soll die alte email schon
+   fertig drinne stehn bei anmelden."
+
+   ⚠️ Bewusst ein EIGENER Schlüssel und nicht das Konto selbst: `kontoSchreiben(null)`
+   räumt beim Abmelden das ganze Konto weg, und genau danach soll die Adresse ja noch
+   dastehen. Sie überlebt das Abmelden und stirbt nur mit „Konto löschen".
+   ⚠️ Sie verlässt das Gerät nicht — reiner localStorage, keine Übertragung. Deshalb
+   steht sie auch nicht in der Datenschutzerklärung bei den Wegen nach außen. */
+const LETZTE_MAIL_KEY = 'angellog-letzte-mail';
+
+function letzteMailLesen(){
+  try { return localStorage.getItem(LETZTE_MAIL_KEY) || ''; } catch { return ''; }
+}
+function letzteMailMerken(mail){
+  try { mail ? localStorage.setItem(LETZTE_MAIL_KEY, String(mail))
+             : localStorage.removeItem(LETZTE_MAIL_KEY); } catch {}
+}
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
 let konto = null;          // { access_token, refresh_token, email, seit }
 let syncLaeuft = false;
@@ -4030,6 +4046,10 @@ function kontoLesen(){
 function kontoSchreiben(k){
   konto = k;
   try { k ? localStorage.setItem(KONTO_KEY, JSON.stringify(k)) : localStorage.removeItem(KONTO_KEY); } catch {}
+  /* ⚠️ Nur beim Schreiben merken, beim Abmelden (`k === null`) ausdrücklich NICHT
+     löschen. Ein `else`-Zweig hier wäre genau der Fehler: er würde die Adresse in
+     dem Moment wegräumen, für den sie gedacht ist. */
+  if (k && k.email) letzteMailMerken(k.email);
   renderKonto();
 }
 /* ⚠️ In den Authorization-Kopf gehört ausschließlich ein echter Sitzungs-Token.
@@ -4091,14 +4111,14 @@ function authFehler(d, standard){
 }
 /* Benutzernamen. Supabase meldet nur über E-Mail an — der Name ist ein Umweg
    über eine eigene Tabelle (siehe supabase.sql). Klein geschrieben gespeichert,
-   damit „Karl" und „karl" nicht zwei Leute sind. */
-async function rpc(name, args){
-  try {
-    const r = await fetch(`${SUPA_URL}/rest/v1/rpc/${name}`,
-      { method: 'POST', headers: kopf(false), body: JSON.stringify(args) });
-    return r.ok ? await r.json() : null;
-  } catch { return null; }
-}
+   damit „Karl" und „karl" nicht zwei Leute sind. Seit v56 ist er reiner
+   Anzeigename und kein Anmelde-Weg mehr.
+
+   ⚠️ Hier stand bis v55 eine allgemeine `rpc(name, args)`-Hilfsfunktion. Sie hatte
+   nach dem Wegfall der Benutzernamen-Anmeldung keinen Aufrufer mehr — `nameFrei()`
+   ruft `username_frei` direkt. Sie ist mit entfernt worden, statt ungenutzt
+   liegenzubleiben: sie war der bequeme Weg, `email_fuer_username` wieder
+   anzusprechen, und genau der soll zu sein. */
 const NAME_REGEL = /^[a-z0-9_.-]{3,20}$/;
 function namePruefen(name){
   const n = (name || '').trim().toLowerCase();
@@ -4114,7 +4134,8 @@ function namePruefen(name){
    true = frei, false = vergeben, null = konnte nicht gefragt werden.
 
    ⚠️ **Genau hier war die Lücke (gefunden am 16.08.2026).** Vorher stand da
-   `if (await rpc(...) === false)`. `rpc()` liefert bei jedem Fehlschlag `null` —
+   `if (await rpc(...) === false)`. `rpc()` (seit v56 entfernt, siehe oben)
+   lieferte bei jedem Fehlschlag `null` —
    kein Netz, Serverfehler, Mengengrenze —, und `null === false` ist **falsch**.
    Die Prüfung fiel damit stillschweigend aus und die Registrierung lief weiter,
    als wäre der Name frei. Sie hat also ausgerechnet dann nicht geprüft, wenn
@@ -4155,24 +4176,40 @@ async function registrieren(email, passwort, username){
                    email: (d.user && d.user.email) || email, username: name, seit: Date.now() });
 }
 
-/* Angemeldet wird mit E-Mail ODER Benutzername. Unterschieden wird am @ —
-   deshalb ist es im Namen verboten. Steht kein @ drin, wird erst die
-   zugehörige E-Mail geholt und damit angemeldet. */
+/* Angemeldet wird ausschließlich mit E-Mail. Registriert wird weiterhin mit
+   Benutzername + E-Mail + Passwort — der Name bleibt als Anzeigename (Ticket,
+   Profil), er ist nur kein Anmelde-Weg mehr.
+
+   🔴 Bis v55 ging beides: stand kein @ in der Eingabe, holte die App über
+   `email_fuer_username()` erst die zugehörige Adresse. Diese Funktion war für
+   `anon` freigegeben und musste es sein — gefragt wird, BEVOR jemand angemeldet
+   ist. Die Folge: wer einen Benutzernamen kannte oder erriet, bekam die E-Mail
+   dazu. Bei vier bekannten Leuten vertretbar; **seit dem 18.08.2026 darf der
+   Kollege die App auf Instagram bewerben**, und damit war es das nicht mehr.
+   Der Kommentar in `supabase.sql` hatte genau diesen Fall vorgesehen.
+
+   ⚠️ Was dabei NICHT gewonnen ist, damit niemand mehr hineinliest als drinsteht:
+   `username_frei()` bleibt öffentlich und muss es bleiben (die Registrierung
+   fragt damit). **Ob es einen Namen gibt, ist weiterhin abfragbar** — nur die
+   E-Mail dahinter nicht mehr. Und an die Fänge kam ohnehin nie jemand, dafür
+   sorgt RLS.
+
+   💡 Die Bequemlichkeit kommt an anderer Stelle zurück: die zuletzt benutzte
+   Adresse steht beim nächsten Mal schon im Feld (siehe `LETZTE_MAIL_KEY`). */
 async function anmelden(kennung, passwort){
-  let email = (kennung || '').trim();
-  let name = null;
-  if (!email.includes('@')){
-    name = email.toLowerCase();
-    email = await rpc('email_fuer_username', { uname: name });
-    if (!email) throw new Error(T('Diesen Benutzernamen gibt es nicht. Oder melde dich mit deiner E-Mail an.'));
-  }
+  const email = (kennung || '').trim();
+  /* ⚠️ Eigene Meldung, statt es den Server abweisen zu lassen. Wer bis gestern
+     seinen Namen eingetippt hat, bekäme sonst „Anmelden hat nicht geklappt" und
+     hielte sein Passwort für falsch. */
+  if (!email.includes('@'))
+    throw new Error(T('Zum Anmelden brauchst du deine E-Mail-Adresse, nicht deinen Benutzernamen.'));
   const r = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`,
     { method: 'POST', headers: kopf(false), body: JSON.stringify({ email, password: passwort }) });
   const d = await r.json().catch(() => ({}));
   if (!r.ok || !d.access_token) throw new Error(authFehler(d, 'Anmelden hat nicht geklappt.'));
   kontoSchreiben({ access_token: d.access_token, refresh_token: d.refresh_token,
                    email: (d.user && d.user.email) || email,
-                   username: name || (d.user && d.user.user_metadata && d.user.user_metadata.username) || null,
+                   username: (d.user && d.user.user_metadata && d.user.user_metadata.username) || null,
                    seit: Date.now() });
 }
 /* Abmelden räumt nur die Anmeldung weg, nie die Fänge. Wer sich abmeldet, will
@@ -4935,6 +4972,13 @@ const AUGE_ZU = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 
 function renderGate(fehler){
   const anmelden = gateModus === 'login';
+  /* Die zuletzt an diesem Gerät benutzte Adresse steht beim Anmelden schon drin
+     (Karls Ansage vom 18.08.2026). ⚠️ Nur beim Anmelden, nicht beim Registrieren —
+     dort wäre es die Adresse eines ANDEREN Kontos und damit ein Fehler, den man
+     leicht übersieht.
+     ⚠️ Und kein automatischer Fokus ins Passwortfeld: am Handy spränge dann beim
+     Öffnen der App die Tastatur auf, noch bevor jemand etwas tun wollte. */
+  const vorbelegt = anmelden ? letzteMailLesen() : '';
   $('#gate-inner').innerHTML = `
     <div class="hero">
       <!-- ⚠️ Das echte App-Symbol. Hier stand bis zum 10.08.2026 eine gezeichnete
@@ -4945,18 +4989,17 @@ function renderGate(fehler){
       <div class="big">${T(anmelden ? 'Willkommen zurück' : 'Fangbuch einrichten')}</div>
       <div class="tiny muted" style="line-height:1.6">
         ${T(anmelden
-          ? 'Melde dich an, um deine Fänge zu sehen — mit E-Mail oder Benutzername.'
+          ? 'Melde dich mit deiner E-Mail an, um deine Fänge zu sehen.'
           : 'Mit einem Konto sind deine Fänge gesichert und auf jedem Gerät da.')}
       </div>
     </div>
     ${anmelden ? '' : `
     <input class="in" id="g-name" autocomplete="username" spellcheck="false"
            autocapitalize="none" placeholder="${T('Benutzername')}">`}
-    <input class="in" id="g-mail" type="${anmelden ? 'text' : 'email'}"
-           inputmode="${anmelden ? 'text' : 'email'}"
-           autocomplete="${anmelden ? 'username' : 'email'}"
+    <input class="in" id="g-mail" type="email" inputmode="email"
+           autocomplete="email" value="${esc(vorbelegt)}"
            spellcheck="false" autocapitalize="none"
-           placeholder="${T(anmelden ? 'E-Mail oder Benutzername' : 'E-Mail')}">
+           placeholder="${T('E-Mail')}">
     <div class="pw-feld">
       <input class="in" id="g-pw" type="password"
              autocomplete="${anmelden ? 'current-password' : 'new-password'}"
@@ -5006,8 +5049,7 @@ async function gateLos(){
   const pw      = $('#g-pw').value;
   const name    = anmeldenModus ? null : $('#g-name').value.trim();
   if (!kennung || !pw)
-    return renderGate(T(anmeldenModus ? 'E-Mail oder Benutzername und Passwort eingeben.'
-                                      : 'E-Mail und Passwort eingeben.'));
+    return renderGate(T('E-Mail und Passwort eingeben.'));
   if (!anmeldenModus){
     const fehler = namePruefen(name);
     if (fehler) return renderGate(fehler);
@@ -5151,6 +5193,10 @@ function renderKonto(){
     if (!confirm(T('Konto und alle Fänge auf dem Server löschen?') + '\n\n'
                + T('Die Fänge auf diesem Gerät bleiben.'))) return;
     try { await kontoLoeschen(); kontoSchreiben(null);
+          /* ⚠️ Anders als beim Abmelden: hier gibt es das Konto nicht mehr. Bliebe
+             die Adresse stehen, böte der Anmeldeschirm eine an, mit der sich
+             niemand mehr anmelden kann. */
+          letzteMailMerken(null);
           /* ⚠️ Die Fänge bleiben, aber die Zeilen oben sind weg — jede Notiz
              „liegt im Konto" ist ab hier nachweislich falsch. Bliebe sie stehen,
              läge nach dem nächsten Anlegen eines Kontos ein leeres Konto vor
