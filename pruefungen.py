@@ -2273,10 +2273,107 @@ window.addEventListener('error', e => {
     return (eins === 'password' && zwei === 'text') || `oben ${eins}, unten ${zwei}`;
   });
 
+  /* ==== Die eigene Stunde vor dem naechsten Ruecksetz-Link (19.08.2026, v59) ====
+     Karls Ansage, nachdem feststand: der eingebaute Mailversand von Supabase haengt
+     im Gratis-Tarif fest bei 2 Mails pro Stunde, projektweit, und laesst sich dort
+     nicht hochsetzen. Ohne Bremse in der App kann ein einzelner Ungeduldiger beide
+     Plaetze der Stunde fuer alle anderen aufbrauchen.
+     ⚠️ Das Wichtigste steht in der ersten Pruefung: gebremst wird VOR dem Absenden.
+     Eine Bremse, die erst nach der Anfrage greift, hat den Platz schon verbraucht. */
+  const sperreLeeren = () => { try { localStorage.removeItem(RUECKSTELL_KEY); } catch {} };
+
+  ta('Die zweite Anforderung geht gar nicht erst hinaus', async () => {
+    sperreLeeren(); rueckstellMerken('a@example.org');
+    const echt = window.fetch; let rufe = 0;
+    window.fetch = async () => { rufe++; return { ok: true, json: async () => ({}) }; };
+    try {
+      gateModus = 'vergessen'; renderGate();
+      document.querySelector('#v-mail').value = 'a@example.org';
+      await document.querySelector('#v-los').onclick();
+    } finally { window.fetch = echt; }
+    const txt = document.querySelector('#gate-inner').textContent;
+    return (rufe === 0 && /vor Kurzem schon ein Link/.test(txt))
+        || `Anfragen: ${rufe}, Text: "${txt.slice(0, 90)}"`;
+  });
+
+  t('Eine andere Adresse ist davon nicht mitgesperrt', () => {
+    sperreLeeren(); rueckstellMerken('a@example.org');
+    return rueckstellRest('b@example.org') === 0
+        || 'die zweite Adresse haengt mit drin';
+  });
+
+  t('Gross- und Kleinschreibung sind dieselbe Adresse', () => {
+    sperreLeeren(); rueckstellMerken('Karl@Example.ORG');
+    return rueckstellRest('  karl@example.org ') > 0
+        || 'mit anderer Schreibweise laesst sich die Sperre umgehen';
+  });
+
+  t('Nach einer Stunde ist die Adresse wieder frei', () => {
+    sperreLeeren();
+    rueckstellMerken('a@example.org', Date.now() - 60 * 60 * 1000 - 1000);
+    return rueckstellRest('a@example.org') === 0 || 'haengt laenger als eine Stunde';
+  });
+
+  ta('Ein Fehlschlag sperrt niemanden aus', async () => {
+    sperreLeeren();
+    const echt = window.fetch;
+    window.fetch = async () => ({ ok: false, json: async () => ({ msg: 'kaputt' }) });
+    try {
+      gateModus = 'vergessen'; renderGate();
+      document.querySelector('#v-mail').value = 'a@example.org';
+      await document.querySelector('#v-los').onclick();
+    } finally { window.fetch = echt; }
+    return rueckstellRest('a@example.org') === 0
+        || 'nach einem Fehlschlag ist die Adresse eine Stunde gesperrt';
+  });
+
+  ta('Nach dem Absenden steht die Stunde', async () => {
+    sperreLeeren();
+    const echt = window.fetch;
+    window.fetch = async () => ({ ok: true, json: async () => ({}) });
+    try {
+      gateModus = 'vergessen'; renderGate();
+      document.querySelector('#v-mail').value = 'a@example.org';
+      await document.querySelector('#v-los').onclick();
+    } finally { window.fetch = echt; }
+    const rest = rueckstellRest('a@example.org');
+    return (rest > 59 * 60 * 1000 && rest <= 60 * 60 * 1000)
+        || `Rest: ${Math.round(rest / 60000)} Minuten`;
+  });
+
+  t('Abgelaufenes wird beim Schreiben weggeraeumt', () => {
+    sperreLeeren();
+    rueckstellMerken('alt@example.org', Date.now() - 2 * 60 * 60 * 1000);
+    rueckstellMerken('neu@example.org');
+    const drin = Object.keys(rueckstellStand());
+    return (drin.length === 1 && drin[0] === 'neu@example.org')
+        || `im Stand: ${drin.join(', ')}`;
+  });
+
+  t('Die Wartezeit steht in ganzen Minuten da', () => {
+    const zwoelf = rueckstellWartetext(12 * 60 * 1000);
+    const eine   = rueckstellWartetext(3 * 1000);
+    return (/12 Minuten/.test(zwoelf) && /eine Minute/.test(eine))
+        || `"${zwoelf}" / "${eine}"`;
+  });
+
+  t('Die Sperre steht nur beim Vergessen-Schirm im Weg', () => {
+    sperreLeeren(); rueckstellMerken('a@example.org');
+    gateModus = 'login'; renderGate();
+    const txt = document.querySelector('#gate-inner').textContent;
+    sperreLeeren();
+    return !/vor Kurzem schon ein Link/.test(txt)
+        || 'die Wartezeit steht auch beim Anmelden da';
+  });
+
   // Aufraeumen, damit nachfolgende Pruefungen einen sauberen Stand vorfinden.
   t('Aufraeumen nach den Anmelde-Pruefungen', () => {
     letzteMailMerken(null); konto = null;
     return letzteMailLesen() === '' || letzteMailLesen();
+  });
+  t('Aufraeumen nach den Sperr-Pruefungen', () => {
+    try { localStorage.removeItem(RUECKSTELL_KEY); } catch {}
+    return Object.keys(rueckstellStand()).length === 0 || 'Stand nicht leer';
   });
 
   /* ==== Doppelte Benutzernamen (16.08.2026, Karls Ansage) ====

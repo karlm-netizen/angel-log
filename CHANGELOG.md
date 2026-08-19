@@ -6,6 +6,66 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 19.08.2026 (v59) — Eine Stunde Pause zwischen zwei Rücksetz-Links
+
+**Karls Ansage:** *„setz den cooldown in der app für eine pw zurücksetzung auf 1 std"* — nachdem
+sich am selben Abend herausstellte, dass die Bremse auf der Gegenseite **nicht zu lösen ist.**
+
+### Warum überhaupt
+
+Der eingebaute Mailversand von Supabase ist im Gratis-Tarif auf **2 E-Mails pro Stunde**
+gedeckelt — **projektweit, nicht pro Person.** Das Feld dafür lässt sich in diesem Tarif nicht
+hochsetzen (Karl nachgesehen: *„2 ist max"*); es zu öffnen bräuchte einen eigenen Mailversand.
+
+Registrieren verschickt bei Angel-Log **keine** Mail (`mailer_autoconfirm: true`), es zählen also
+**nur Passwort-Rücksetzungen**. Damit ist der Deckel selten im Weg — aber ein **einzelner
+ungeduldiger Nutzer**, der dreimal auf „Link schicken" drückt, verbraucht **beide Plätze der
+Stunde für alle anderen.** Genau das verhindert v59.
+
+### Wie es gebaut ist — und was es ausdrücklich nicht ist
+
+🔴 **Das ist keine Sicherheitssperre.** Sie steht im `localStorage` und ist mit einem zweiten
+Gerät in Sekunden umgangen. **Die echte Bremse bleibt der Server.** Was hier gebaut ist, schützt
+den ehrlichen Nutzer davor, das gemeinsame Kontingent aus Ungeduld aufzubrauchen.
+
+**Der Schlüssel ist die E-Mail-Adresse, nicht das Gerät.** Der Grund steht im selben Tag: Karl
+hatte beim ersten Durchlauf **das falsche Konto erwischt.** Eine geräteweite Stunde hätte ihn
+danach gehindert, sofort die richtige Adresse zu probieren — sie hätte **genau die richtige
+Handlung bestraft.** Zwei Leute an einem Gerät blockieren sich aus demselben Grund nicht.
+
+**Die Stunde ist nicht gegriffen:** das Serverfenster ist eine Stunde lang und hat zwei Plätze.
+Einer pro Adresse und Stunde heißt — **zwei verschiedene Leute kommen durch statt einer, der
+zweimal drückt.**
+
+### Vier Entscheidungen im Kleinen
+
+- **Gebremst wird vor dem Absenden**, nicht danach. Eine Bremse, die erst nach der Anfrage
+  greift, hat den Platz schon verbraucht. Das ist die erste der neuen Prüfungen.
+- **Gesetzt wird erst nach dem Erfolg.** Ein Vertipper, ein Netzausfall oder die Server-Bremse
+  selbst darf niemanden eine Stunde aussperren, **ohne dass überhaupt eine Mail unterwegs ist.**
+- **Die Sperre kommt vor der Netz-Prüfung.** Wer gesperrt und offline ist, bekäme sonst „kein
+  Netz", ginge online und erführe erst dann von der Wartezeit.
+- **Abgelaufenes wird bei jedem Schreiben weggeräumt.** Damit hält das Gerät nie länger als eine
+  Stunde fest, wer hier ein Passwort zurückgesetzt hat — was an einem geteilten Gerät zählt.
+
+⚠️ **Die Sperre verrät nicht, ob es die Adresse gibt.** Sie wird gesetzt, sobald der Server
+angenommen hat, und das tut er für unbekannte Adressen genauso. Sonst wäre sie ein
+Nachschlagedienst „hat diese Adresse ein Konto?" — dieselbe Sorte Loch, die `email_fuer_username()`
+in v56 zugemacht hat.
+
+**Sichtbar wird es an zwei Stellen:** auf dem „ist unterwegs"-Schirm steht ab jetzt, dass ein
+neuer Link erst in einer Stunde geht; wer es früher versucht, bekommt die verbleibenden Minuten
+genannt statt eines stummen Knopfes.
+
+### Prüfungen
+
+**700 grün** (von 690), 0 rot. **Alle zehn neuen waren rot** — gegen v58 wegen der fehlenden
+Funktionen, und die fünf, bei denen die Logik still hätte falsch sein können, zusätzlich gegen
+**fünf eigens kaputt gemachte Fassungen**: Bremse nach statt vor dem Absenden, geräteweit statt
+pro Adresse, Schreibweise zählt, Sperre schon vor dem Absenden gesetzt, Abgelaufenes bleibt
+liegen. **Jede machte genau die eine Prüfung rot, die sie treffen sollte** — die Lehre aus drei
+Prüfungen in vier Tagen, die aus dem falschen Grund grün waren.
+
 ## 19.08.2026 (v58) — Das Passwort wird zweimal eingegeben
 
 **Karls Ansage:** *„neues pw muss bestätigt werden und auch bei der anmeldung soll es eine

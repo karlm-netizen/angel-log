@@ -2044,6 +2044,10 @@ const EN = {
   'Link schicken': 'Send link',
   'Zurück zum Anmelden': 'Back to sign in',
   'Der Link gilt eine Stunde.': 'The link is valid for one hour.',
+  'Ein neuer Link lässt sich für diese Adresse erst in einer Stunde anfordern.': 'A new link can only be requested for this address one hour from now.',
+  'Für diese Adresse wurde vor Kurzem schon ein Link angefordert. Schau im Postfach und im Spam-Ordner nach.': 'A link was requested for this address a short while ago. Check your inbox and your spam folder.',
+  'Es dauert noch etwa eine Minute.': 'That takes about another minute.',
+  'Es dauert noch etwa {n} Minuten.': 'That takes about another {n} minutes.',
   'Bitte eine E-Mail-Adresse eintragen.': 'Please enter an e-mail address.',
   'Kein Netz — dafür wird einmal Verbindung gebraucht.': 'No connection — this needs one once.',
   'Die E-Mail ließ sich gerade nicht verschicken.': 'The e-mail could not be sent right now.',
@@ -4038,7 +4042,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v58';
+const FASSUNG = 'v59';
 
 const KONTO_KEY = 'angellog-konto';
 /* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
@@ -4058,6 +4062,60 @@ function letzteMailLesen(){
 function letzteMailMerken(mail){
   try { mail ? localStorage.setItem(LETZTE_MAIL_KEY, String(mail))
              : localStorage.removeItem(LETZTE_MAIL_KEY); } catch {}
+}
+
+/* ── Eigene Bremse vor dem Rücksetz-Link ───────────────────────────────────
+   Karls Ansage vom 19.08.2026, nachdem feststand, dass der eingebaute
+   Mailversand von Supabase bei **2 Mails pro Stunde, projektweit** festgenagelt
+   ist und sich im Gratis-Tarif nicht hochsetzen lässt: „setz den cooldown in
+   der app für eine pw zurücksetzung auf 1 std".
+
+   ⚠️ Das ist KEINE Sicherheitssperre. Sie steht im localStorage und ist mit
+   einem zweiten Gerät in Sekunden umgangen. Die echte Bremse bleibt der Server.
+   Was sie verhindert, ist etwas anderes und viel Häufigeres: dass ein einzelner
+   ungeduldiger Nutzer durch mehrmaliges Drücken **beide Plätze der Stunde für
+   alle anderen aufbraucht.**
+
+   ⚠️ Der Schlüssel ist die E-Mail-Adresse, nicht das Gerät. Der Grund steht in
+   Karls eigenem Fall vom selben Tag: er hatte zuerst das falsche Konto erwischt.
+   Eine geräteweite Stunde hätte ihn danach gehindert, sofort die richtige
+   Adresse zu probieren — sie hätte also genau die richtige Handlung bestraft.
+
+   ⚠️ Die Sperre verrät nicht, ob es die Adresse gibt: sie wird gesetzt, sobald
+   der Server angenommen hat, und das tut er für unbekannte Adressen genauso.
+   Sonst wäre sie ein Nachschlagedienst „hat diese Adresse ein Konto?" —
+   dieselbe Sorte Loch, die `email_fuer_username()` in v56 zugemacht hat. */
+const RUECKSTELL_KEY = 'angellog-rueckstellung';
+const RUECKSTELL_MS  = 60 * 60 * 1000;
+
+const mailSchluessel = m => String(m || '').trim().toLowerCase();
+
+function rueckstellStand(){
+  try { return JSON.parse(localStorage.getItem(RUECKSTELL_KEY) || '{}') || {}; }
+  catch { return {}; }
+}
+
+/* Wie lange die Adresse noch gesperrt ist, in Millisekunden. 0 heißt: frei. */
+function rueckstellRest(mail, jetzt = Date.now()){
+  const bis = Number(rueckstellStand()[mailSchluessel(mail)] || 0);
+  return bis > jetzt ? bis - jetzt : 0;
+}
+
+function rueckstellMerken(mail, jetzt = Date.now()){
+  const alle = rueckstellStand();
+  /* Abgelaufenes fliegt bei jedem Schreiben raus. Damit hält der Stand nie
+     länger als eine Stunde fest, wer an diesem Gerät ein Passwort zurückgesetzt
+     hat — was an einem Gerät zählt, das sich mehrere Leute teilen. */
+  for (const k of Object.keys(alle)) if (Number(alle[k]) <= jetzt) delete alle[k];
+  alle[mailSchluessel(mail)] = jetzt + RUECKSTELL_MS;
+  try { localStorage.setItem(RUECKSTELL_KEY, JSON.stringify(alle)); } catch {}
+}
+
+/* „noch etwa 12 Minuten" — aufgerundet, damit nie „noch 0 Minuten" dasteht. */
+function rueckstellWartetext(restMs){
+  const min = Math.max(1, Math.ceil(restMs / 60000));
+  return min === 1 ? T('Es dauert noch etwa eine Minute.')
+                   : T('Es dauert noch etwa {n} Minuten.').replace('{n}', String(min));
 }
 const cloudAn = () => !!(SUPA_URL && SUPA_KEY);
 let konto = null;          // { access_token, refresh_token, email, seit }
@@ -5119,7 +5177,8 @@ function renderGateVergessen(fehler, gesendet){
     ${fehler ? `<div class="fehler">${fehler}</div>` : ''}
     ${gesendet ? '' : `<button class="btn primary" id="v-los">${T('Link schicken')}</button>`}
     <button class="link" id="v-zurueck">${T('Zurück zum Anmelden')}</button>
-    ${gesendet ? `<div class="tiny muted fuss">${T('Der Link gilt eine Stunde.')}</div>` : ''}`;
+    ${gesendet ? `<div class="tiny muted fuss">${T('Der Link gilt eine Stunde.')}<br>${
+      T('Ein neuer Link lässt sich für diese Adresse erst in einer Stunde anfordern.')}</div>` : ''}`;
 
   $('#v-zurueck').onclick = () => { gateModus = 'login'; renderGate(); };
   const los = $('#v-los');
@@ -5127,6 +5186,12 @@ function renderGateVergessen(fehler, gesendet){
   const senden = async () => {
     const mail = $('#v-mail').value.trim();
     if (!mail.includes('@')) return renderGateVergessen(T('Bitte eine E-Mail-Adresse eintragen.'));
+    /* ⚠️ Vor der Netz-Prüfung. Wer gesperrt ist und offline, bekommt sonst „kein
+       Netz", geht online und erfährt erst dann von der Wartezeit. */
+    const rest = rueckstellRest(mail);
+    if (rest > 0) return renderGateVergessen(
+      T('Für diese Adresse wurde vor Kurzem schon ein Link angefordert. Schau im Postfach und im Spam-Ordner nach.')
+      + ' ' + rueckstellWartetext(rest));
     if (!navigator.onLine) return renderGateVergessen(T('Kein Netz — dafür wird einmal Verbindung gebraucht.'));
     los.disabled = true; los.textContent = T('Einen Moment …');
     try {
@@ -5134,6 +5199,10 @@ function renderGateVergessen(fehler, gesendet){
       /* Die Adresse wird gemerkt, damit sie nach dem Zurücksetzen im Anmeldefeld
          steht — der Weg führt ja gerade dorthin zurück. */
       letzteMailMerken(mail);
+      /* ⚠️ Erst nach dem Erfolg. Ein Fehlschlag — Vertipper, kein Netz, oder die
+         Server-Bremse selbst — darf niemanden eine Stunde aussperren, ohne dass
+         überhaupt eine Mail unterwegs ist. */
+      rueckstellMerken(mail);
       renderGateVergessen(null, true);
     } catch (e){ renderGateVergessen(e.message || T('Hat nicht geklappt.')); }
   };
