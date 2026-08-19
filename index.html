@@ -2036,6 +2036,26 @@ const EN = {
   'Hat nicht geklappt.': 'That did not work.',
   'Kein Netz — zum Anmelden wird einmal Verbindung gebraucht. Danach läuft die App auch offline.': 'No connection — signing in needs one once. After that the app also runs offline.',
   'Zum Anmelden brauchst du deine E-Mail-Adresse, nicht deinen Benutzernamen.': 'To sign in you need your e-mail address, not your username.',
+  /* Passwort vergessen (v57) */
+  'Passwort vergessen?': 'Forgot your password?',
+  'Passwort vergessen': 'Forgot password',
+  'Trag deine E-Mail-Adresse ein. Du bekommst einen Link, mit dem du dir ein neues Passwort setzen kannst.': 'Enter your e-mail address. You will get a link that lets you set a new password.',
+  'Falls es zu dieser Adresse ein Konto gibt, ist eine E-Mail mit einem Link unterwegs. Schau auch im Spam-Ordner nach.': 'If there is an account for that address, an e-mail with a link is on its way. Check your spam folder too.',
+  'Link schicken': 'Send link',
+  'Zurück zum Anmelden': 'Back to sign in',
+  'Der Link gilt eine Stunde. Öffne ihn auf diesem Gerät.': 'The link is valid for one hour. Open it on this device.',
+  'Bitte eine E-Mail-Adresse eintragen.': 'Please enter an e-mail address.',
+  'Kein Netz — dafür wird einmal Verbindung gebraucht.': 'No connection — this needs one once.',
+  'Die E-Mail ließ sich gerade nicht verschicken.': 'The e-mail could not be sent right now.',
+  'Gerade wurden zu viele E-Mails angefordert. Versuch es in ein paar Minuten noch einmal.': 'Too many e-mails have been requested just now. Try again in a few minutes.',
+  'Dieser Link ist abgelaufen. Fordere unten einen neuen an.': 'This link has expired. Request a new one below.',
+  'Mit diesem Link stimmt etwas nicht. Fordere unten einen neuen an.': 'Something is wrong with this link. Request a new one below.',
+  'Neues Passwort': 'New password',
+  'Denk dir ein neues Passwort aus. Danach bist du gleich angemeldet.': 'Think of a new password. You will be signed in right afterwards.',
+  'Passwort speichern': 'Save password',
+  'Das Passwort braucht mindestens 6 Zeichen.': 'The password needs at least 6 characters.',
+  'Das Passwort ließ sich nicht ändern.': 'The password could not be changed.',
+  'Passwort geändert': 'Password changed',
   'Dieser Benutzername ist schon vergeben.': 'That username is already taken.',
   'Ob dieser Benutzername frei ist, ließ sich gerade nicht prüfen. Bist du online?': 'We could not check whether that username is free. Are you online?',
   'Konto angelegt. Bitte E-Mail bestätigen und dann anmelden.': 'Account created. Please confirm your e-mail, then sign in.',
@@ -4015,7 +4035,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v56';
+const FASSUNG = 'v57';
 
 const KONTO_KEY = 'angellog-konto';
 /* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
@@ -4104,6 +4124,12 @@ function authFehler(d, standard){
      stehen deshalb auch in der englischen App auf Deutsch. Das ist so, seit es diese
      Funktion gibt, und betrifft fünf Zeilen — gehört einmal am Stück gemacht, nicht
      nebenbei in einer Änderung, die von etwas anderem handelt. */
+  /* ⚠️ Der eingebaute Mailversand des Supabase-Gratis-Tarifs ist eng begrenzt.
+     Ohne diese Zeile stünde beim Anfordern eines Rücksetz-Links die englische
+     Rohmeldung da — und der Betroffene hielte es für seinen Fehler statt für
+     eine Bremse, die in ein paar Minuten von selbst aufgeht. */
+  if (/rate limit|too many requests|over_email_send_rate/i.test(m))
+    return T('Gerade wurden zu viele E-Mails angefordert. Versuch es in ein paar Minuten noch einmal.');
   if (/invalid login|invalid credentials/i.test(m))          return 'E-Mail oder Passwort stimmt nicht.';
   if (/password.*6|at least 6/i.test(m))                     return 'Das Passwort braucht mindestens 6 Zeichen.';
   if (/email.*invalid|unable to validate/i.test(m))          return 'Diese E-Mail-Adresse sieht nicht richtig aus.';
@@ -4212,6 +4238,87 @@ async function anmelden(kennung, passwort){
                    username: (d.user && d.user.user_metadata && d.user.user_metadata.username) || null,
                    seit: Date.now() });
 }
+/* ---------- Passwort vergessen ----------
+   Bis v56 gab es keinen Weg zurück: wer sein Passwort vergaß, war endgültig
+   ausgesperrt, denn ohne Konto ist die App nicht benutzbar — der Anmelde-Schirm
+   liegt deckend über allem. Bei vier bekannten Leuten war das theoretisch. Mit
+   der Instagram-Erlaubnis vom 18.08.2026 ist es das nicht mehr.
+
+   💡 Die Probe darauf kam von selbst: Karl kam am Abend des 18.08. in sein
+   eigenes Konto nicht mehr hinein. Der erste echte Fall war der Betreiber.
+
+   ⚠️ Zwei Dinge, die hier nicht offensichtlich sind:
+
+   1. **`redirect_to` muss in Supabase freigeschaltet sein** (Authentication →
+      URL Configuration → Redirect URLs). Steht die Adresse nicht auf der Liste,
+      schickt Supabase den Link stillschweigend an die Site-URL statt an die App.
+      Der Fehler wäre von hier aus nicht zu sehen — die Anfrage antwortet 200.
+   2. **Der eingebaute Mailversand des Gratis-Tarifs ist eng begrenzt.** Reißt
+      er, kommt 429 zurück; die Meldung dafür steht in `authFehler()`. */
+const RUECKKEHR_ZIEL = () => location.origin + location.pathname;
+
+async function rueckstellungAnfordern(email){
+  const r = await fetch(
+    `${SUPA_URL}/auth/v1/recover?redirect_to=${encodeURIComponent(RUECKKEHR_ZIEL())}`,
+    { method: 'POST', headers: kopf(false), body: JSON.stringify({ email }) });
+  if (!r.ok){
+    const d = await r.json().catch(() => ({}));
+    throw new Error(authFehler(d, T('Die E-Mail ließ sich gerade nicht verschicken.')));
+  }
+  /* ⚠️ Absichtlich keine Rückmeldung darüber, ob es die Adresse gibt. Supabase
+     antwortet für unbekannte Adressen genauso mit 200, und das ist richtig so:
+     sonst wäre das hier ein Nachschlagedienst „gibt es dieses Konto?" — genau
+     die Sorte Loch, die mit `email_fuer_username()` gerade zugemacht wurde. */
+}
+
+/* Setzt das Passwort mit dem Token aus der Mail. Der Token kommt NICHT aus
+   `konto` — zu diesem Zeitpunkt ist niemand angemeldet, er steht in der Adresse
+   des Links und wird von `rueckkehrAusMail()` aufgefangen. */
+async function passwortSetzen(neuesPw, token){
+  const r = await fetch(`${SUPA_URL}/auth/v1/user`,
+    { method: 'PUT',
+      headers: { ...kopf(false), 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ password: neuesPw }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(authFehler(d, T('Das Passwort ließ sich nicht ändern.')));
+  return d;
+}
+
+/* Der Rückweg aus der Mail. Supabase hängt die Sitzung als Rauten-Teil an die
+   Adresse: `#access_token=…&refresh_token=…&type=recovery`.
+
+   ⚠️ Der Rauten-Teil wird sofort aus der Adresszeile geräumt (`replaceState`).
+   Ein Zugangs-Token im Verlauf des Browsers ist genau das, was man nicht will —
+   und beim Teilen der Adresse ginge er mit. Gelesen ist er da schon.
+
+   ⚠️ Auch der Fehlerfall kommt als Rauten-Teil (`error_description`), typisch
+   bei einem abgelaufenen Link. Ohne diesen Zweig stünde der Anmelde-Schirm
+   wortlos da, und niemand wüsste, dass der Link zu alt war. */
+let rueckstellungToken = null;
+let rueckstellungRefresh = null;
+
+function rueckkehrAusMail(){
+  const roh = (location.hash || '').replace(/^#/, '');
+  if (!roh) return null;
+  const p = new URLSearchParams(roh);
+  const typ = p.get('type');
+  const fehler = p.get('error_description') || p.get('error');
+  const token = p.get('access_token');
+  if (!typ && !fehler) return null;
+  if (typ !== 'recovery' && !fehler) return null;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch {}
+  if (fehler || !token){
+    /* ⚠️ Supabase schreibt hier englischen Klartext hinein. Der häufigste Fall
+       ist der abgelaufene Link — den fängt der Text ab, statt ihn durchzureichen. */
+    return { fehler: /expired|invalid/i.test(fehler || '')
+      ? T('Dieser Link ist abgelaufen. Fordere unten einen neuen an.')
+      : T('Mit diesem Link stimmt etwas nicht. Fordere unten einen neuen an.') };
+  }
+  rueckstellungToken = token;
+  rueckstellungRefresh = p.get('refresh_token') || null;
+  return { token, refresh: rueckstellungRefresh };
+}
+
 /* Abmelden räumt nur die Anmeldung weg, nie die Fänge. Wer sich abmeldet, will
    nicht mehr synchronisieren — er will nicht sein Fangbuch löschen. Danach steht
    wieder der Anmelde-Schirm davor; die Fänge im Gerät sind unangetastet und
@@ -4970,7 +5077,125 @@ const AUGE_ZU = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
     <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/>
     <circle cx="12" cy="12" r="2.9"/><path d="M4 20L20 4"/></svg>`;
 
+/* Das Auge-Umschalten steht seit v57 an drei Stellen (Anmelden, Registrieren,
+   neues Passwort setzen) — deshalb einmal hier statt dreimal dort. */
+function augeVerdrahten(feldWahl, knopfWahl){
+  const feld = $(feldWahl), knopf = $(knopfWahl);
+  if (!feld || !knopf) return;
+  knopf.onclick = () => {
+    const zeigt = feld.type === 'text';
+    const pos = feld.selectionStart;
+    feld.type = zeigt ? 'password' : 'text';
+    knopf.innerHTML = zeigt ? AUGE_AUF : AUGE_ZU;
+    knopf.setAttribute('aria-label', T(zeigt ? 'Passwort anzeigen' : 'Passwort verbergen'));
+    feld.focus();
+    try { feld.setSelectionRange(pos, pos); } catch {}
+  };
+}
+
+/* Schirm 1 von 2: die Adresse eingeben und den Link anfordern.
+   ⚠️ Der Bestätigungstext sagt bewusst „falls es ein Konto gibt" und nicht
+   „die Mail ist unterwegs". Sonst verriete dieser Schirm, welche Adressen ein
+   Konto haben — dieselbe Sorte Auskunft, die mit `email_fuer_username()` in v56
+   gerade zugemacht wurde. */
+function renderGateVergessen(fehler, gesendet){
+  $('#gate-inner').innerHTML = `
+    <div class="hero">
+      <img src="icon-192.png" alt="">
+      <div class="big">${T('Passwort vergessen')}</div>
+      <div class="tiny muted" style="line-height:1.6">
+        ${T(gesendet
+          ? 'Falls es zu dieser Adresse ein Konto gibt, ist eine E-Mail mit einem Link unterwegs. Schau auch im Spam-Ordner nach.'
+          : 'Trag deine E-Mail-Adresse ein. Du bekommst einen Link, mit dem du dir ein neues Passwort setzen kannst.')}
+      </div>
+    </div>
+    ${gesendet ? '' : `
+    <input class="in" id="v-mail" type="email" inputmode="email" autocomplete="email"
+           value="${esc(letzteMailLesen())}" spellcheck="false" autocapitalize="none"
+           placeholder="${T('E-Mail')}">`}
+    ${fehler ? `<div class="fehler">${fehler}</div>` : ''}
+    ${gesendet ? '' : `<button class="btn primary" id="v-los">${T('Link schicken')}</button>`}
+    <button class="link" id="v-zurueck">${T('Zurück zum Anmelden')}</button>
+    ${gesendet ? `<div class="tiny muted fuss">${T('Der Link gilt eine Stunde. Öffne ihn auf diesem Gerät.')}</div>` : ''}`;
+
+  $('#v-zurueck').onclick = () => { gateModus = 'login'; renderGate(); };
+  const los = $('#v-los');
+  if (!los) return;
+  const senden = async () => {
+    const mail = $('#v-mail').value.trim();
+    if (!mail.includes('@')) return renderGateVergessen(T('Bitte eine E-Mail-Adresse eintragen.'));
+    if (!navigator.onLine) return renderGateVergessen(T('Kein Netz — dafür wird einmal Verbindung gebraucht.'));
+    los.disabled = true; los.textContent = T('Einen Moment …');
+    try {
+      await rueckstellungAnfordern(mail);
+      /* Die Adresse wird gemerkt, damit sie nach dem Zurücksetzen im Anmeldefeld
+         steht — der Weg führt ja gerade dorthin zurück. */
+      letzteMailMerken(mail);
+      renderGateVergessen(null, true);
+    } catch (e){ renderGateVergessen(e.message || T('Hat nicht geklappt.')); }
+  };
+  los.onclick = senden;
+  $('#v-mail').onkeydown = e => { if (e.key === 'Enter') senden(); };
+}
+
+/* Schirm 2 von 2: aus der Mail zurück, jetzt das neue Passwort setzen.
+   ⚠️ Kein Abbrechen-Weg, der den Token wegwirft: wer hier landet, ist genau
+   deshalb hier, weil er sich nicht anmelden kann. Ein „Zurück zum Anmelden"
+   führte auf einen Schirm, an dem er scheitert — und der Token aus der Mail
+   ist dann verbraucht. */
+function renderGateNeu(fehler){
+  $('#gate-inner').innerHTML = `
+    <div class="hero">
+      <img src="icon-192.png" alt="">
+      <div class="big">${T('Neues Passwort')}</div>
+      <div class="tiny muted" style="line-height:1.6">
+        ${T('Denk dir ein neues Passwort aus. Danach bist du gleich angemeldet.')}
+      </div>
+    </div>
+    <div class="pw-feld">
+      <input class="in" id="n-pw" type="password" autocomplete="new-password"
+             placeholder="${T('Neues Passwort')}${T(' (mind. 6 Zeichen)')}">
+      <button type="button" class="pw-auge" id="n-pw-auge"
+              aria-label="${T('Passwort anzeigen')}">${AUGE_AUF}</button>
+    </div>
+    ${fehler ? `<div class="fehler">${fehler}</div>` : ''}
+    <button class="btn primary" id="n-los">${T('Passwort speichern')}</button>`;
+
+  augeVerdrahten('#n-pw', '#n-pw-auge');
+  const speichern = async () => {
+    const pw = $('#n-pw').value;
+    if (pw.length < 6) return renderGateNeu(T('Das Passwort braucht mindestens 6 Zeichen.'));
+    if (!navigator.onLine) return renderGateNeu(T('Kein Netz — dafür wird einmal Verbindung gebraucht.'));
+    const btn = $('#n-los');
+    btn.disabled = true; btn.textContent = T('Einen Moment …');
+    try {
+      const nutzer = await passwortSetzen(pw, rueckstellungToken);
+      /* Der Token aus der Mail IST eine gültige Sitzung — wer das Passwort
+         gesetzt hat, ist damit angemeldet und muss es nicht gleich noch einmal
+         eintippen. Genau das ist der Moment, in dem er sonst wieder scheitern
+         könnte. */
+      kontoSchreiben({ access_token: rueckstellungToken,
+                       refresh_token: rueckstellungRefresh,
+                       email: (nutzer && nutzer.email) || letzteMailLesen(),
+                       username: (nutzer && nutzer.user_metadata && nutzer.user_metadata.username) || null,
+                       seit: Date.now() });
+      rueckstellungToken = null; rueckstellungRefresh = null;
+      gateModus = 'login';
+      gateVerbergen();
+      await ersterAbgleich();
+      toast(T('Passwort geändert'));
+    } catch (e){
+      btn.disabled = false; btn.textContent = T('Passwort speichern');
+      renderGateNeu(e.message || T('Hat nicht geklappt.'));
+    }
+  };
+  $('#n-los').onclick = speichern;
+  $('#n-pw').onkeydown = e => { if (e.key === 'Enter') speichern(); };
+}
+
 function renderGate(fehler){
+  if (gateModus === 'vergessen') return renderGateVergessen(fehler);
+  if (gateModus === 'neu')       return renderGateNeu(fehler);
   const anmelden = gateModus === 'login';
   /* Die zuletzt an diesem Gerät benutzte Adresse steht beim Anmelden schon drin
      (Karls Ansage vom 18.08.2026). ⚠️ Nur beim Anmelden, nicht beim Registrieren —
@@ -5011,6 +5236,7 @@ function renderGate(fehler){
     <button class="btn primary" id="g-los">${T(anmelden ? 'Anmelden' : 'Konto erstellen')}</button>
     <button class="link" id="g-wechsel">
       ${T(anmelden ? 'Noch kein Konto? Registrieren' : 'Schon ein Konto? Anmelden')}</button>
+    ${anmelden ? `<button class="link" id="g-vergessen">${T('Passwort vergessen?')}</button>` : ''}
     <div class="tiny muted fuss">
       ${T('Deine Fänge liegen dann auf einem Server in der EU.')}
       <button class="link" id="g-ds" style="margin-top:6px; text-decoration:underline">${T('Datenschutz')}</button>
@@ -5018,6 +5244,8 @@ function renderGate(fehler){
     <div id="g-ds-text" hidden style="margin-top:12px"></div>`;
 
   $('#g-wechsel').onclick = () => { gateModus = anmelden ? 'reg' : 'login'; renderGate(); };
+  const vg = $('#g-vergessen');
+  if (vg) vg.onclick = () => { gateModus = 'vergessen'; renderGate(); };
   $('#g-ds').onclick = () => {
     const box = $('#g-ds-text');
     if (!box.innerHTML) box.innerHTML = `<div class="tiny muted" style="line-height:1.5">${datenschutzText()}</div>`;
@@ -5028,16 +5256,7 @@ function renderGate(fehler){
   /* Passwort anzeigen. ⚠️ Die Schreibmarke muss stehen bleiben, wo sie war: ein
      Wechsel des Feldtyps setzt sie sonst ans Ende, und am Handy schließt ein
      verlorener Fokus die Tastatur — mitten im Tippen. */
-  $('#g-pw-auge').onclick = () => {
-    const feld = $('#g-pw'), knopf = $('#g-pw-auge');
-    const zeigt = feld.type === 'text';
-    const pos = feld.selectionStart;
-    feld.type = zeigt ? 'password' : 'text';
-    knopf.innerHTML = zeigt ? AUGE_AUF : AUGE_ZU;
-    knopf.setAttribute('aria-label', T(zeigt ? 'Passwort anzeigen' : 'Passwort verbergen'));
-    feld.focus();
-    try { feld.setSelectionRange(pos, pos); } catch {}
-  };
+  augeVerdrahten('#g-pw', '#g-pw-auge');
   // Beim Tippen klein schreiben, damit sichtbar ist, wie der Name gespeichert wird.
   const nf = $('#g-name');
   if (nf) nf.oninput = () => { nf.value = nf.value.toLowerCase().replace(/\s+/g, ''); };
@@ -5250,7 +5469,9 @@ function datenschutzEN(){
     This is held at Supabase (Supabase Inc.) on servers inside the EU.
     As the owner of the project, the operator of this app has technical access to it.
     The legal basis is Art. 6(1)(b) GDPR (providing the app); for creating the account
-    additionally your consent under (a).</p>
+    additionally your consent under (a).
+    A message is sent to your e-mail address when you ask to reset your password —
+    delivered via Supabase. You will not receive any other messages.</p>
     <p>Your catches are also kept in your device's storage so the app works without a
     connection — at the water that is the normal case. You stay signed in; the session
     is remembered locally so poor reception does not sign you out.</p>
@@ -5315,7 +5536,10 @@ function datenschutzDE(){
     Das liegt bei Supabase (Supabase Inc.) auf Servern in der EU.
     Der Betreiber dieser App hat als Inhaber des Projekts technisch Zugriff darauf.
     Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Bereitstellung der App); für
-    das Anlegen des Kontos zusätzlich deine Einwilligung nach lit. a.</p>
+    das Anlegen des Kontos zusätzlich deine Einwilligung nach lit. a.
+    An deine E-Mail-Adresse wird eine Nachricht geschickt, wenn du dein Passwort
+    zurücksetzen lässt — versendet über Supabase. Andere Nachrichten bekommst du
+    nicht.</p>
     <p>Deine Fänge werden zusätzlich im Speicher deines Geräts gehalten, damit die
     App ohne Netz funktioniert — am Wasser ist das der Normalfall. Angemeldet
     bleibst du dabei; die Sitzung wird lokal gemerkt und du wirst bei schlechtem
@@ -7437,7 +7661,19 @@ window.addEventListener('unhandledrejection', e =>
        Gefahrlos ist das nur, weil syncJetzt seine Fehler selbst behandelt (nichts fliegt hier
        heraus) und weil SPLASH_HOECHSTENS unabhängig davon läuft. Wer sich noch nicht
        angemeldet hat, wartet auf gar nichts — dann liegt der Anmelde-Schirm ohnehin davor. */
-    if (gateNoetig()) gateZeigen();
+    /* ⚠️ Der Rückweg aus der Rücksetz-Mail muss VOR `gateNoetig()` stehen und
+       schlägt eine bestehende Anmeldung. Wer den Link anfordert, weil er nicht
+       mehr hineinkommt, kann an diesem Gerät trotzdem noch angemeldet sein —
+       dann führte der Weg ohne diese Reihenfolge wortlos in die App, und der
+       Link wäre verbraucht, ohne etwas getan zu haben. */
+    const zurueck = rueckkehrAusMail();
+    if (zurueck && zurueck.fehler){
+      gateModus = 'vergessen';
+      gateZeigen(zurueck.fehler);
+    } else if (zurueck && zurueck.token){
+      gateModus = 'neu';
+      gateZeigen();
+    } else if (gateNoetig()) gateZeigen();
     else await syncJetzt(true);
   }
 

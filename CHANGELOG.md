@@ -6,6 +6,64 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 19.08.2026 (v57) — „Passwort vergessen" gibt es jetzt
+
+**Der Anlass ist ein echter Fall, kein Gedankenspiel.** Karl kam am Abend des 18.08. nach der
+Umstellung auf E-Mail-Anmeldung nicht mehr in sein eigenes Konto. Beim Nachsehen kam heraus:
+**es gab überhaupt keine Rücksetzung** — null Treffer im Quelltext.
+
+Bis dahin war das theoretisch: vier bekannte Leute, die ihr Passwort kennen. Mit der
+Instagram-Erlaubnis vom 18.08. ist es das nicht mehr. **Wer sich registriert und sein Passwort
+vergisst, war endgültig ausgesperrt** — die App ist ohne Konto nicht benutzbar, der
+Anmelde-Schirm liegt deckend über allem. Der erste Betroffene war der Betreiber selbst, bevor
+es ein Fremder war.
+
+### Der Weg, in zwei Schirmen
+
+- **„Passwort vergessen?"** steht jetzt unter dem Anmelden — und nur dort, nicht beim
+  Registrieren. Adresse eintragen, Link kommt per Mail.
+- **Zurück aus der Mail** landet man auf „Neues Passwort". Danach ist man **gleich angemeldet**
+  und muss sich nicht in dem Moment noch einmal anmelden, in dem man gerade daran gescheitert ist.
+- Die zuletzt benutzte Adresse steht auch auf dem Vergessen-Schirm schon im Feld.
+
+### Was dabei bewusst nicht passiert
+
+- ⚠️ **Die Bestätigung verrät nicht, ob es das Konto gibt.** Sie sagt *„falls es zu dieser
+  Adresse ein Konto gibt"*, nicht *„die Mail ist unterwegs"*. Sonst wäre dieser Schirm ein
+  Nachschlagedienst „hat diese Adresse ein Konto?" — dieselbe Sorte Auskunft, die mit
+  `email_fuer_username()` in v56 gerade zugemacht wurde.
+- ⚠️ **Der Zugangs-Token aus der Mail wird sofort aus der Adresszeile geräumt.** Er steht im
+  Rauten-Teil des Links; ohne das bliebe er im Browser-Verlauf stehen und ginge beim Weitergeben
+  der Adresse mit.
+- ⚠️ **Das neue Passwort geht mit dem Token aus der Mail hinaus, nicht mit dem aus dem Gerät.**
+  Wer an diesem Gerät noch eine tote Sitzung liegen hat, änderte sonst das falsche Passwort.
+- ⚠️ **Ein abgelaufener Link sagt, dass er abgelaufen ist.** Supabase meldet das auf Englisch im
+  Rauten-Teil; ohne diesen Zweig stünde der Anmelde-Schirm wortlos da und man tippte den Link
+  wieder und wieder an.
+- ⚠️ **Der Rückweg aus der Mail schlägt eine bestehende Anmeldung.** Wer den Link anfordert, kann
+  an diesem Gerät trotzdem noch angemeldet sein — sonst führte der Weg wortlos in die App und der
+  Link wäre verbraucht, ohne etwas getan zu haben.
+
+### Zwei Dinge außerhalb des Quelltexts, die dazugehören
+
+1. 🔴 **`redirect_to` muss in Supabase freigeschaltet sein** (Authentication → URL Configuration →
+   Redirect URLs). Steht die Adresse nicht auf der Liste, schickt Supabase den Link **still** an
+   die Site-URL statt an die App. Von der App aus ist das nicht zu sehen — die Anfrage antwortet
+   trotzdem 200.
+2. ⚠️ **Der eingebaute Mailversand des Gratis-Tarifs ist eng begrenzt.** Reißt er, kommt 429
+   zurück; dafür gibt es jetzt einen eigenen Satz statt der englischen Rohmeldung. Bei vielen
+   Neuen auf einmal bräuchte es einen eigenen Mailversand.
+
+### Nebenbei
+
+- Das Auge-Umschalten am Passwortfeld stand ab jetzt an drei Stellen und ist in
+  `augeVerdrahten()` zusammengezogen.
+- Die Datenschutzerklärung nennt die Rücksetz-Mail als Verwendung der Adresse (beide Sprachen).
+
+**681 Prüfungen grün** (von 668), 0 rot. **Alle 13 neuen waren mindestens einmal rot** — zwölf
+gegen v56, die dreizehnte (die Gegenprobe „beim Registrieren steht der Weg nicht da") gegen eine
+absichtlich kaputte Fassung, in der der Knopf immer steht.
+
 ## 18.08.2026 (v56) — Angemeldet wird nur noch mit E-Mail
 
 **Der Anlass ist keine Fehlermeldung, sondern eine Erlaubnis.** Karl hat seinem Kollegen an

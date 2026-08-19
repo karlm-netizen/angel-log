@@ -2071,6 +2071,123 @@ window.addEventListener('error', e => {
     kontoSchreiben(null);
     return letzteMailLesen() === 'karl@example.org' || `gemerkt: "${letzteMailLesen()}"`;
   });
+  /* ==== Passwort vergessen (v57, 19.08.2026) ====
+     Bis v56 gab es keinen Weg zurueck: wer sein Passwort vergass, war endgueltig
+     ausgesperrt -- ohne Konto ist die App nicht benutzbar. Karl selbst war am
+     18.08. der erste Fall. Mit der Instagram-Erlaubnis trifft es demnaechst Fremde,
+     denen niemand von Hand heraushelfen kann. */
+  t('Der Anmelde-Schirm bietet einen Weg zurueck an', () => {
+    konto = null; gateModus = 'login'; gateZeigen();
+    return !!document.querySelector('#g-vergessen') || 'kein "Passwort vergessen?"';
+  });
+  t('Beim Registrieren steht der Weg nicht da', () => {
+    /* Gegenprobe: waere der Knopf immer da, wuerde die Pruefung darueber auch dann
+       gruen bleiben, wenn er an der falschen Stelle haengt. Und beim Anlegen eines
+       neuen Kontos gibt es noch kein vergessenes Passwort. */
+    gateModus = 'reg'; renderGate();
+    return (!document.querySelector('#g-vergessen')) || 'steht auch beim Registrieren da';
+  });
+  t('Der Weg fuehrt auf den Vergessen-Schirm', () => {
+    konto = null; gateModus = 'login'; gateZeigen();
+    document.querySelector('#g-vergessen').onclick();
+    return !!document.querySelector('#v-mail') || 'kein Adressfeld';
+  });
+  t('Die zuletzt benutzte Adresse steht auch dort schon drin', () => {
+    letzteMailMerken('karl@example.org');
+    gateModus = 'vergessen'; renderGate();
+    const v = document.querySelector('#v-mail').value;
+    return v === 'karl@example.org' || `Feld enthaelt "${v}"`;
+  });
+  t('Eine Eingabe ohne @ wird abgelehnt, ohne das Netz zu fragen', () => {
+    gateModus = 'vergessen'; renderGate();
+    document.querySelector('#v-mail').value = 'karl';
+    document.querySelector('#v-los').onclick();
+    return /E-Mail-Adresse eintragen/.test(document.querySelector('#gate-inner').textContent)
+        || 'keine Meldung';
+  });
+  ta('Der Rueckweg zeigt auf die App selbst', async () => {
+    /* ⚠️ Ohne `redirect_to` schickt Supabase den Link an die Site-URL des Projekts.
+       Die zeigt bei einem frisch angelegten Projekt auf localhost -- der Link waere
+       dann fuer jeden ausser dem Entwickler wertlos, und zwar lautlos. */
+    const echt = window.fetch; let gesehen = '';
+    window.fetch = async (u) => { gesehen = String(u); return { ok: true, json: async () => ({}) }; };
+    try { await rueckstellungAnfordern('karl@example.org'); }
+    finally { window.fetch = echt; }
+    const teil = gesehen.split('redirect_to=')[1] || '';
+    return (/\/auth\/v1\/recover\?redirect_to=/.test(gesehen)
+            && decodeURIComponent(teil) === location.origin + location.pathname)
+        || `URL war: ${gesehen}`;
+  });
+  ta('Die Bestaetigung verraet nicht, ob es das Konto gibt', async () => {
+    /* ⚠️ Sonst waere dieser Schirm ein Nachschlagedienst "gibt es dieses Konto?" --
+       dieselbe Sorte Auskunft, die mit email_fuer_username() in v56 gerade
+       zugemacht wurde. Der Text muss im Konjunktiv stehen, nicht im Indikativ. */
+    const echt = window.fetch;
+    window.fetch = async () => ({ ok: true, json: async () => ({}) });
+    gateModus = 'vergessen'; renderGate();
+    document.querySelector('#v-mail').value = 'gibtsganzsichernicht@example.org';
+    try { await document.querySelector('#v-los').onclick(); }
+    finally { window.fetch = echt; }
+    const txt = document.querySelector('#gate-inner').textContent;
+    return (/Falls es zu dieser Adresse ein Konto gibt/.test(txt)
+            && !document.querySelector('#v-mail'))
+        || `Text war: "${txt.slice(0, 120)}"`;
+  });
+  ta('Die Ratenbremse bekommt einen eigenen Satz', async () => {
+    /* Der eingebaute Mailversand des Gratis-Tarifs ist eng begrenzt. Ohne diese
+       Zeile stuende die englische Rohmeldung da, und der Betroffene hielte eine
+       Bremse, die in Minuten von selbst aufgeht, fuer seinen eigenen Fehler. */
+    const echt = window.fetch;
+    window.fetch = async () => ({ ok: false, json: async () => ({ msg: 'email rate limit exceeded' }) });
+    try { await rueckstellungAnfordern('karl@example.org'); return 'durchgelassen'; }
+    catch (e){ return /in ein paar Minuten/.test(e.message || '') || `Meldung: "${e.message}"`; }
+    finally { window.fetch = echt; }
+  });
+  t('Der Rueckweg aus der Mail wird erkannt', () => {
+    location.hash = '#access_token=AAA&refresh_token=BBB&type=recovery';
+    const r = rueckkehrAusMail();
+    location.hash = '';
+    return (r && r.token === 'AAA' && r.refresh === 'BBB') || `bekommen: ${JSON.stringify(r)}`;
+  });
+  t('Ein abgelaufener Link sagt, dass er abgelaufen ist', () => {
+    /* ⚠️ Supabase meldet das auf Englisch im Rauten-Teil. Ohne diesen Zweig stuende
+       der Anmelde-Schirm wortlos da, und niemand wuesste, dass der Link zu alt war
+       -- man wuerde ihn wieder und wieder antippen. */
+    location.hash = '#error=access_denied&error_description=Email+link+is+invalid+or+has+expired';
+    const r = rueckkehrAusMail();
+    location.hash = '';
+    return (r && /abgelaufen/.test(r.fehler || '')) || `bekommen: ${JSON.stringify(r)}`;
+  });
+  t('Andere Rauten-Teile werden in Ruhe gelassen', () => {
+    /* Gegenprobe: griffe die Erkennung nach jedem Rauten-Teil, wuerde sie beim
+       normalen Start den Anmelde-Schirm gegen "Neues Passwort" tauschen. */
+    location.hash = '#irgendwas';
+    const r = rueckkehrAusMail();
+    const stehengeblieben = location.hash;
+    location.hash = '';
+    return (r === null && stehengeblieben === '#irgendwas') || `r=${JSON.stringify(r)} hash="${stehengeblieben}"`;
+  });
+  t('Ein zu kurzes Passwort wird abgelehnt, ohne das Netz zu fragen', () => {
+    gateModus = 'neu'; renderGate();
+    document.querySelector('#n-pw').value = 'kurz';
+    document.querySelector('#n-los').onclick();
+    return /mindestens 6 Zeichen/.test(document.querySelector('#gate-inner').textContent)
+        || 'keine Meldung';
+  });
+  ta('Das neue Passwort geht mit dem Token aus der Mail hinaus', async () => {
+    /* ⚠️ Der Kern der Sache: zu diesem Zeitpunkt ist niemand angemeldet. Wuerde hier
+       `kopf(true)` stehen, ginge der alte Token aus `konto` mit -- bei jemandem, der
+       an diesem Geraet noch eine tote Sitzung liegen hat, aendert das dann das
+       falsche Passwort oder gar keines. */
+    const echt = window.fetch; let kopfzeile = '(keine)';
+    konto = { access_token: 'ALTER-TOKEN-AUS-DEM-GERAET' };
+    window.fetch = async (u, o) => { kopfzeile = ((o && o.headers) || {})['Authorization'] || '(keine)';
+                                     return { ok: true, json: async () => ({ email: 'x@example.org' }) }; };
+    try { await passwortSetzen('geheim123', 'TOKEN-AUS-DER-MAIL'); }
+    finally { window.fetch = echt; konto = null; }
+    return kopfzeile === 'Bearer TOKEN-AUS-DER-MAIL' || `Kopfzeile war: "${kopfzeile}"`;
+  });
+
   // Aufraeumen, damit nachfolgende Pruefungen einen sauberen Stand vorfinden.
   t('Aufraeumen nach den Anmelde-Pruefungen', () => {
     letzteMailMerken(null); konto = null;
@@ -5494,6 +5611,24 @@ for datei, roh, muster in verboten:
 if 'drop function if exists public.email_fuer_username' not in sql_roh.lower():
     sys.exit('In supabase.sql fehlt das `drop function` fuer email_fuer_username. Ohne das '
              'bleibt eine bestehende Datenbank offen, auch wenn die App sie nicht mehr ruft.')
+# 🔒 Der Zugangs-Token aus der Ruecksetz-Mail steht im Rauten-Teil der Adresse. Er MUSS
+# sofort aus der Adresszeile geraeumt werden -- sonst steht er im Browser-Verlauf und ginge
+# beim Weitergeben der Adresse mit. Als Pruefung im Browser taugt das nicht: `replaceState`
+# ist unter file:// gesperrt, die Pruefung waere dort dauerhaft rot und wuerde abgeschaltet.
+# ⚠️ Erst auf die Funktion selbst pruefen. Ohne diesen Zweig stirbt die Pruefung an einem
+# IndexError, wenn die Funktion fehlt oder umbenannt wird -- also ausgerechnet in dem Fall,
+# fuer den sie da ist, und mit einem Traceback statt eines Satzes.
+teile = html_roh.split('function rueckkehrAusMail')
+if len(teile) < 2:
+    sys.exit('rueckkehrAusMail() gibt es nicht mehr in index.html. Ohne sie kommt niemand '
+             'aus der Ruecksetz-Mail zurueck -- der Link fuehrt dann auf den Anmelde-Schirm, '
+             'an dem er gerade gescheitert ist.')
+if 'history.replaceState' not in teile[1][:1200]:
+    sys.exit('In rueckkehrAusMail() fehlt das Wegraeumen des Rauten-Teils '
+             '(history.replaceState). Ohne das bleibt der Zugangs-Token aus der '
+             'Ruecksetz-Mail in der Adresszeile und im Verlauf stehen.')
+print('Sicherheit: der Token aus der Ruecksetz-Mail wird aus der Adresszeile geraeumt.')
+
 print('Sicherheit: email_fuer_username wird nirgends mehr aufgerufen und wird beim '
       'naechsten SQL-Durchlauf entfernt.')
 
