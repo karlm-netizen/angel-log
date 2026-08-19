@@ -2043,7 +2043,7 @@ const EN = {
   'Falls es zu dieser Adresse ein Konto gibt, ist eine E-Mail mit einem Link unterwegs. Schau auch im Spam-Ordner nach.': 'If there is an account for that address, an e-mail with a link is on its way. Check your spam folder too.',
   'Link schicken': 'Send link',
   'Zurück zum Anmelden': 'Back to sign in',
-  'Der Link gilt eine Stunde. Öffne ihn auf diesem Gerät.': 'The link is valid for one hour. Open it on this device.',
+  'Der Link gilt eine Stunde.': 'The link is valid for one hour.',
   'Bitte eine E-Mail-Adresse eintragen.': 'Please enter an e-mail address.',
   'Kein Netz — dafür wird einmal Verbindung gebraucht.': 'No connection — this needs one once.',
   'Die E-Mail ließ sich gerade nicht verschicken.': 'The e-mail could not be sent right now.',
@@ -5116,7 +5116,7 @@ function renderGateVergessen(fehler, gesendet){
     ${fehler ? `<div class="fehler">${fehler}</div>` : ''}
     ${gesendet ? '' : `<button class="btn primary" id="v-los">${T('Link schicken')}</button>`}
     <button class="link" id="v-zurueck">${T('Zurück zum Anmelden')}</button>
-    ${gesendet ? `<div class="tiny muted fuss">${T('Der Link gilt eine Stunde. Öffne ihn auf diesem Gerät.')}</div>` : ''}`;
+    ${gesendet ? `<div class="tiny muted fuss">${T('Der Link gilt eine Stunde.')}</div>` : ''}`;
 
   $('#v-zurueck').onclick = () => { gateModus = 'login'; renderGate(); };
   const los = $('#v-los');
