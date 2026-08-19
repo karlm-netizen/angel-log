@@ -6,6 +6,50 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 19.08.2026 (v58) — Das Passwort wird zweimal eingegeben
+
+**Karls Ansage:** *„neues pw muss bestätigt werden und auch bei der anmeldung soll es eine
+bestätigung geben das man es 2 mal eingeben muss."*
+
+Gebaut an **beiden Stellen, an denen ein Passwort gesetzt wird**: beim Konto erstellen und beim
+Zurücksetzen. **Beim Anmelden ausdrücklich nicht** — dort tippt man ein Passwort, das man schon
+hat; ein Vertipper fällt ohnehin sofort auf, weil die Anmeldung fehlschlägt. Zweimal tippen
+schützte dort vor nichts.
+
+### Was noch dazugehörte
+
+- ⚠️ **Getipptes bleibt bei einer Fehlermeldung stehen.** Der Schirm wird bei jeder Meldung
+  komplett neu gezeichnet, und der häufigste Fehler ist ab jetzt ein Vertipper im **letzten**
+  Feld. Ohne diese Übernahme hätte er auch **Benutzername und E-Mail** gekostet — man fängt
+  dreimal von vorn an und weiß nicht, warum. **Ein Nebeneffekt, den diese Änderung selbst
+  erzeugt hat**, kein alter Fehler.
+  ⚠️ Die Übernahme greift **nur bei einer Fehlermeldung**, nicht beim Wechsel Anmelden →
+  Registrieren: dort wäre die übernommene Adresse die eines *anderen* Kontos.
+- **Die Reihenfolge der Prüfungen:** zu kurz schlägt ungleich. Wer `abc` und `abcd` eintippt,
+  hörte sonst „nicht gleich", tippte beides gleich — und erst dann, dass es zu kurz ist. Zwei
+  Anläufe für einen Fehler.
+- Auch die zweite Zeile hat ihr eigenes Auge zum Aufdecken.
+
+### Der Rücksetz-Weg ist im Betrieb bestätigt
+
+**v57 ist an diesem Tag zum ersten Mal ganz durchgelaufen** — Link angefordert, Mail bekommen,
+neues Passwort, angemeldet. Karls eigenes Aussperren vom 18.08. ist damit erledigt.
+
+⚠️ **Eine Fehldiagnose auf dem Weg dorthin, damit sie nicht wiederkommt:** hier stand
+zwischenzeitlich „die Mail kommt nirgends an". **Sie kam an** — es wurde im falschen Postfach
+gesucht. Die Messung war richtig (0,71 s für ein echtes Konto gegen 0,10 s für ein unbekanntes),
+der Schluss daraus nicht. Der eingebaute Versand von Supabase liefert.
+⚠️ **Was davon stehen bleibt:** er drosselt auf wenige Mails pro Stunde (Supabase-Standard,
+projektweit). Bei einer beworbenen App gehört die Zahl auf der Rate-Limits-Seite angesehen.
+
+**690 Prüfungen grün** (von 681), 0 rot. **Alle 9 neuen waren mindestens einmal rot** — sieben
+gegen v57, die beiden Gegenproben gegen eigens kaputt gemachte Fassungen (zweites Feld immer
+sichtbar; Übernahme ohne die Fehler-Bedingung).
+
+💡 **Eine der neun war zuerst aus dem falschen Grund grün:** sie las nur Felder aus, die eine
+vorhergehende Prüfung gefüllt hatte. Gegen v57 blieb sie grün, weil dort gar nichts neu
+gezeichnet wurde. Jetzt steht sie eigenständig da. **Dritter Fall dieser Sorte in vier Tagen.**
+
 ## 19.08.2026 (v57) — „Passwort vergessen" gibt es jetzt
 
 **Der Anlass ist ein echter Fall, kein Gedankenspiel.** Karl kam am Abend des 18.08. nach der

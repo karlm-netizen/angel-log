@@ -2188,6 +2188,91 @@ window.addEventListener('error', e => {
     return kopfzeile === 'Bearer TOKEN-AUS-DER-MAIL' || `Kopfzeile war: "${kopfzeile}"`;
   });
 
+  /* ==== Passwort zweimal eingeben (Karls Ansage 19.08.2026) ====
+     "neues pw muss bestaetigt werden und auch bei der anmeldung soll es eine
+     bestaetigung geben das man es 2 mal eingeben muss."
+     Gebaut an beiden Stellen, an denen ein Passwort GESETZT wird -- beim Konto
+     erstellen und beim Zuruecksetzen. Beim Anmelden ausdruecklich nicht. */
+  t('Beim Konto erstellen gibt es ein zweites Passwortfeld', () => {
+    konto = null; gateModus = 'reg'; renderGate();
+    return !!document.querySelector('#g-pw2') || 'fehlt';
+  });
+  t('Beim Anmelden gibt es KEIN zweites Passwortfeld', () => {
+    /* Gegenprobe -- und zugleich die Absicht: dort tippt man ein Passwort, das man
+       schon hat. Ein Vertipper faellt sofort auf, weil die Anmeldung fehlschlaegt. */
+    gateModus = 'login'; renderGate();
+    return (!document.querySelector('#g-pw2')) || 'steht auch beim Anmelden da';
+  });
+  t('Zwei verschiedene Passwoerter werden beim Erstellen abgelehnt', () => {
+    gateModus = 'reg'; renderGate();
+    document.querySelector('#g-name').value = 'testangler';
+    document.querySelector('#g-mail').value = 'test@example.org';
+    document.querySelector('#g-pw').value  = 'geheim123';
+    document.querySelector('#g-pw2').value = 'geheim124';
+    gateLos();
+    return /nicht gleich/.test(document.querySelector('#gate-inner').textContent)
+        || 'durchgelassen';
+  });
+  t('Nach dem Vertipper stehen Name und E-Mail noch da', () => {
+    /* ⚠️ Der Schirm wird bei jeder Meldung komplett neu gezeichnet. Ohne Uebernahme
+       kostete ein Vertipper im LETZTEN Feld auch die beiden ersten -- man faengt
+       dreimal von vorn an und weiss nicht, warum.
+       ⚠️ Absichtlich eigenstaendig: erst stand hier nur das Auslesen und die Pruefung
+       verliess sich darauf, dass die Pruefung DAVOR die Felder gefuellt und abgeschickt
+       hatte. Gegen den Stand ohne zweites Feld blieb sie damit gruen -- nicht weil die
+       Uebernahme funktionierte, sondern weil nie etwas neu gezeichnet wurde. */
+    gateModus = 'reg'; renderGate();
+    document.querySelector('#g-name').value = 'testangler';
+    document.querySelector('#g-mail').value = 'test@example.org';
+    document.querySelector('#g-pw').value   = 'geheim123';
+    document.querySelector('#g-pw2').value  = 'geheim124';
+    gateLos();
+    const n = document.querySelector('#g-name').value;
+    const m = document.querySelector('#g-mail').value;
+    return (n === 'testangler' && m === 'test@example.org') || `Name "${n}", Mail "${m}"`;
+  });
+  t('Beim Wechsel auf Registrieren sind die Felder leer', () => {
+    /* Gegenprobe zur Uebernahme oben: sie darf NUR bei einer Fehlermeldung greifen.
+       Beim Wechsel waere die uebernommene Adresse die eines ANDEREN Kontos. */
+    letzteMailMerken('karl@example.org');
+    gateModus = 'login'; renderGate();
+    document.querySelector('#g-wechsel').onclick();
+    const m = document.querySelector('#g-mail').value;
+    const n = document.querySelector('#g-name').value;
+    return (m === '' && n === '') || `Mail "${m}", Name "${n}"`;
+  });
+  t('Beim Zuruecksetzen gibt es ein zweites Passwortfeld', () => {
+    gateModus = 'neu'; renderGate();
+    return !!document.querySelector('#n-pw2') || 'fehlt';
+  });
+  t('Zwei verschiedene Passwoerter werden beim Zuruecksetzen abgelehnt', () => {
+    gateModus = 'neu'; renderGate();
+    document.querySelector('#n-pw').value  = 'geheim123';
+    document.querySelector('#n-pw2').value = 'geheim124';
+    document.querySelector('#n-los').onclick();
+    return /nicht gleich/.test(document.querySelector('#gate-inner').textContent)
+        || 'durchgelassen';
+  });
+  t('Ein zu kurzes Passwort meldet die Laenge, nicht die Ungleichheit', () => {
+    /* ⚠️ Die Reihenfolge der beiden Pruefungen. Wer "abc" und "abcd" eintippt, hoert
+       sonst "nicht gleich", tippt beides gleich -- und hoert dann erst, dass es zu
+       kurz ist. Zwei Anlaeufe fuer einen Fehler. */
+    gateModus = 'neu'; renderGate();
+    document.querySelector('#n-pw').value  = 'abc';
+    document.querySelector('#n-pw2').value = 'abcd';
+    document.querySelector('#n-los').onclick();
+    const txt = document.querySelector('#gate-inner').textContent;
+    return (/mindestens 6 Zeichen/.test(txt) && !/nicht gleich/.test(txt))
+        || `Meldung: "${txt.slice(0, 80)}"`;
+  });
+  t('Beide Augen am Zuruecksetzen-Schirm wirken getrennt', () => {
+    gateModus = 'neu'; renderGate();
+    document.querySelector('#n-pw2-auge').onclick();
+    const eins = document.querySelector('#n-pw').type;
+    const zwei = document.querySelector('#n-pw2').type;
+    return (eins === 'password' && zwei === 'text') || `oben ${eins}, unten ${zwei}`;
+  });
+
   // Aufraeumen, damit nachfolgende Pruefungen einen sauberen Stand vorfinden.
   t('Aufraeumen nach den Anmelde-Pruefungen', () => {
     letzteMailMerken(null); konto = null;

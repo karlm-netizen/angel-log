@@ -2051,6 +2051,9 @@ const EN = {
   'Dieser Link ist abgelaufen. Fordere unten einen neuen an.': 'This link has expired. Request a new one below.',
   'Mit diesem Link stimmt etwas nicht. Fordere unten einen neuen an.': 'Something is wrong with this link. Request a new one below.',
   'Neues Passwort': 'New password',
+  'Neues Passwort wiederholen': 'Repeat new password',
+  'Passwort wiederholen': 'Repeat password',
+  'Die beiden Passwörter sind nicht gleich.': 'The two passwords do not match.',
   'Denk dir ein neues Passwort aus. Danach bist du gleich angemeldet.': 'Think of a new password. You will be signed in right afterwards.',
   'Passwort speichern': 'Save password',
   'Das Passwort braucht mindestens 6 Zeichen.': 'The password needs at least 6 characters.',
@@ -4035,7 +4038,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v57';
+const FASSUNG = 'v58';
 
 const KONTO_KEY = 'angellog-konto';
 /* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
@@ -5158,13 +5161,23 @@ function renderGateNeu(fehler){
       <button type="button" class="pw-auge" id="n-pw-auge"
               aria-label="${T('Passwort anzeigen')}">${AUGE_AUF}</button>
     </div>
+    <div class="pw-feld">
+      <input class="in" id="n-pw2" type="password" autocomplete="new-password"
+             placeholder="${T('Neues Passwort wiederholen')}">
+      <button type="button" class="pw-auge" id="n-pw2-auge"
+              aria-label="${T('Passwort anzeigen')}">${AUGE_AUF}</button>
+    </div>
     ${fehler ? `<div class="fehler">${fehler}</div>` : ''}
     <button class="btn primary" id="n-los">${T('Passwort speichern')}</button>`;
 
   augeVerdrahten('#n-pw', '#n-pw-auge');
+  augeVerdrahten('#n-pw2', '#n-pw2-auge');
   const speichern = async () => {
     const pw = $('#n-pw').value;
     if (pw.length < 6) return renderGateNeu(T('Das Passwort braucht mindestens 6 Zeichen.'));
+    /* ⚠️ Die Laenge zuerst: wer ein zu kurzes Passwort zweimal gleich eintippt, soll
+       hoeren, was wirklich fehlt, und nicht zweimal hintereinander etwas anderes. */
+    if (pw !== $('#n-pw2').value) return renderGateNeu(T('Die beiden Passwörter sind nicht gleich.'));
     if (!navigator.onLine) return renderGateNeu(T('Kein Netz — dafür wird einmal Verbindung gebraucht.'));
     const btn = $('#n-los');
     btn.disabled = true; btn.textContent = T('Einen Moment …');
@@ -5190,7 +5203,8 @@ function renderGateNeu(fehler){
     }
   };
   $('#n-los').onclick = speichern;
-  $('#n-pw').onkeydown = e => { if (e.key === 'Enter') speichern(); };
+  $('#n-pw').onkeydown = e => { if (e.key === 'Enter') $('#n-pw2').focus(); };
+  $('#n-pw2').onkeydown = e => { if (e.key === 'Enter') speichern(); };
 }
 
 function renderGate(fehler){
@@ -5203,7 +5217,17 @@ function renderGate(fehler){
      leicht übersieht.
      ⚠️ Und kein automatischer Fokus ins Passwortfeld: am Handy spränge dann beim
      Öffnen der App die Tastatur auf, noch bevor jemand etwas tun wollte. */
-  const vorbelegt = anmelden ? letzteMailLesen() : '';
+  /* ⚠️ Bei einer Fehlermeldung stehenlassen, was schon getippt war. Der Schirm wird
+     komplett neu gezeichnet, und seit dem zweiten Passwortfeld (19.08.2026) ist der
+     haeufigste Fehler ein Vertipper in der Wiederholung. Ohne das kostete ein
+     Vertipper im letzten Feld auch Benutzername und E-Mail -- man faengt dreimal von
+     vorn an und weiss nicht, warum.
+     ⚠️ NUR bei einem Fehler. Beim Wechsel Anmelden -> Registrieren muessen die Felder
+     leer sein: dort waere die uebernommene Adresse die eines ANDEREN Kontos. */
+  const altMail = $('#g-mail'), altName = $('#g-name');
+  const vorbelegt = (fehler && altMail) ? altMail.value
+                  : (anmelden ? letzteMailLesen() : '');
+  const nameVorbelegt = (fehler && altName) ? altName.value : '';
   $('#gate-inner').innerHTML = `
     <div class="hero">
       <!-- ⚠️ Das echte App-Symbol. Hier stand bis zum 10.08.2026 eine gezeichnete
@@ -5220,7 +5244,8 @@ function renderGate(fehler){
     </div>
     ${anmelden ? '' : `
     <input class="in" id="g-name" autocomplete="username" spellcheck="false"
-           autocapitalize="none" placeholder="${T('Benutzername')}">`}
+           autocapitalize="none" value="${esc(nameVorbelegt)}"
+           placeholder="${T('Benutzername')}">`}
     <input class="in" id="g-mail" type="email" inputmode="email"
            autocomplete="email" value="${esc(vorbelegt)}"
            spellcheck="false" autocapitalize="none"
@@ -5232,6 +5257,13 @@ function renderGate(fehler){
       <button type="button" class="pw-auge" id="g-pw-auge"
               aria-label="${T('Passwort anzeigen')}">${AUGE_AUF}</button>
     </div>
+    ${anmelden ? '' : `
+    <div class="pw-feld">
+      <input class="in" id="g-pw2" type="password" autocomplete="new-password"
+             placeholder="${T('Passwort wiederholen')}">
+      <button type="button" class="pw-auge" id="g-pw2-auge"
+              aria-label="${T('Passwort anzeigen')}">${AUGE_AUF}</button>
+    </div>`}
     ${fehler ? `<div class="fehler">${fehler}</div>` : ''}
     <button class="btn primary" id="g-los">${T(anmelden ? 'Anmelden' : 'Konto erstellen')}</button>
     <button class="link" id="g-wechsel">
@@ -5257,6 +5289,7 @@ function renderGate(fehler){
      Wechsel des Feldtyps setzt sie sonst ans Ende, und am Handy schließt ein
      verlorener Fokus die Tastatur — mitten im Tippen. */
   augeVerdrahten('#g-pw', '#g-pw-auge');
+  augeVerdrahten('#g-pw2', '#g-pw2-auge');
   // Beim Tippen klein schreiben, damit sichtbar ist, wie der Name gespeichert wird.
   const nf = $('#g-name');
   if (nf) nf.oninput = () => { nf.value = nf.value.toLowerCase().replace(/\s+/g, ''); };
@@ -5272,6 +5305,12 @@ async function gateLos(){
   if (!anmeldenModus){
     const fehler = namePruefen(name);
     if (fehler) return renderGate(fehler);
+    /* Karls Ansage vom 19.08.2026: das Passwort wird zweimal eingegeben, wo es
+       GESETZT wird -- beim Konto erstellen und beim Zuruecksetzen. Beim Anmelden
+       nicht: dort tippt man ein Passwort, das man schon hat, und ein Vertipper
+       faellt sofort auf, weil die Anmeldung fehlschlaegt. */
+    if (pw !== $('#g-pw2').value)
+      return renderGate(T('Die beiden Passwörter sind nicht gleich.'));
   }
   if (!navigator.onLine) return renderGate(T('Kein Netz — zum Anmelden wird einmal Verbindung gebraucht. Danach läuft die App auch offline.'));
   const btn = $('#g-los');
