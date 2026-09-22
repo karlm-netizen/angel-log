@@ -6,6 +6,64 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 22.09.2026 (v61) — Tibo ist zweiter Admin, rote Nadeln, alle Angaben im Popup
+
+**Karls Ansagen, am selben Abend nach v60:**
+*„also wir sagen den leuten nichts tibo soll auch admin haben das ist auch sein username"* ·
+*„mach die markierungen für andere fische genauso wie meine nur in rot"* ·
+*„und ich brauche wenn ich auf die drauf klicke auch alle anderen daten bis auf bilder"*.
+
+- **Zwei Admins: `karl` und `tibo`.** Ein einzelner Eintrag in `angel_konfig` taugt dafür nicht
+  mehr — wer Admin ist, steht jetzt in einer eigenen Tabelle **`angel_admins`**. Schlüssel ist der
+  Name, `on conflict do nothing`, **keine** Verbindung zu `auth.users`: so kann kein SQL-Lauf einen
+  Namen je auf ein anderes Konto umsetzen, auch nicht nach dem Löschen und Neuanlegen. Der alte
+  Eintrag aus v60 bleibt liegen und wird nicht mehr gelesen.
+- **Rote Nadeln statt oranger Punkte** — dieselbe Nadel wie die eigene, nur rot. Das Bild ist
+  aus Leaflets eigener Nadel **erzeugt** (`nadel-rot.py`), je Pixel nur der Farbton gedreht.
+  ⚠️ Ein CSS-Filter ging nicht: gemessen macht `hue-rotate` die Nadel heller (0,62 statt 0,50),
+  und mit `brightness` dazu wird der **weiße Punkt grau**. Nachgemessen: gleiche Größe, gleiche
+  Helligkeit und Sättigung wie die blaue, Farbton 0°, Punkt weiß. Liegt im Service Worker.
+- **Antippen zeigt alle Angaben außer den Fotos** — dieselben Felder, Beschriftungen und
+  Einheiten wie die eigene Fang-Ansicht, samt **Notiz**. Das Popup scrollt, weil es länger ist
+  als ein Handy. `angel_admin_faenge()` gibt dafür den ganzen Fang heraus; die Fotos liegen in
+  einer eigenen Spalte und werden nie angefasst.
+  🔴 Die eigene Fang-Ansicht ist **nicht** wiederverwendet: ihr `kv()` setzt Werte roh ins HTML.
+  Für fremde Fänge geht jedes Feld durch `esc()` und wird auf seine Sorte geprüft.
+
+### ⚖️ Datenschutzerklärung
+
+**Den Leuten wird nichts gesagt** (Karls Entscheidung) — die Erklärung selbst muss aber stimmen.
+Sie nennt jetzt **zwei Admin-Konten** („der Betreiber und ein zweiter Admin, der die App selbst
+nutzt") und **alle Angaben samt Notiz, nur ohne Fotos**.
+🔴 Der Satz *„Andere Nutzer sehen deine Fänge nicht"* aus v60 ist ersetzt: der zweite Admin
+**ist** ein Nutzer. Eine Prüfung liest jetzt die Zahl der Admins aus `supabase.sql` und verlangt,
+dass der Text dieselbe nennt.
+
+### Prüfungen
+
+**724 grün** (vorher 722). Neu: Schadcode in **jedem** Feld (nicht nur Fischart und Name),
+falsche Sorten (Liste statt Text) werfen nicht, das Popup zeigt alle Felder der Fang-Ansicht, die
+Nadel hat die Maße der eigenen und ein scrollendes Popup; statisch die Admin-Liste (Policy, RLS,
+cascade), die Nadel an drei Stellen (Datei, Code, Service Worker) und ihre Farbe (mit Pillow).
+🔴 **Beim Bau gefunden:** die Prüfung für `angel_ist_admin()` verlangte nur, dass `auth.uid()` und
+die Liste **irgendwo** vorkommen — eine Funktion, die die Liste liest und das Konto nicht
+vergleicht, wäre durchgekommen. Jetzt wird der Vergleich selbst verlangt.
+🔴 **Und:** ein SQL-Kommentar mit dem Wort „Fotos" im Funktionsrumpf hätte „gibt Fotos heraus"
+ausgelöst. Die SQL-Prüfungen lesen Kommentare jetzt gar nicht mehr mit.
+🛡️ **Zusätzlich abgesichert:** `angel_admin_faenge()` nimmt `photos` auch aus dem Datensatz selbst
+heraus (`daten - 'photos'`) — falls eine frühe Fassung Fotos dort mit hineingeschrieben hat.
+🧪 **Gegenprobe: 40 von 40 Handgriffen werden bemerkt.** Neu: `python gegenprobe.py <Wort>` lässt
+nur die passenden Hebel laufen. Ein Hebel zeigte nach einer Kommentarzeile ins Leere — der
+Warnsatz „HEBEL GRIFF NICHT" hat es gemeldet, statt still grün zu sein.
+⚠️ **Ein Wackler, nicht vom Umbau:** „und er fängt keine Tipper mehr ab" (Ladebildschirm im
+Rahmen) war einmal in acht Läufen rot und danach zweimal grün. Sie hängt an IndexedDB unter
+`file://`. Nicht angefasst — steht hier, damit ein einzelnes Rot dort niemanden irreführt.
+
+### Einspielen
+
+**Abschnitt 8 aus `supabase.sql` noch einmal im SQL-Editor ausführen.** Erwartet in der
+Zählzeile: `admins = karl, tibo · veraltet = 0 · funktionen = 3`.
+
 ## 22.09.2026 (v60) — Admin: Kontenzahl und die Fänge aller auf der Karte
 
 **Karls Ansagen:** *„admin panel mit usercount"* und *„eine möglichkeit im admin panel das

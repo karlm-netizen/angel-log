@@ -5878,12 +5878,48 @@ window.addEventListener('error', e => {
     if (d.querySelector('img, svg, script, [onclick], [onerror], [onload]')) return 'es entsteht ein Element';
     return /&lt;img src=x/.test(f.popup) || f.popup;
   });
-  t('Fremde Faenge: Popup nennt Art, Groesse, Gewaesser und wer', () => {
-    const [f] = fremdeFaengeAufbereiten([{ lat: 54, lon: 10, art: 'Hecht', laenge: 82,
-      gewicht: 4.2, gewaesser: 'Postsee', name: 'tibo', when: '2026-08-02T20:30' }]);
-    const txt = (() => { const d = document.createElement('div'); d.innerHTML = f.popup; return d.textContent; })();
-    const fehlt = ['Hecht', '82 cm', '4,2 kg', 'Postsee', 'tibo', '02.08.2026'].filter(s => txt.indexOf(s) === -1);
-    return fehlt.length === 0 || 'fehlt: ' + fehlt.join(', ') + ' in ' + txt;
+  /* v61, Karls Ansage: "wenn ich auf die drauf klicke auch alle anderen daten bis auf
+     bilder". Geprueft wird gegen dieselben Felder, die die eigene Fang-Ansicht zeigt. */
+  t('Fremde Faenge: das Popup zeigt alle Angaben der Fang-Ansicht', () => {
+    const [f] = fremdeFaengeAufbereiten([{ lat: 54.3, lon: 10.1, art: 'Hecht', laenge: 82,
+      gewicht: 4.2, gewaesser: 'Postsee', name: 'tibo', when: '2026-08-02T20:30',
+      phase: PHASEN[0][0], wasser: 16.5, wasserQuelle: 'pegel', wasserStation: 'Preetz',
+      truebung: TRUEBUNG[0][0], tiefe: 3, luft: 14, druck: 1013, windRichtung: 'NW', windKmh: 12,
+      wetter: 'klar', bewoelkung: 20, regen24: 0.4, koeder: 'Gummifisch', koederGroesse: 12,
+      koederGewicht: 10, farben: ['weiss', 'rot'], notiz: 'am Schilf\nzweite Zeile' }]);
+    const d = document.createElement('div'); d.innerHTML = f.popup;
+    const txt = d.textContent;
+    const soll = ['Hecht', '82 cm', '4,2 kg', 'Postsee', 'tibo', '02.08.2026',
+      phaseLabel(PHASEN[0][0]), 'Mondphase', '16,5 °C', 'Messstelle Preetz', truebLabel(TRUEBUNG[0][0]),
+      '3 m', '14 °C', '1013 hPa', 'NW · 12 km/h', wetterLabel('klar'), '20 %', '0,4 mm',
+      'Gummifisch', '12 cm', '10 g', 'Farben', 'am Schilf', 'zweite Zeile', '54.30000, 10.10000'];
+    const fehlt = soll.filter(s => txt.indexOf(s) === -1);
+    if (fehlt.length) return 'fehlt: ' + fehlt.join(' | ');
+    return (d.querySelectorAll('.fremd-notiz br').length === 1) || 'Zeilenumbruch der Notiz fehlt';
+  });
+  /* 🔴 Nicht nur Fischart und Name: seit v61 steht JEDES Feld im Popup, und jedes hat ein
+     Fremder eingetippt. Jedes bekommt hier seinen eigenen Schadcode. */
+  t('Fremde Faenge: Schadcode in JEDEM Feld bleibt Text', () => {
+    const b = n => '<img src=x onerror="window.__angelXss=' + n + '">';
+    const [f] = fremdeFaengeAufbereiten([{ lat: 54, lon: 10, art: b(1), gewaesser: b(2),
+      name: b(3), when: b(4), koeder: b(5), notiz: b(6), windRichtung: b(7),
+      wasserQuelle: 'pegel', wasserStation: b(8), phase: b(9), truebung: b(10), wetter: b(11),
+      farben: [b(12), 'rot'], laenge: b(13), gewicht: b(14), druck: b(15), wasser: b(16) }]);
+    const d = document.createElement('div'); d.innerHTML = f.popup;
+    if (d.querySelector('img, svg, script, [onerror], [onload], [onclick]')) return 'es entsteht ein Element: ' + f.popup;
+    // Texte muessen entschaerft DASTEHEN (nicht verschluckt), Zahlenfelder mit Text gar nicht.
+    // ⚠️ Ohne die 4 (Datum): Chromes Datums-Leser macht selbst aus diesem Schadcode noch ein
+    // Datum (gemessen am 22.09.2026) -- dann steht ein falsches Datum da statt des Textes.
+    // Harmlos; dass dabei nichts ausgefuehrt wird, prueft die Zeile oben.
+    const fehlt = [1, 2, 3, 5, 6, 7, 8, 12].filter(n => f.popup.indexOf('__angelXss=' + n) === -1);
+    if (fehlt.length) return 'Feld verschluckt statt entschaerft: ' + fehlt.join(', ');
+    const zahlen = [13, 14, 15, 16].filter(n => f.popup.indexOf('__angelXss=' + n) !== -1);
+    return zahlen.length === 0 || 'Text in einem Zahlenfeld angezeigt: ' + zahlen.join(', ');
+  });
+  t('Fremde Faenge: falsche Sorten werfen nicht und zeigen kein "[object Object]"', () => {
+    const [f] = fremdeFaengeAufbereiten([{ lat: 54, lon: 10, art: { x: 1 }, notiz: ['a'],
+      farben: 'rot', koeder: 7, windRichtung: null, when: 12345, name: { n: 1 } }]);
+    return (!/object Object|NaN|undefined/.test(f.popup)) || f.popup;
   });
   t('Fremde Faenge: ohne Benutzernamen steht das dort, nicht "undefined"', () => {
     const [f] = fremdeFaengeAufbereiten([{ lat: 54, lon: 10, art: 'Aal', name: null }]);
@@ -5926,6 +5962,17 @@ window.addEventListener('error', e => {
       if (!fremdLayer) return 'keine Ebene fuer fremde Faenge (Karte nicht geladen?)';
       const n = fremdLayer.getLayers().length;
       if (n !== 2) return n + ' Punkte statt 2';
+      /* v61, Karls Ansage: "genauso wie meine nur in rot" -- also dieselbe Sorte Markierung
+         wie die eigenen, mit denselben Massen, nur mit der roten Nadel. */
+      const m = fremdLayer.getLayers()[0];
+      if (!(m instanceof L.Marker)) return 'keine Nadel, sondern ' + (m.constructor && m.constructor.name);
+      const o = m.options.icon && m.options.icon.options, std = L.Icon.Default.prototype.options;
+      if (!o || o.iconUrl !== 'nadel-rot.png' || o.iconRetinaUrl !== 'nadel-rot-2x.png') return 'nicht die rote Nadel';
+      for (const k of ['iconSize', 'iconAnchor', 'popupAnchor', 'shadowSize'])
+        if (JSON.stringify(o[k]) !== JSON.stringify(std[k])) return k + ' anders als bei der eigenen Nadel';
+      if (!/marker-shadow\.png$/.test(o.shadowUrl || '')) return 'ohne den Schatten der eigenen Nadel';
+      // Mit allen Angaben ist das Popup laenger als ein Handy -- es muss scrollen koennen.
+      if (!(m.getPopup().options.maxHeight > 0)) return 'Popup ohne Hoehengrenze';
       const pill = document.querySelector('#map-count').textContent;
       return /2 von anderen/.test(pill) || pill;
     } finally { fetchWeg(); document.querySelector('#v-map').classList.toggle('hidden', vorher !== 'map'); adminAufraeumen(); }
@@ -6070,7 +6117,10 @@ def sql_funktion(name):
     if not m:
         sys.exit(f'{name}() fehlt in supabase.sql -- die App fragt danach, und ohne die '
                  f'Funktion steht im Admin-Block nur "fehlt noch".')
-    return m.group(1).lower(), m.group(2).lower()
+    # ⚠️ Ohne Kommentare: ein Kommentar, der "Fotos" erklaert, ist keine Abfrage, die
+    # Fotos herausgibt -- und umgekehrt darf ein Kommentar keine fehlende Zeile ersetzen.
+    ohne = lambda s: re.sub(r'--[^\n]*', '', s).lower()
+    return ohne(m.group(1)), ohne(m.group(2))
 
 sql_klein = sql_roh.lower()
 for name in ['angel_admin_zahlen', 'angel_admin_faenge']:
@@ -6096,38 +6146,96 @@ for name in ['angel_admin_zahlen', 'angel_admin_faenge']:
         sys.exit(f'{name}(): ist fuer anon freigegeben. Das darf sie nie sein.')
 
 kopf, rumpf = sql_funktion('angel_ist_admin')
-if 'auth.uid()' not in rumpf or "schluessel = 'admin'" not in rumpf:
-    sys.exit('angel_ist_admin() vergleicht nicht mehr das angemeldete Konto mit dem '
-             'Admin-Eintrag in angel_konfig.')
+# ⚠️ Der VERGLEICH wird geprueft, nicht dass beide Woerter irgendwo vorkommen: eine
+# Funktion, die die Liste liest, aber das Konto nicht vergleicht, liesse jeden durch.
+if 'from public.angel_admins a where a.user_id = auth.uid()' not in rumpf:
+    sys.exit('angel_ist_admin() vergleicht nicht mehr das angemeldete Konto mit der '
+             'Admin-Liste angel_admins.')
 if 'revoke all on function public.angel_ist_admin() from public, anon, authenticated;' not in sql_klein \
         or re.search(r'grant execute on function public\.angel_ist_admin\(\)', sql_klein):
     sys.exit('angel_ist_admin() ist von aussen aufrufbar -- gedacht ist sie nur fuer die '
              'beiden Admin-Funktionen.')
 
-# ⚠️ `do nothing`, nie `do update`: sonst wuerde nach dem Loeschen des Kontos "karl"
-# der Naechste mit diesem Namen beim naechsten SQL-Lauf Admin.
-m = re.search(r"insert into public\.angel_konfig \(schluessel, wert\)\s*select 'admin'[^;]*;", sql_klein)
+# Die Admin-Liste (seit v61). Wer hier hineinkommt, sieht die Fangplaetze aller.
+m = re.search(r'create table if not exists public\.angel_admins \((.*?)\);', sql_klein, re.S)
+if not m:
+    sys.exit('Die Tabelle angel_admins fehlt in supabase.sql -- dann ist niemand Admin.')
+# ⚠️ Keine Verbindung zu auth.users: mit `on delete cascade` verschwaende die Zeile beim
+# Loeschen des Kontos, und der naechste SQL-Lauf gaebe den Namen dem Naechsten.
+if 'references' in m.group(1):
+    sys.exit('angel_admins haengt an auth.users. Dann verschwindet ein Eintrag mit dem Konto, '
+             'und ein neues Konto mit demselben Namen wird beim naechsten Lauf Admin.')
+if 'alter table public.angel_admins enable row level security;' not in sql_klein:
+    sys.exit('angel_admins ohne Row Level Security -- dann kann jeder die Liste lesen und sich '
+             'selbst eintragen.')
+if re.search(r'create policy[^;]*on public\.angel_admins', sql_klein):
+    sys.exit('angel_admins hat eine Policy. Die Liste darf ueber die API niemand lesen oder '
+             'schreiben -- ueber eine Policy koennte sich jemand selbst eintragen.')
+# ⚠️ `do nothing`, nie `do update`: sonst setzte jeder erneute SQL-Lauf einen Namen auf das
+# Konto, das ihn gerade traegt -- auch auf ein neues nach dem Loeschen des alten.
+m = re.search(r"insert into public\.angel_admins \(name, user_id\)\s*select[^;]*;", sql_klein)
 if not m:
     sys.exit('Der Admin-Eintrag in supabase.sql fehlt -- dann ist niemand Admin.')
-if 'do nothing' not in m.group(0) or 'do update' in m.group(0):
-    sys.exit('Der Admin-Eintrag muss "on conflict ... do nothing" sein. Mit "do update" setzte '
+if 'on conflict (name) do nothing' not in m.group(0) or 'do update' in m.group(0):
+    sys.exit('Der Admin-Eintrag muss "on conflict (name) do nothing" sein. Mit "do update" setzte '
              'jeder erneute SQL-Lauf den Admin ueber den Benutzernamen neu.')
+admin_namen = re.findall(r"'([a-z0-9_.-]+)'", m.group(0).split('where', 1)[-1])
+if not admin_namen:
+    sys.exit('Im Admin-Eintrag steht kein einziger Name.')
 
-# Nur, was die Karte braucht -- und was die Datenschutzerklaerung nennt.
+# Seit v61 ALLE Angaben zum Fang -- nur die Fotos nie (Karls Ansage: "bis auf bilder").
 _, rumpf = sql_funktion('angel_admin_faenge')
-zu_viel = [w for w in ("'notiz'", 'fotos', "'photos'", "'koeder'") if w in rumpf]
-if zu_viel:
-    sys.exit(f'angel_admin_faenge() gibt mehr heraus als die Karte braucht: {zu_viel}. Die '
-             f'Datenschutzerklaerung sagt ausdruecklich: ohne Fotos und Notizen.')
-fehlt = [w for w in ("'lat'", "'lon'", "'art'", "'laenge'", "'gewicht'", "'when'", "'gewaesser'",
-                     "'name'") if w not in rumpf]
-if fehlt:
-    sys.exit(f'angel_admin_faenge() liefert {fehlt} nicht -- fremdeFaengeAufbereiten() liest '
-             f'genau diese Felder, und das Popup stuende dann still leer da.')
+if 'fotos' in rumpf:
+    sys.exit('angel_admin_faenge() gibt Fotos heraus. Karls Ansage: alle Angaben bis auf die '
+             'Bilder -- und die Datenschutzerklaerung sagt genau das.')
+if "(f.daten - 'photos') ||" not in rumpf:
+    sys.exit('angel_admin_faenge() nimmt Fotos, die in alten Faengen im Datensatz selbst stehen, '
+             'nicht heraus -- dann gingen sie gegen "bis auf bilder" doch mit.')
+if "'name'" not in rumpf:
+    sys.exit('angel_admin_faenge() liefert den Benutzernamen nicht mehr -- im Popup stuende '
+             'dann bei jedem Fang "ohne Benutzernamen".')
 if 'not f.geloescht' not in rumpf or "'entwurf'" not in rumpf:
     sys.exit('angel_admin_faenge() zeigt Geloeschtes oder Entwuerfe mit.')
-print('Sicherheit: die Admin-Funktionen pruefen zuerst, wer fragt, sind fuer anon zu, '
-      'und geben nur die Kartenfelder heraus.')
+print(f'Sicherheit: die Admin-Funktionen pruefen zuerst, wer fragt, sind fuer anon zu, geben '
+      f'keine Fotos heraus; Admins: {", ".join(admin_namen)}.')
+
+# 🔴 Die rote Nadel (v61). Sie steht an drei Stellen: als Datei, im Code und im Service
+# Worker. Fehlt sie im Service Worker, steht sie am Wasser ohne Netz als kaputtes Bild da --
+# dieselbe Falle wie bei den Splash-Fotos oben.
+for datei in ['nadel-rot.png', 'nadel-rot-2x.png']:
+    if not (SRC / datei).exists():
+        sys.exit(f'{datei} fehlt auf der Platte -- mit nadel-rot.py neu erzeugen.')
+    if f"'{datei}'" not in html_roh:
+        sys.exit(f'{datei} liegt da, index.html benutzt sie aber nicht.')
+    if f"'./{datei}'" not in sw_roh:
+        sys.exit(f'{datei} fehlt im Service Worker -- ohne Netz waere die Nadel ein kaputtes Bild.')
+try:
+    from PIL import Image
+    import colorsys, math
+except ImportError:
+    print('Rote Nadel: Farbe NICHT nachgemessen -- Pillow fehlt auf diesem Rechner.')
+else:
+    # Karls Ansage: "genauso wie meine nur in rot". Also: gleiche Groesse wie Leaflets Nadel,
+    # Farbton Rot, und der weisse Punkt in der Mitte bleibt weiss.
+    for rot, blau in [('nadel-rot.png', 'marker-icon.png'), ('nadel-rot-2x.png', 'marker-icon-2x.png')]:
+        b_rot = Image.open(SRC / rot).convert('RGBA')
+        b_blau = Image.open(SRC / 'leaflet' / 'images' / blau).convert('RGBA')
+        if b_rot.size != b_blau.size:
+            sys.exit(f'{rot} ist {b_rot.size}, Leaflets Nadel {b_blau.size} -- nicht "genauso".')
+        winkel = []
+        for x in range(b_rot.width):
+            for y in range(b_rot.height):
+                r, g, b, a = b_rot.getpixel((x, y))
+                h, l, s = colorsys.rgb_to_hls(r / 255, g / 255, b / 255)
+                if a > 200 and s > 0.35 and 0.15 < l < 0.85:
+                    winkel.append(h * 2 * math.pi)
+        ton = (math.degrees(math.atan2(sum(map(math.sin, winkel)), sum(map(math.cos, winkel)))) + 360) % 360
+        if min(ton, 360 - ton) > 10:
+            sys.exit(f'{rot} hat den Farbton {ton:.0f} Grad -- das ist kein Rot.')
+        mitte = b_rot.getpixel((b_rot.width // 2, round(b_rot.height * 0.3)))
+        if min(mitte[:3]) < 240:
+            sys.exit(f'{rot}: der Punkt in der Mitte ist nicht mehr weiss ({mitte}).')
+    print(f'Rote Nadel: gleiche Groesse wie Leaflets Nadel, Farbton {ton:.0f} Grad, Punkt weiss.')
 
 # 🔒 Und die Richtung, in der die drei schweren Funde vom 11.09.2026 lagen: was der
 # Code TUT, muss der Text SAGEN -- und umgekehrt. Sonst steht "keine Auswertung zu
@@ -6148,20 +6256,39 @@ if nennt_admin and not nutzt_admin:
     sys.exit('Die Datenschutzerklaerung beschreibt eine Admin-Ansicht, die es im Code nicht '
              'mehr gibt.')
 if nutzt_admin:
-    for pflicht in ['aller Konten', 'Fangort', 'Benutzername', 'Fotos und Notizen sind dort nicht',
+    # Seit v61: alle Angaben ausser den Fotos -- also muss die Notiz genannt sein.
+    for pflicht in ['aller Konten', 'Fangort', 'Notiz', 'Benutzername', 'Nur die Fotos sind dort nicht',
                     'wie viele Konten', 'Art. 6 Abs. 1 lit. f', 'Art. 21']:
         if pflicht not in ds_de:
             sys.exit(f'Datenschutz (deutsch): zur Admin-Ansicht fehlt "{pflicht}".')
-    for pflicht in ['all accounts', 'location', 'username', 'Photos and notes are not shown',
+    for pflicht in ['all accounts', 'location', 'note', 'username', 'Only the photos are not shown',
                     'how many accounts', 'Art. 6(1)(f)', 'Art. 21']:
         if pflicht not in ds_en:
             sys.exit(f'Datenschutz (englisch): zur Admin-Ansicht fehlt "{pflicht}".')
+    if 'Notizen sind dort nicht' in ds_de or 'notes are not shown' in ds_en:
+        sys.exit('Datenschutz: der Text sagt "ohne Notizen" -- seit v61 zeigt das Popup sie.')
     if 'keine Auswertung deiner Daten zu anderen Zwecken' in ds_de \
             or 'no evaluation of your data for other purposes.' in ds_en:
         sys.exit('Datenschutz: das alte "keine Auswertung zu anderen Zwecken" steht wieder da. '
                  'Seit der Admin-Karte ist es falsch.')
-print('Datenschutz: die Admin-Ansicht steht in beiden Sprachen in der Erklaerung, '
-      'und das alte Versprechen ist weg.')
+    # 🔴 Wie viele Leute die Karte sehen, steht in supabase.sql -- der Text muss dieselbe Zahl
+    # nennen. Mit Tibo (v61) ist ein NUTZER Admin: "Andere Nutzer sehen deine Faenge nicht"
+    # waere damit schlicht falsch, und genau so ein Satz bleibt monatelang stehen.
+    if len(admin_namen) == 1:
+        if 'zweiter Admin' in ds_de or 'second admin' in ds_en:
+            sys.exit('Datenschutz: der Text nennt einen zweiten Admin, supabase.sql setzt nur einen.')
+    elif len(admin_namen) == 2:
+        if 'zweiter Admin' not in ds_de or 'second admin' not in ds_en:
+            sys.exit(f'Datenschutz: supabase.sql setzt zwei Admins ({", ".join(admin_namen)}), der '
+                     f'Text nennt keinen zweiten.')
+        if 'Andere Nutzer sehen deine Fänge nicht' in ds_de or 'Other users do not see' in ds_en:
+            sys.exit('Datenschutz: "Andere Nutzer sehen deine Faenge nicht" -- der zweite Admin IST '
+                     'ein Nutzer.')
+    else:
+        sys.exit(f'supabase.sql setzt {len(admin_namen)} Admins, der Text kennt hoechstens zwei. '
+                 f'Text nachziehen und diese Pruefung erweitern.')
+print(f'Datenschutz: die Admin-Ansicht steht in beiden Sprachen in der Erklaerung, mit '
+      f'{len(admin_namen)} Admin(s) und Notiz, und das alte Versprechen ist weg.')
 
 # ⚠️ Die Wetterwerte muessen an ZWEI Stellen zusammenpassen: in der Anfrage an
 # Open-Meteo und beim Zeichnen. Die Pruefungen im Browser bauen sich ihre Vorhersage

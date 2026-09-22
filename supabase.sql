@@ -711,20 +711,37 @@ create policy "eigene push-anmeldungen loeschen"
 --  mit dem oeffentlichen Schluessel aus dem Quelltext die Fangplaetze aller
 --  Leute abrufen. pruefungen.py wacht darueber.
 --
---  Wer Admin ist, steht in angel_konfig (Abschnitt 3d — ohne Policy, ueber
---  die API liest es niemand, auch kein angemeldetes Konto).
---  ⚠️ Gesetzt wird es EINMAL, ueber den Benutzernamen, und `do nothing`
---     sorgt dafuer, dass ein erneuter Lauf dieser Datei den Admin NIE
---     umsetzt. Mit `do update` wuerde, falls das Konto "karl" je geloescht
---     und der Name neu vergeben wird, beim naechsten Lauf der Naechste mit
---     diesem Namen Admin. Die gespeicherte id eines geloeschten Kontos passt
---     dagegen auf niemanden mehr.
---  Admin von Hand aendern:
---     update public.angel_konfig set wert = '<user-id>' where schluessel = 'admin';
+--  Wer Admin ist, steht seit v61 (22.09.2026, abends) in angel_admins.
+--  Karls Ansage: "tibo soll auch admin haben das ist auch sein username".
+--  In v60 stand EIN Eintrag 'admin' in angel_konfig — fuer zwei taugt ein
+--  einzelner Wert nicht. Der alte Eintrag bleibt liegen und wird nicht mehr
+--  gelesen; ihn zu loeschen hiesse, Karl eine "destructive operation"
+--  bestaetigen zu lassen, fuer nichts.
+--
+--  ⚠️ Ohne Policy: ueber die API liest und schreibt dort niemand, auch kein
+--     angemeldetes Konto (dieselbe Bauart wie angel_konfig, Abschnitt 3d).
+--  ⚠️ Schluessel ist der NAME, und `do nothing` sorgt dafuer, dass ein
+--     erneuter Lauf dieser Datei einen Namen NIE auf ein anderes Konto
+--     umsetzt. Wird "tibo" geloescht und der Name neu vergeben, bleibt die
+--     alte id stehen und passt auf niemanden — der Neue wird NICHT Admin.
+--  ⚠️ Deshalb auch KEINE Verbindung zu auth.users: mit `on delete cascade`
+--     verschwaende die Zeile beim Loeschen des Kontos, und der naechste Lauf
+--     gaebe den Namen dem Naechsten, der ihn sich nimmt.
+--  Von Hand:
+--     delete from public.angel_admins where name = 'tibo';          -- entziehen
+--     update public.angel_admins set user_id = '<id>' where name = 'tibo';
 -- ---------------------------------------------------------------------
-insert into public.angel_konfig (schluessel, wert)
-select 'admin', p.id::text from public.profil p where p.username = 'karl'
-on conflict (schluessel) do nothing;
+create table if not exists public.angel_admins (
+  name     text        primary key,
+  user_id  uuid        not null,
+  seit     timestamptz not null default now()
+);
+alter table public.angel_admins enable row level security;
+-- Absichtlich keine Policy.
+
+insert into public.angel_admins (name, user_id)
+select p.username, p.id from public.profil p where p.username in ('karl', 'tibo')
+on conflict (name) do nothing;
 
 -- Nur fuer die beiden Funktionen darunter, nicht zum Aufrufen von aussen.
 create or replace function public.angel_ist_admin()
@@ -735,8 +752,7 @@ security definer
 set search_path = public
 as $$
   select auth.uid() is not null and exists (
-    select 1 from public.angel_konfig k
-     where k.schluessel = 'admin' and k.wert = auth.uid()::text);
+    select 1 from public.angel_admins a where a.user_id = auth.uid());
 $$;
 revoke all on function public.angel_ist_admin() from public, anon, authenticated;
 
@@ -761,8 +777,11 @@ grant execute on function public.angel_admin_zahlen() to authenticated;
 
 -- Die Faenge der ANDEREN — die eigenen hat die App ohnehin schon auf der
 -- Karte, samt Fotos.
--- ⚠️ Nur, was die Karte braucht: Ort, Art, Laenge, Gewicht, Zeit, Gewaesser
---    und der Benutzername. Keine Fotos, keine Notiz, kein Koeder — die
+-- ⚠️ Seit v61 ALLE Angaben zum Fang ausser den Fotos — Karls Ansage: "wenn
+--    ich auf die drauf klicke auch alle anderen daten bis auf bilder". In v60
+--    waren es nur die Kartenfelder, ohne Notiz und Koeder.
+--    Die Fotos liegen in der eigenen Spalte `fotos` und werden hier nie
+--    angefasst; `daten` enthaelt keine (hochladen() nimmt sie heraus). Die
 --    Datenschutzerklaerung sagt genau das, und pruefungen.py haelt beides
 --    zusammen.
 -- ⚠️ Nur echte Zahlen als Koordinaten. Ein einziger Fang mit einem Text im
@@ -780,16 +799,11 @@ begin
   if not public.angel_ist_admin() then
     raise exception 'kein Admin' using errcode = '42501';
   end if;
+  -- ⚠️ `- 'photos'`: hochladen() nimmt die Fotos heute aus `daten` heraus. Ob das jede
+  --    fruehe Fassung auch getan hat, weiss keiner mehr -- ein alter Fang mit Fotos im
+  --    Datensatz gaebe sie sonst hier mit heraus, gegen "bis auf bilder".
   return coalesce((
-    select jsonb_agg(jsonb_build_object(
-             'lat',       f.daten->'lat',
-             'lon',       f.daten->'lon',
-             'art',       f.daten->>'art',
-             'laenge',    f.daten->'laenge',
-             'gewicht',   f.daten->'gewicht',
-             'when',      f.daten->>'when',
-             'gewaesser', f.daten->>'gewaesser',
-             'name',      p.username))
+    select jsonb_agg((f.daten - 'photos') || jsonb_build_object('name', p.username))
       from public.angel_faenge f
       left join public.profil p on p.id = f.user_id
      where not f.geloescht
@@ -803,10 +817,11 @@ revoke all on function public.angel_admin_faenge() from public, anon;
 grant execute on function public.angel_admin_faenge() to authenticated;
 
 -- ✅ Zaehlzeile ("No rows returned" beweist nichts). Erwartet:
---    admin_gesetzt = 1 · admin_name = karl · funktionen = 3
-select (select count(*) from public.angel_konfig where schluessel = 'admin') as admin_gesetzt,
-       (select p.username from public.angel_konfig k
-          join public.profil p on p.id::text = k.wert
-         where k.schluessel = 'admin') as admin_name,
+--    admins = karl, tibo · veraltet = 0 · funktionen = 3
+--    `veraltet` zaehlt Admin-Eintraege, deren Konto es nicht mehr gibt.
+select (select string_agg(p.username, ', ' order by p.username)
+          from public.angel_admins a join public.profil p on p.id = a.user_id) as admins,
+       (select count(*) from public.angel_admins a
+         where not exists (select 1 from public.profil p where p.id = a.user_id)) as veraltet,
        (select count(*) from pg_proc
          where proname in ('angel_ist_admin', 'angel_admin_zahlen', 'angel_admin_faenge')) as funktionen;

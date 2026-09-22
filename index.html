@@ -368,11 +368,13 @@ setTimeout(function(){
   .leaflet-popup-content{margin:10px 12px; font-size:13px}
   .leaflet-popup-content img{width:100%; border-radius:8px; margin-bottom:6px; display:block}
   .leaflet-popup-content b{font-size:14px}
-  /* Fänge der anderen (Admin, 22.09.2026): runde Punkte statt der blauen Nadeln der
-     eigenen Fänge — auf einen Blick getrennt. Fest orange, weil die Karte in jeder
-     Farbpalette dieselbe ist; per CSS, weil Leaflet die Farbe sonst als Attribut
-     setzt und dort keine Variablen versteht. */
-  .leaflet-interactive.fremd-fang{stroke:#fff; stroke-width:2; fill:#f08c2e; fill-opacity:.92}
+  /* Fänge der anderen (Admin). Die rote Nadel ist ein Bild (nadel-rot.png), kein Stil —
+     siehe nadel-rot.py. Hier nur das Popup: es zeigt alle Angaben außer den Fotos und
+     wäre mit den Abständen der Fang-Ansicht doppelt so lang wie der Bildschirm. */
+  .fremd-popup .kv{padding:4px 0; gap:10px; font-size:12.5px}
+  .fremd-popup .kv b{font-size:12.5px; text-align:right}
+  .fremd-titel{font-weight:700; margin:10px 0 2px; color:var(--muted)}
+  .fremd-notiz{line-height:1.5; margin-top:2px}
 
   /* Detail */
   .kv{display:flex; justify-content:space-between; gap:12px; padding:9px 0;
@@ -2119,7 +2121,7 @@ const EN = {
   'Jedes Konto zählt mit — auch Test-Konten und deins.': 'Every account counts — test accounts and yours included.',
   '🗺️ Fänge aller auf der Karte zeigen': '🗺️ Show everyone’s catches on the map',
   '🗺️ Fänge der anderen ausblenden': '🗺️ Hide the others’ catches',
-  'Zeigt auf der Karte die Fänge aller anderen Konten: Ort, Art, Länge, Gewicht, Zeit, Gewässer und Benutzername — ohne Fotos und Notizen.': 'Shows the catches of all other accounts on the map: location, species, length, weight, time, water and username — without photos and notes.',
+  'Zeigt die Fänge aller anderen Konten als rote Nadeln. Antippen zeigt alle Angaben zum Fang samt Notiz und Benutzername — nur keine Fotos.': 'Shows the catches of all other accounts as red pins. Tapping one shows every detail of the catch including note and username — just no photos.',
   'Die anderen merken davon nichts. Seit v60 steht es in der Datenschutzerklärung — wer sein Konto vorher angelegt hat, hat es dort nie gelesen.': 'The others don’t notice any of this. Since v60 it is in the privacy policy — anyone who signed up before has never read it there.',
   'Admin zumachen': 'Close admin',
   'Admin zu': 'Admin closed',
@@ -3954,25 +3956,83 @@ let fremdLauf = 0;
    ⚠️ Koordinaten werden geprüft, nicht vorausgesetzt: ein einziger kaputter Wert
    brächte Leaflet beim Einpassen des Ausschnitts zum Absturz, und dann fehlte die
    ganze Karte statt eines Punktes. */
+/* v61 (Karls Ansage: „wenn ich auf die drauf klicke auch alle anderen daten bis auf
+   bilder"): das Popup trägt jetzt ALLES, was die eigene Fang-Ansicht zeigt — dieselben
+   Beschriftungen, dieselben Einheiten, dieselbe Reihenfolge —, nur ohne Fotos.
+   ⚠️ Die eigene Ansicht (renderDetail) ist NICHT wiederverwendet: ihr kv() setzt den Wert
+   roh ins HTML. Für eigene Fänge richtig, für fremde genau das Loch von oben.
+   ⚠️ Jedes Feld wird auf seine Sorte geprüft (Text oder Zahl), nicht vorausgesetzt. Eine
+   Liste statt eines Textes, ein Text statt einer Zahl — beides steht sonst als
+   „[object Object]" oder „NaN" da, oder es wirft und nimmt die ganze Karte mit. */
 function fremdeFaengeAufbereiten(liste){
   if (!Array.isArray(liste)) throw adminFehler('antwort');
   const zahl = x => (typeof x === 'number' && isFinite(x)) ? x : null;
+  const text = x => typeof x === 'string' ? x : '';
+  const dez  = x => String(x).replace('.', ',');
+  const mit  = (x, einheit) => zahl(x) == null ? '' : dez(x) + ' ' + einheit;
+  const kv   = (k, v) => (v == null || v === '' || v === false) ? ''
+    : `<div class="kv"><span>${esc(T(k))}</span><b>${esc(v)}</b></div>`;
+  const teil = (titel, zeilen) => zeilen.join('')
+    ? `<div class="fremd-titel">${esc(T(titel))}</div>${zeilen.join('')}` : '';
   return liste
     .filter(f => f && zahl(f.lat) != null && zahl(f.lon) != null
                    && Math.abs(f.lat) <= 90 && Math.abs(f.lon) <= 180)
     .map(f => {
       const laenge = zahl(f.laenge), gewicht = zahl(f.gewicht);
-      const size = [laenge != null && laenge + ' cm',
-                    gewicht != null && String(gewicht).replace('.', ',') + ' kg']
+      const size = [laenge != null && dez(laenge) + ' cm',
+                    gewicht != null && dez(gewicht) + ' kg']
         .filter(Boolean).join(' · ');
-      const wann = typeof f.when === 'string' ? fmtDate(f.when) : '';
-      const zeilen = [`<b>${esc(f.art || T('Fang'))}</b>`];
-      if (size) zeilen.push(esc(size));
-      if (wann) zeilen.push(esc(wann));
-      if (f.gewaesser) zeilen.push(esc(f.gewaesser));
-      zeilen.push(`<span style="opacity:.7">${esc(T('von'))} ${esc(f.name || T('ohne Benutzernamen'))}</span>`);
-      return { lat: f.lat, lon: f.lon, popup: zeilen.join('<br>') };
+      const wann = text(f.when) ? fmtDate(text(f.when)) : '';
+      const mond = text(f.when) ? mondFor(text(f.when)) : null;
+      const quelle = text(f.wasserQuelle), station = text(f.wasserStation);
+      const farben = (Array.isArray(f.farben) ? f.farben : [f.farbe]).filter(x => typeof x === 'string' && x);
+      const notiz = text(f.notiz).trim();
+
+      const kopf = [`<b>${esc(text(f.art) || T('Fang'))}</b>`];
+      if (size) kopf.push(esc(size));
+      if (wann) kopf.push(esc(wann));
+      if (text(f.gewaesser)) kopf.push(esc(f.gewaesser));
+      kopf.push(`<span style="opacity:.7">${esc(T('von'))} ${esc(text(f.name) || T('ohne Benutzernamen'))}</span>`);
+
+      const popup = `<div class="fremd-popup">${kopf.join('<br>')}`
+        + kv('Tageszeit', phaseLabel(text(f.phase)))
+        + kv('Mondphase', mond && `${mond.icon} ${mond.name} · ${mond.licht} %`)
+        + teil('Bedingungen', [
+            kv('Wassertemperatur', mit(f.wasser, '°C')),
+            kv('Herkunft', quelle === 'pegel'   ? T('Messstelle') + ' ' + station
+                         : quelle === 'meer'    ? (station || T('Meeresoberfläche'))
+                         : quelle === 'manuell' ? T('selbst gemessen') : ''),
+            kv('Wassertrübung', truebLabel(text(f.truebung))),
+            kv('Wassertiefe', mit(f.tiefe, 'm')),
+            kv('Lufttemperatur', mit(f.luft, '°C')),
+            kv('Luftdruck', mit(f.druck, 'hPa')),
+            kv('Wind', [text(f.windRichtung), mit(f.windKmh, 'km/h')].filter(Boolean).join(' · ')),
+            kv('Wetter', text(f.wetter) && [wetterIcon(text(f.wetter)), wetterLabel(text(f.wetter))]
+                                             .filter(Boolean).join(' ')),
+            kv('Bewölkung', zahl(f.bewoelkung) != null && Math.round(f.bewoelkung) + ' %'),
+            kv('Regen davor (24 h)', mit(f.regen24, 'mm'))])
+        + teil('Köder', [
+            kv('Köder', text(f.koeder)),
+            kv('Größe', mit(f.koederGroesse, 'cm')),
+            kv('Gewicht', mit(f.koederGewicht, 'g')),
+            kv(farben.length > 1 ? 'Farben' : 'Farbe', farben.map(T).join(', '))])
+        + (notiz ? teil('Notiz', [`<div class="fremd-notiz">${esc(notiz).replace(/\n/g, '<br>')}</div>`]) : '')
+        + kv('Koordinaten', f.lat.toFixed(5) + ', ' + f.lon.toFixed(5))
+        + `</div>`;
+      return { lat: f.lat, lon: f.lon, popup };
     });
+}
+
+/* Die rote Nadel (v61, Karls Ansage: „mach die markierungen für andere fische genauso
+   wie meine nur in rot"). Dieselben Maße und derselbe Schatten wie Leaflets eigene
+   Nadel — das Bild ist aus ihr erzeugt, nur der Farbton ist gedreht (nadel-rot.py). */
+let _nadelRot = null;
+function nadelRot(L){
+  return _nadelRot || (_nadelRot = L.icon({
+    iconUrl: 'nadel-rot.png', iconRetinaUrl: 'nadel-rot-2x.png',
+    shadowUrl: 'leaflet/images/marker-shadow.png',
+    iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
+    tooltipAnchor: [16, -28], shadowSize: [41, 41], className: 'fremd-fang' }));
 }
 
 async function renderMap(){
@@ -4040,8 +4100,10 @@ async function renderMap(){
     return;
   }
   if (lauf !== fremdLauf) return;
-  fremde.forEach(f => L.circleMarker([f.lat, f.lon], { radius: 7, className: 'fremd-fang' })
-    .bindPopup(f.popup).addTo(fremdLayer));
+  /* ⚠️ maxHeight: mit allen Angaben ist das Popup länger als ein Handy-Bildschirm. Ohne
+     Grenze ragte es oben aus der Karte, und der untere Teil wäre nicht zu erreichen. */
+  fremde.forEach(f => L.marker([f.lat, f.lon], { icon: nadelRot(L) })
+    .bindPopup(f.popup, { maxHeight: 320, maxWidth: 280, minWidth: 220 }).addTo(fremdLayer));
   $('#map-count').textContent = eigeneText + ' · ' + fremde.length + ' ' + T('von anderen');
   if (fremde.length){
     const alle = withPos.map(c => [c.lat, c.lon]).concat(fremde.map(f => [f.lat, f.lon]));
@@ -4154,7 +4216,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v60';
+const FASSUNG = 'v61';
 
 const KONTO_KEY = 'angellog-konto';
 /* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
@@ -5659,7 +5721,8 @@ function renderKonto(){
       liest, findet die Geste in einer Minute.
    2. **Die Daten** — gibt ausschließlich die Datenbank heraus, über zwei Funktionen
       in supabase.sql (Abschnitt 8). Die prüfen selbst, WER angemeldet ist, und
-      antworten nur dem einen Admin-Konto. Ein fremdes Konto, das die Geste kennt,
+      antworten nur den Admin-Konten (seit v61 zwei: karl und tibo, Tabelle
+      angel_admins). Ein fremdes Konto, das die Geste kennt,
       bekommt einen leeren Block mit „kein Admin" — und keinen einzigen Fang.
 
    ⚠️ Deshalb geht jede Anfrage mit dem Zugangs-Token hinaus (über api()). Ohne ihn
@@ -5754,7 +5817,7 @@ function renderAdmin(){
     <button class="btn" id="admin-karte" style="margin-bottom:6px">${
       karte ? T('🗺️ Fänge der anderen ausblenden') : T('🗺️ Fänge aller auf der Karte zeigen')}</button>
     <p class="tiny muted" style="margin:0 0 8px; line-height:1.5">${
-      T('Zeigt auf der Karte die Fänge aller anderen Konten: Ort, Art, Länge, Gewicht, Zeit, Gewässer und Benutzername — ohne Fotos und Notizen.')}</p>
+      T('Zeigt die Fänge aller anderen Konten als rote Nadeln. Antippen zeigt alle Angaben zum Fang samt Notiz und Benutzername — nur keine Fotos.')}</p>
     <p class="tiny" id="admin-hinweis" style="margin:0 0 10px; line-height:1.5; color:var(--warn)">${
       T('Die anderen merken davon nichts. Seit v60 steht es in der Datenschutzerklärung — wer sein Konto vorher angelegt hat, hat es dort nie gelesen.')}</p>
     <button class="btn sm" id="admin-zu" style="margin-bottom:16px">${T('Admin zumachen')}</button>`;
@@ -5847,13 +5910,14 @@ function datenschutzEN(){
     <p>Your catches are also kept in your device's storage so the app works without a
     connection — at the water that is the normal case. You stay signed in; the session
     is remembered locally so poor reception does not sign you out.</p>
-    <p><b>Admin view:</b> The operator can display the catches of <b>all accounts</b>
-    on a map in the app — with <b>location</b>, species, length, weight, time, water
-    and <b>username</b>. Photos and notes are not shown there. The operator also sees
-    how many accounts exist. Other users do not see your catches. Purpose: to see
-    where and what is caught with the app. The legal basis is Art. 6(1)(f) GDPR
-    (legitimate interest). You can object to this at any time (Art. 21 GDPR) — an
-    e-mail to the address above is enough.</p>
+    <p><b>Admin view:</b> Two admin accounts — the operator and a second admin who
+    also uses the app — can display the catches of <b>all accounts</b> on a map in
+    the app, with <b>all details of the catch</b>: location, time, fish, weather,
+    water, bait and <b>note</b>, plus the <b>username</b>. Only the photos are not
+    shown there. Both also see how many accounts exist. Apart from them, nobody sees
+    your catches. Purpose: to see where and what is caught with the app. The legal
+    basis is Art. 6(1)(f) GDPR (legitimate interest). You can object to this at any
+    time (Art. 21 GDPR) — an e-mail to the address above is enough.</p>
     <p><b>Deletion:</b> In the settings, „Delete account" removes your account and all
     associated data on the server immediately and completely. The catches on your device
     are kept. „Sign out" only stops synchronising.</p>
@@ -5923,14 +5987,15 @@ function datenschutzDE(){
     App ohne Netz funktioniert — am Wasser ist das der Normalfall. Angemeldet
     bleibst du dabei; die Sitzung wird lokal gemerkt und du wirst bei schlechtem
     Empfang nicht abgemeldet.</p>
-    <p><b>Admin-Ansicht:</b> Der Betreiber kann sich in der App die Fänge
-    <b>aller Konten</b> auf einer Karte anzeigen lassen — mit <b>Fangort</b>,
-    Fischart, Länge, Gewicht, Zeitpunkt, Gewässer und <b>Benutzername</b>. Fotos und
-    Notizen sind dort nicht zu sehen. Außerdem sieht er, wie viele Konten es gibt.
-    Andere Nutzer sehen deine Fänge nicht. Zweck: sehen, wo und was mit der App
-    gefangen wird. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes
-    Interesse). Du kannst dem jederzeit widersprechen (Art. 21 DSGVO) — eine E-Mail
-    an die Adresse oben genügt.</p>
+    <p><b>Admin-Ansicht:</b> Zwei Admin-Konten — der Betreiber und ein zweiter Admin,
+    der die App selbst nutzt — können sich in der App die Fänge <b>aller Konten</b>
+    auf einer Karte anzeigen lassen, mit <b>allen Angaben zum Fang</b>: Fangort,
+    Zeitpunkt, Fisch, Wetter, Wasser, Köder und <b>Notiz</b>, dazu der
+    <b>Benutzername</b>. Nur die Fotos sind dort nicht zu sehen. Außerdem sehen die
+    beiden, wie viele Konten es gibt. Außer ihnen sieht niemand deine Fänge. Zweck:
+    sehen, wo und was mit der App gefangen wird. Rechtsgrundlage ist Art. 6 Abs. 1
+    lit. f DSGVO (berechtigtes Interesse). Du kannst dem jederzeit widersprechen
+    (Art. 21 DSGVO) — eine E-Mail an die Adresse oben genügt.</p>
     <p><b>Löschen:</b> In den Einstellungen löscht „Konto löschen" dein Konto und
     alle zugehörigen Daten auf dem Server sofort und vollständig. Die Fänge auf
     deinem Gerät bleiben dabei erhalten. „Abmelden" beendet nur die Synchronisierung.</p>

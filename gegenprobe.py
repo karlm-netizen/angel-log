@@ -25,21 +25,40 @@ PROBEN = [
     # ---- Fremde Daten im eigenen Browser: alles muss Text bleiben ----
     ('Fischart der anderen nicht entschaerfen',
      'index.html',
-     "const zeilen = [`<b>${esc(f.art || T('Fang'))}</b>`];",
-     "const zeilen = [`<b>${f.art || T('Fang')}</b>`];",
+     "const kopf = [`<b>${esc(text(f.art) || T('Fang'))}</b>`];",
+     "const kopf = [`<b>${text(f.art) || T('Fang')}</b>`];",
      'Schadcode im Fischnamen'),
 
     ('Benutzernamen der anderen nicht entschaerfen',
      'index.html',
-     "${esc(f.name || T('ohne Benutzernamen'))}",
-     "${f.name || T('ohne Benutzernamen')}",
+     "${esc(text(f.name) || T('ohne Benutzernamen'))}",
+     "${text(f.name) || T('ohne Benutzernamen')}",
      'Schadcode im Fischnamen'),
 
     ('Gewaesser der anderen nicht entschaerfen',
      'index.html',
-     "if (f.gewaesser) zeilen.push(esc(f.gewaesser));",
-     "if (f.gewaesser) zeilen.push(f.gewaesser);",
+     "if (text(f.gewaesser)) kopf.push(esc(f.gewaesser));",
+     "if (text(f.gewaesser)) kopf.push(f.gewaesser);",
      'Schadcode im Fischnamen'),
+
+    # v61: seit alle Angaben im Popup stehen, gehen Koeder, Wind, Messstelle ... durch kv().
+    ('Die Werte-Zeilen im Popup nicht entschaerfen',
+     'index.html',
+     "<b>${esc(v)}</b></div>`;",
+     "<b>${v}</b></div>`;",
+     'Schadcode in JEDEM Feld'),
+
+    ('Die Notiz der anderen nicht entschaerfen',
+     'index.html',
+     "${esc(notiz).replace(/\\n/g, '<br>')}",
+     "${notiz.replace(/\\n/g, '<br>')}",
+     'Schadcode in JEDEM Feld'),
+
+    ('Das Popup laesst Angaben der Fang-Ansicht weg (Koeder)',
+     'index.html',
+     "            kv('Köder', text(f.koeder)),\n",
+     "",
+     'das Popup zeigt alle Angaben'),
 
     ('Koordinaten der anderen nicht pruefen',
      'index.html',
@@ -76,9 +95,41 @@ PROBEN = [
 
     ('Ueberholte Antwort trotzdem zeichnen',
      'index.html',
-     "  if (lauf !== fremdLauf) return;\n  fremde.forEach(",
-     "  fremde.forEach(",
+     "  if (lauf !== fremdLauf) return;\n  /* ⚠️ maxHeight:",
+     "  /* ⚠️ maxHeight:",
      'ueberholte Antwort'),
+
+    # ---- Die rote Nadel (v61): "genauso wie meine nur in rot" ----
+    ('Fremde Faenge wieder als Kreis statt als Nadel',
+     'index.html',
+     "L.marker([f.lat, f.lon], { icon: nadelRot(L) })",
+     "L.circleMarker([f.lat, f.lon], { radius: 7 })",
+     'mit Schalter stehen die fremden Faenge drauf'),
+
+    ('Rote Nadel mit anderen Massen als die eigene',
+     'index.html',
+     "iconSize: [25, 41], iconAnchor: [12, 41],",
+     "iconSize: [20, 33], iconAnchor: [10, 33],",
+     'mit Schalter stehen die fremden Faenge drauf'),
+
+    ('Popup ohne Hoehengrenze (laenger als das Handy)',
+     'index.html',
+     "{ maxHeight: 320, maxWidth: 280, minWidth: 220 }",
+     "{ maxWidth: 280, minWidth: 220 }",
+     'mit Schalter stehen die fremden Faenge drauf'),
+
+    ('Rote Nadel fehlt im Service Worker',
+     'sw.js',
+     "'./nadel-rot.png', './nadel-rot-2x.png'];",
+     "'./nadel-rot.png'];",
+     'nadel-rot-2x.png fehlt im Service Worker'),
+
+    # Datei-Hebel: statt Text zu ersetzen, wird die Datei durch eine andere ersetzt.
+    ('Rote Nadel ist in Wahrheit blau',
+     'nadel-rot-2x.png',
+     None,
+     'leaflet/images/marker-icon-2x.png',
+     'das ist kein Rot'),
 
     # ---- Die Geste und das Zumachen ----
     ('Geste sperrt wieder zu (der Fehler von Gym-Log, 27.08.2026)',
@@ -105,8 +156,8 @@ PROBEN = [
      "  if not public.angel_ist_admin() then\n"
      "    raise exception 'kein Admin' using errcode = '42501';\n"
      "  end if;\n"
-     "  return coalesce((",
-     "  return coalesce((",
+     "  -- ⚠️ `- 'photos'`",
+     "  -- ⚠️ `- 'photos'`",
      'angel_admin_faenge(): die Admin-Pruefung fehlt'),
 
     ('Admin-Pruefung vor der Kontenzahl streichen',
@@ -151,15 +202,53 @@ PROBEN = [
 
     ('Admin bei jedem SQL-Lauf neu setzen (do update)',
      'supabase.sql',
-     "where p.username = 'karl'\non conflict (schluessel) do nothing;",
-     "where p.username = 'karl'\non conflict (schluessel) do update set wert = excluded.wert;",
-     'do nothing'),
+     "where p.username in ('karl', 'tibo')\non conflict (name) do nothing;",
+     "where p.username in ('karl', 'tibo')\non conflict (name) do update set user_id = excluded.user_id;",
+     'on conflict (name) do nothing'),
 
-    ('Notizen der anderen mit herausgeben',
+    ('Fotos der anderen mit herausgeben',
      'supabase.sql',
-     "             'name',      p.username))",
-     "             'notiz',     f.daten->>'notiz',\n             'name',      p.username))",
-     'gibt mehr heraus als die Karte braucht'),
+     "jsonb_agg((f.daten - 'photos') || jsonb_build_object('name', p.username))",
+     "jsonb_agg((f.daten - 'photos') || jsonb_build_object('name', p.username, 'bilder', f.fotos))",
+     'gibt Fotos heraus'),
+
+    ('Fotos aus alten Faengen im Datensatz mitgeben',
+     'supabase.sql',
+     "jsonb_agg((f.daten - 'photos') || jsonb_build_object",
+     "jsonb_agg(f.daten || jsonb_build_object",
+     'nimmt Fotos, die in alten Faengen'),
+
+    # ---- Die Admin-Liste (v61) ----
+    ('angel_ist_admin liest die Liste, vergleicht aber nicht',
+     'supabase.sql',
+     "select 1 from public.angel_admins a where a.user_id = auth.uid());",
+     "select 1 from public.angel_admins a);",
+     'vergleicht nicht mehr das angemeldete Konto'),
+
+    ('Die Admin-Liste bekommt eine Policy',
+     'supabase.sql',
+     "alter table public.angel_admins enable row level security;",
+     "alter table public.angel_admins enable row level security;\n"
+     "create policy \"alle lesen\" on public.angel_admins for select using (true);",
+     'angel_admins hat eine Policy'),
+
+    ('Die Admin-Liste ohne Row Level Security',
+     'supabase.sql',
+     "alter table public.angel_admins enable row level security;",
+     "",
+     'angel_admins ohne Row Level Security'),
+
+    ('Die Admin-Liste haengt an auth.users (cascade)',
+     'supabase.sql',
+     "  user_id  uuid        not null,\n  seit",
+     "  user_id  uuid        not null references auth.users(id) on delete cascade,\n  seit",
+     'angel_admins haengt an auth.users'),
+
+    ('Ein dritter Admin, den der Text nicht kennt',
+     'supabase.sql',
+     "where p.username in ('karl', 'tibo')",
+     "where p.username in ('karl', 'tibo', 'bruder')",
+     'setzt 3 Admins'),
 
     # ---- Was der Code tut, muss der Text sagen ----
     ('Admin-Absatz aus der deutschen Erklaerung nehmen',
@@ -176,9 +265,27 @@ PROBEN = [
 
     ('Englisch verschweigt, dass Fotos fehlen',
      'index.html',
-     " Photos and notes are not shown there.",
+     " Only the photos are not\n    shown there.",
      "",
      'Datenschutz (englisch): zur Admin-Ansicht fehlt'),
+
+    ('Der Text verschweigt die Notiz',
+     'index.html',
+     "Zeitpunkt, Fisch, Wetter, Wasser, Köder und <b>Notiz</b>, dazu der",
+     "Zeitpunkt, Fisch, Wetter, Wasser und Köder, dazu der",
+     'zur Admin-Ansicht fehlt "Notiz"'),
+
+    ('Der Text verschweigt den zweiten Admin',
+     'index.html',
+     "der Betreiber und ein zweiter Admin,",
+     "der Betreiber und ein Helfer,",
+     'der Text nennt keinen zweiten'),
+
+    ('Der alte Satz "Andere Nutzer sehen deine Faenge nicht" kommt zurueck',
+     'index.html',
+     "Außer ihnen sieht niemand deine Fänge.",
+     "Andere Nutzer sehen deine Fänge nicht.",
+     'der zweite Admin IST'),
 ]
 
 
@@ -203,19 +310,35 @@ if code != 0:
     sys.exit(1)
 zeigen('Unveraendert: gruen. Jetzt die Handgriffe.\n')
 
+#   python gegenprobe.py Nadel      -> nur die Hebel, in deren Namen "Nadel" vorkommt.
+# Fuer einen einzeln nachgezogenen Hebel, statt 20 Minuten alles neu.
+if len(sys.argv) > 1:
+    PROBEN = [p for p in PROBEN if sys.argv[1].lower() in p[0].lower()]
+    zeigen(f'Nur {len(PROBEN)} Hebel mit "{sys.argv[1]}".\n')
+
 fehler = 0
 for name, datei, alt, neu, erwartet in PROBEN:
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         ziel = pathlib.Path(tmp) / 'app'
         shutil.copytree(SRC, ziel, ignore=shutil.ignore_patterns('.testrun', '.git'))
         pfad = ziel / datei
-        text = pfad.read_text(encoding='utf-8')
-        if alt not in text:
-            zeigen(f'HEBEL GRIFF NICHT: {name}\n   Textstelle nicht gefunden in {datei} — '
-                   f'die Gegenprobe zeigt ins Leere.')
-            fehler += 1
-            continue
-        pfad.write_text(text.replace(alt, neu, 1), encoding='utf-8')
+        if alt is None:
+            # Datei-Hebel: `neu` ist die Datei, die an die Stelle von `datei` tritt.
+            vorher = pfad.read_bytes()
+            pfad.write_bytes((ziel / neu).read_bytes())
+            if pfad.read_bytes() == vorher:
+                zeigen(f'HEBEL GRIFF NICHT: {name}\n   {datei} ist nach dem Austausch '
+                       f'unveraendert — die Gegenprobe zeigt ins Leere.')
+                fehler += 1
+                continue
+        else:
+            text = pfad.read_text(encoding='utf-8')
+            if alt not in text:
+                zeigen(f'HEBEL GRIFF NICHT: {name}\n   Textstelle nicht gefunden in {datei} — '
+                       f'die Gegenprobe zeigt ins Leere.')
+                fehler += 1
+                continue
+            pfad.write_text(text.replace(alt, neu, 1), encoding='utf-8')
 
         code, aus = lauf(ziel)
         zeilen = aus.splitlines()
