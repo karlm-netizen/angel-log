@@ -60,6 +60,12 @@ window.addEventListener('error', e => {
     catch (e) { bad++; out.push('ERR  ' + name + '  -> ' + e.message); }
   };
   const near = (a, b, tol) => Math.abs(a - b) <= tol ? true : (a + ' != ' + b);
+  /* ⚠️ Die echte api(), festgehalten VOR der ersten Pruefung, die sie ersetzt (22.09.2026).
+     Viele Pruefungen weiter unten setzen `api = async () => …` und stellen nicht zurueck --
+     jede setzt ihre eigene. Wer danach die ECHTE braucht (Kopfzeilen, Token), bekam sonst
+     die Attrappe des Vorgaengers: die Admin-Pruefungen liefen beim ersten Versuch gegen
+     eine Attrappe mit "400", und zwei davon waren dadurch zufaellig gruen. */
+  const echteApi = api;
 
   // ---- Mondphase ----
   const NEU = Date.UTC(2000,0,6,18,14);
@@ -5722,6 +5728,245 @@ window.addEventListener('error', e => {
   });
   ta('zwei Fang-Kacheln stehen auf 320 px nebeneinander', async () => await zweiNebeneinander(320));
 
+  // ==================== Admin (22.09.2026) ====================
+  /* Karls Ansagen: "admin panel mit usercount" und die Faenge aller auf der Karte.
+     🔴 Der gefaehrlichste Teil der ganzen App: zum ersten Mal kommen FREMDE Daten in
+     Karls Browser. Die Pruefungen hier bewachen drei Dinge -- dass nichts davon als
+     HTML ausgefuehrt wird, dass kein Fehlschlag wie eine Antwort aussieht, und dass
+     ohne Schalter niemand gefragt wird. Was die Datenbank herausgibt, bewacht der
+     statische Teil unten (supabase.sql). */
+  const adminAufraeumen = () => {
+    try { localStorage.removeItem(ADMIN_KEY); localStorage.removeItem(ADMIN_KARTE_KEY); } catch {}
+    adminZahl = null; konto = null; renderAdmin();
+  };
+  const logoTippen = n => {
+    const logo = document.querySelector('#v-home .head h1');
+    for (let i = 0; i < n; i++) logo.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  };
+  const adminAntwort = (status, body) => async () => ({ ok: status >= 200 && status < 300, status,
+                                                        json: async () => body });
+  // Fuer die asynchronen: echte api(), damit Kopfzeilen und Fehlerwege wirklich laufen.
+  const adminStart = karte => {
+    adminAufraeumen(); api = echteApi;
+    localStorage.setItem(ADMIN_KEY, '1');
+    if (karte) localStorage.setItem(ADMIN_KARTE_KEY, '1');
+    konto = { access_token: 'T', refresh_token: 'R' };
+  };
+
+  t('Admin: ohne Freischaltung ist der Block unsichtbar und leer', () => {
+    adminAufraeumen();
+    const b = document.querySelector('#admin');
+    return (b.hidden && b.innerHTML === '') || 'sichtbar oder gefuellt';
+  });
+  t('Admin: vier Tipps auf das Logo schalten nichts frei', () => {
+    adminAufraeumen(); logoTippen(4);
+    const r = adminAn() === false || 'schon nach vier Tipps offen';
+    adminAufraeumen(); return r;
+  });
+  t('Admin: fuenf Tipps auf das Logo schalten frei', () => {
+    adminAufraeumen(); logoTippen(5);
+    const r = adminAn() === true || 'nicht freigeschaltet';
+    adminAufraeumen(); return r;
+  });
+  /* ⚠️ Die Lehre aus Gym-Log (27.08.2026): dort hat dieselbe Geste auch wieder
+     zugesperrt, und so ging Karls Admin-Konsole "weg". */
+  t('Admin: weitere fuenf Tipps sperren NICHT wieder zu', () => {
+    adminAufraeumen(); logoTippen(5); logoTippen(5);
+    const r = adminAn() === true || 'die Geste hat wieder zugesperrt';
+    adminAufraeumen(); return r;
+  });
+  t('Admin zumachen raeumt auch den Karten-Schalter weg', () => {
+    adminAufraeumen();
+    localStorage.setItem(ADMIN_KEY, '1'); localStorage.setItem(ADMIN_KARTE_KEY, '1');
+    renderAdmin();
+    document.querySelector('#admin-zu').onclick();
+    const r = (localStorage.getItem(ADMIN_KEY) === null && localStorage.getItem(ADMIN_KARTE_KEY) === null)
+           || 'Schluessel stehen noch: ' + localStorage.getItem(ADMIN_KEY) + ' / ' + localStorage.getItem(ADMIN_KARTE_KEY);
+    adminAufraeumen(); return r;
+  });
+  t('Admin: der Einwand steht im Block, nicht nur in einer Rueckfrage', () => {
+    adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1'); renderAdmin();
+    const h = document.querySelector('#admin-hinweis');
+    const r = (!!h && /Datenschutzerkl/.test(h.textContent) && /vorher angelegt/.test(h.textContent))
+           || 'Hinweis fehlt';
+    adminAufraeumen(); return r;
+  });
+  t('Admin: Umschalten auf Englisch zeichnet den Block neu', () => {
+    adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1'); renderAdmin();
+    spracheSetzen('en');
+    const en = document.querySelector('#admin-zu').textContent;
+    spracheSetzen('de');
+    const de = document.querySelector('#admin-zu').textContent;
+    adminAufraeumen();
+    return (en === 'Close admin' && de === 'Admin zumachen') || en + ' / ' + de;
+  });
+
+  ta('Admin: die Kontenzahl steht da', async () => {
+    adminStart(false);
+    fetchGibt(adminAntwort(200, { konten: 7 }));
+    try {
+      await adminZahlHolen();
+      const txt = document.querySelector('#admin-konten').textContent;
+      return /Angelegte Konten:\s*7/.test(txt) || txt;
+    } finally { fetchWeg(); adminAufraeumen(); }
+  });
+  /* ⚠️ Ohne Zugangs-Token fragt die App als `anon` -- die Datenbank lehnt dann ab, und
+     der Admin saehe nie etwas. Der Fall, in dem es "einfach nicht geht". */
+  ta('Admin: die Anfrage geht mit dem Zugangs-Token hinaus', async () => {
+    adminStart(false); konto = { access_token: 'TOKEN-ADMIN', refresh_token: 'R' };
+    let kopfzeile = '(keine)', adresse = '';
+    fetchGibt(async (u, o) => { adresse = String(u);
+      kopfzeile = ((o && o.headers) || {})['Authorization'] || '(keine)';
+      return { ok: true, status: 200, json: async () => ({ konten: 1 }) }; });
+    try {
+      await adminZahlHolen();
+      if (!/\/rest\/v1\/rpc\/angel_admin_zahlen$/.test(adresse)) return 'falsche Adresse: ' + adresse;
+      return kopfzeile === 'Bearer TOKEN-ADMIN' || 'Kopfzeile war: ' + kopfzeile;
+    } finally { fetchWeg(); adminAufraeumen(); }
+  });
+  /* Gemessen am 22.09.2026: fehlt die Funktion, antwortet Supabase 404 + PGRST202. */
+  ta('Admin: fehlt die Funktion, steht "fehlt noch" da -- nicht 0', async () => {
+    adminStart(false);
+    fetchGibt(adminAntwort(404, { code: 'PGRST202', message: 'Could not find the function' }));
+    try {
+      await adminZahlHolen();
+      const txt = document.querySelector('#admin-konten').textContent;
+      if (/Konten:\s*0/.test(txt)) return 'sieht aus wie null Konten: ' + txt;
+      return /Fehlt noch in der Datenbank/.test(txt) || txt;
+    } finally { fetchWeg(); adminAufraeumen(); }
+  });
+  ta('Admin: ein fremdes Konto bekommt "kein Admin"', async () => {
+    adminStart(false);
+    fetchGibt(adminAntwort(403, { code: '42501', message: 'kein Admin' }));
+    try {
+      await adminZahlHolen();
+      const txt = document.querySelector('#admin-konten').textContent;
+      return /kein Admin/.test(txt) || txt;
+    } finally { fetchWeg(); adminAufraeumen(); }
+  });
+  ta('Admin: ohne Netz steht "kein Netz" da -- nicht 0', async () => {
+    adminStart(false);
+    fetchGibt(async () => { throw new TypeError('Failed to fetch'); });
+    try {
+      await adminZahlHolen();
+      const txt = document.querySelector('#admin-konten').textContent;
+      return /Kein Netz/.test(txt) || txt;
+    } finally { fetchWeg(); adminAufraeumen(); }
+  });
+  ta('Admin: eine Antwort ohne Zahl wird nicht zu "undefined"', async () => {
+    adminStart(false);
+    fetchGibt(adminAntwort(200, { anders: 3 }));
+    try {
+      await adminZahlHolen();
+      const txt = document.querySelector('#admin-konten').textContent;
+      if (/undefined|null|NaN/.test(txt)) return txt;
+      return /unbrauchbar/.test(txt) || txt;
+    } finally { fetchWeg(); adminAufraeumen(); }
+  });
+
+  /* 🔴 Die wichtigste Pruefung dieses Abschnitts. Fremde tippen diese Felder ein. */
+  t('Fremde Faenge: Schadcode im Fischnamen wird Text, nicht HTML', () => {
+    const boese = '<img src=x onerror="window.__angelXss=1">';
+    const [f] = fremdeFaengeAufbereiten([{ lat: 54.3, lon: 10.1, art: boese,
+      gewaesser: '<svg onload="window.__angelXss=2">', name: '<b onclick=1>mallory</b>',
+      // ⚠️ Mit Rueckstrich vor dem Schraegstrich: das schliessende Skript-Tag im Klartext
+      // beendet fuer den Browser den ganzen Pruefblock -- auch hier im Kommentar.
+      when: '<script>1<\/script>', laenge: 40, gewicht: 1.5 }]);
+    if (!f) return 'Fang fehlt';
+    if (/<img|<svg|<script|<b onclick/i.test(f.popup)) return 'rohes HTML im Popup: ' + f.popup;
+    const d = document.createElement('div'); d.innerHTML = f.popup;
+    if (d.querySelector('img, svg, script, [onclick], [onerror], [onload]')) return 'es entsteht ein Element';
+    return /&lt;img src=x/.test(f.popup) || f.popup;
+  });
+  t('Fremde Faenge: Popup nennt Art, Groesse, Gewaesser und wer', () => {
+    const [f] = fremdeFaengeAufbereiten([{ lat: 54, lon: 10, art: 'Hecht', laenge: 82,
+      gewicht: 4.2, gewaesser: 'Postsee', name: 'tibo', when: '2026-08-02T20:30' }]);
+    const txt = (() => { const d = document.createElement('div'); d.innerHTML = f.popup; return d.textContent; })();
+    const fehlt = ['Hecht', '82 cm', '4,2 kg', 'Postsee', 'tibo', '02.08.2026'].filter(s => txt.indexOf(s) === -1);
+    return fehlt.length === 0 || 'fehlt: ' + fehlt.join(', ') + ' in ' + txt;
+  });
+  t('Fremde Faenge: ohne Benutzernamen steht das dort, nicht "undefined"', () => {
+    const [f] = fremdeFaengeAufbereiten([{ lat: 54, lon: 10, art: 'Aal', name: null }]);
+    return (/ohne Benutzernamen/.test(f.popup) && !/undefined|null/.test(f.popup)) || f.popup;
+  });
+  t('Fremde Faenge: kaputte Koordinaten landen nicht auf der Karte', () => {
+    const liste = fremdeFaengeAufbereiten([
+      { lat: 54, lon: 10, art: 'gut' },
+      { lat: '54', lon: 10 }, { lat: 954, lon: 10 }, { lat: 54, lon: -181 },
+      { lat: null, lon: 10 }, { lat: NaN, lon: 10 }, null, { lon: 10 }]);
+    return (liste.length === 1 && /gut/.test(liste[0].popup)) || liste.length + ' statt 1';
+  });
+  t('Fremde Faenge: eine Antwort, die keine Liste ist, wird ein Fehler', () => {
+    try { fremdeFaengeAufbereiten({ fehler: 'x' }); return 'still durchgelaufen'; }
+    catch (e) { return e.art === 'antwort' || e.message; }
+  });
+
+  /* ⚠️ Ohne Schalter muss die Karte genau die von vorher sein -- und niemanden fragen. */
+  ta('Karte: ohne Karten-Schalter fragt sie niemanden nach fremden Faengen', async () => {
+    adminStart(false);
+    const gefragt = [];
+    fetchGibt(async (u) => { gefragt.push(String(u)); return { ok: true, status: 200, json: async () => [] }; });
+    const vorher = state.view;
+    try {
+      document.querySelector('#v-map').classList.remove('hidden');
+      await renderMap();
+      const admin = gefragt.filter(u => /angel_admin/.test(u));
+      return admin.length === 0 || 'gefragt: ' + admin.join(', ');
+    } finally { fetchWeg(); document.querySelector('#v-map').classList.toggle('hidden', vorher !== 'map'); adminAufraeumen(); }
+  });
+  ta('Karte: mit Schalter stehen die fremden Faenge drauf, und der Zaehler sagt es', async () => {
+    adminStart(true);
+    fetchGibt(adminAntwort(200, [{ lat: 54.3, lon: 10.1, art: 'Hecht', name: 'tibo' },
+                            { lat: 53.9, lon: 10.7, art: 'Barsch', name: 'bruder' },
+                            { lat: 'kaputt', lon: 10 }]));
+    const vorher = state.view;
+    try {
+      document.querySelector('#v-map').classList.remove('hidden');
+      await renderMap();
+      if (!fremdLayer) return 'keine Ebene fuer fremde Faenge (Karte nicht geladen?)';
+      const n = fremdLayer.getLayers().length;
+      if (n !== 2) return n + ' Punkte statt 2';
+      const pill = document.querySelector('#map-count').textContent;
+      return /2 von anderen/.test(pill) || pill;
+    } finally { fetchWeg(); document.querySelector('#v-map').classList.toggle('hidden', vorher !== 'map'); adminAufraeumen(); }
+  });
+  ta('Karte: scheitert die Abfrage, sagt der Zaehler es -- keine stumme Karte', async () => {
+    adminStart(true);
+    fetchGibt(adminAntwort(403, { code: '42501' }));
+    const vorher = state.view;
+    try {
+      document.querySelector('#v-map').classList.remove('hidden');
+      await renderMap();
+      const pill = document.querySelector('#map-count').textContent;
+      const n = fremdLayer ? fremdLayer.getLayers().length : -1;
+      if (n > 0) return n + ' Punkte trotz Ablehnung';
+      return /andere: Fehler/.test(pill) || pill;
+    } finally { fetchWeg(); document.querySelector('#v-map').classList.toggle('hidden', vorher !== 'map'); adminAufraeumen(); }
+  });
+  /* Eine alte, langsame Antwort darf eine neuere Karte nicht ueberschreiben. */
+  ta('Karte: eine ueberholte Antwort zeichnet nichts mehr', async () => {
+    adminStart(true);
+    let loslassen;
+    const langsam = new Promise(r => { loslassen = r; });
+    /* ⚠️ Notbremse: fragt die Karte faelschlich auch ohne Schalter (Gegenprobe), warteten
+       sonst beide Aufrufe auf diese Antwort -- und der ganze Pruefstand hinge, ohne
+       irgendein Ergebnis. Genau so beim ersten Gegenprobe-Lauf am 22.09.2026 passiert. */
+    setTimeout(() => loslassen(), 3000);
+    fetchGibt(async () => { await langsam;
+      return { ok: true, status: 200, json: async () => [{ lat: 54, lon: 10, art: 'alt' }] }; });
+    const vorher = state.view;
+    try {
+      document.querySelector('#v-map').classList.remove('hidden');
+      const erster = renderMap();
+      await new Promise(r => setTimeout(r, 50));
+      localStorage.removeItem(ADMIN_KARTE_KEY);   // Schalter aus, Karte neu
+      const zweiter = renderMap();
+      loslassen(); await Promise.all([erster, zweiter]);
+      const n = fremdLayer ? fremdLayer.getLayers().length : -1;
+      return n === 0 || n + ' Punkte aus der ueberholten Anfrage';
+    } finally { fetchWeg(); document.querySelector('#v-map').classList.toggle('hidden', vorher !== 'map'); adminAufraeumen(); }
+  });
+
   (async function(){
     for (const [name, fn] of asyncTests){
       try { const r = await fn(); if (r === true) { ok++; out.push('OK   ' + name); }
@@ -5813,6 +6058,110 @@ print('Sicherheit: der Token aus der Ruecksetz-Mail wird aus der Adresszeile ger
 
 print('Sicherheit: email_fuer_username wird nirgends mehr aufgerufen und wird beim '
       'naechsten SQL-Durchlauf entfernt.')
+
+# 🔒 Admin (22.09.2026): der ERSTE Weg, auf dem ein Konto fremde Faenge sieht.
+# Die Pruefungen im Browser sehen nur die App. Was die Datenbank herausgibt,
+# entscheidet supabase.sql -- und dort gibt eine einzige fehlende Zeile die
+# Fangplaetze aller Leute an jeden, der den oeffentlichen Schluessel aus dem
+# Quelltext liest. Deshalb hier statisch, Satz fuer Satz.
+def sql_funktion(name):
+    m = re.search(r'create or replace function public\.' + name + r'\(\)(.*?)\$\$(.*?)\$\$;',
+                  sql_roh, re.S | re.I)
+    if not m:
+        sys.exit(f'{name}() fehlt in supabase.sql -- die App fragt danach, und ohne die '
+                 f'Funktion steht im Admin-Block nur "fehlt noch".')
+    return m.group(1).lower(), m.group(2).lower()
+
+sql_klein = sql_roh.lower()
+for name in ['angel_admin_zahlen', 'angel_admin_faenge']:
+    kopf, rumpf = sql_funktion(name)
+    if 'security definer' not in kopf or 'set search_path' not in kopf:
+        sys.exit(f'{name}(): "security definer" und "set search_path" gehoeren zusammen in den '
+                 f'Kopf. Ohne search_path laesst sich der Funktion eine fremde Tabelle '
+                 f'unterschieben -- mit den Rechten des Besitzers.')
+    # Die Pruefung muss VOR jedem Datenzugriff stehen, nicht irgendwo im Rumpf.
+    i_pruef = rumpf.find('if not public.angel_ist_admin() then')
+    i_daten = min([i for i in (rumpf.find('select'), rumpf.find('return')) if i >= 0] or [len(rumpf)])
+    if i_pruef < 0 or i_pruef > i_daten:
+        sys.exit(f'{name}(): die Admin-Pruefung fehlt oder steht HINTER dem ersten Datenzugriff. '
+                 f'Die Funktion geht an RLS vorbei -- ohne die Pruefung zuerst gibt sie jedem '
+                 f'angemeldeten Konto alles heraus.')
+    if 'raise exception' not in rumpf[i_pruef:i_daten]:
+        sys.exit(f'{name}(): nach der Admin-Pruefung fehlt das "raise exception" -- die '
+                 f'Pruefung wuerde dann nichts verhindern.')
+    if f'revoke all on function public.{name}() from public, anon;' not in sql_klein:
+        sys.exit(f'{name}(): das "revoke ... from public, anon" fehlt. Supabase gibt neue '
+                 f'Funktionen von selbst frei -- auch fuer nicht angemeldete Aufrufe.')
+    if re.search(r'grant execute on function public\.' + name + r'\(\)[^;]*\banon\b', sql_klein):
+        sys.exit(f'{name}(): ist fuer anon freigegeben. Das darf sie nie sein.')
+
+kopf, rumpf = sql_funktion('angel_ist_admin')
+if 'auth.uid()' not in rumpf or "schluessel = 'admin'" not in rumpf:
+    sys.exit('angel_ist_admin() vergleicht nicht mehr das angemeldete Konto mit dem '
+             'Admin-Eintrag in angel_konfig.')
+if 'revoke all on function public.angel_ist_admin() from public, anon, authenticated;' not in sql_klein \
+        or re.search(r'grant execute on function public\.angel_ist_admin\(\)', sql_klein):
+    sys.exit('angel_ist_admin() ist von aussen aufrufbar -- gedacht ist sie nur fuer die '
+             'beiden Admin-Funktionen.')
+
+# ⚠️ `do nothing`, nie `do update`: sonst wuerde nach dem Loeschen des Kontos "karl"
+# der Naechste mit diesem Namen beim naechsten SQL-Lauf Admin.
+m = re.search(r"insert into public\.angel_konfig \(schluessel, wert\)\s*select 'admin'[^;]*;", sql_klein)
+if not m:
+    sys.exit('Der Admin-Eintrag in supabase.sql fehlt -- dann ist niemand Admin.')
+if 'do nothing' not in m.group(0) or 'do update' in m.group(0):
+    sys.exit('Der Admin-Eintrag muss "on conflict ... do nothing" sein. Mit "do update" setzte '
+             'jeder erneute SQL-Lauf den Admin ueber den Benutzernamen neu.')
+
+# Nur, was die Karte braucht -- und was die Datenschutzerklaerung nennt.
+_, rumpf = sql_funktion('angel_admin_faenge')
+zu_viel = [w for w in ("'notiz'", 'fotos', "'photos'", "'koeder'") if w in rumpf]
+if zu_viel:
+    sys.exit(f'angel_admin_faenge() gibt mehr heraus als die Karte braucht: {zu_viel}. Die '
+             f'Datenschutzerklaerung sagt ausdruecklich: ohne Fotos und Notizen.')
+fehlt = [w for w in ("'lat'", "'lon'", "'art'", "'laenge'", "'gewicht'", "'when'", "'gewaesser'",
+                     "'name'") if w not in rumpf]
+if fehlt:
+    sys.exit(f'angel_admin_faenge() liefert {fehlt} nicht -- fremdeFaengeAufbereiten() liest '
+             f'genau diese Felder, und das Popup stuende dann still leer da.')
+if 'not f.geloescht' not in rumpf or "'entwurf'" not in rumpf:
+    sys.exit('angel_admin_faenge() zeigt Geloeschtes oder Entwuerfe mit.')
+print('Sicherheit: die Admin-Funktionen pruefen zuerst, wer fragt, sind fuer anon zu, '
+      'und geben nur die Kartenfelder heraus.')
+
+# 🔒 Und die Richtung, in der die drei schweren Funde vom 11.09.2026 lagen: was der
+# Code TUT, muss der Text SAGEN -- und umgekehrt. Sonst steht "keine Auswertung zu
+# anderen Zwecken" da, waehrend der Admin die Karte aller Fangplaetze aufmacht.
+def ds_text(name):
+    m = re.search(r'function ' + name + r'\(\)\{(.*?)\n\}', html_roh, re.S)
+    if not m:
+        sys.exit(f'{name}() nicht gefunden -- die Datenschutz-Pruefung sieht dann nichts.')
+    return re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', '', m.group(1)))
+
+ds_de, ds_en = ds_text('datenschutzDE'), ds_text('datenschutzEN')
+nutzt_admin = "adminAbfrage('angel_admin_faenge')" in html_roh
+nennt_admin = 'Admin-Ansicht:' in ds_de or 'Admin view:' in ds_en
+if nutzt_admin and not ('Admin-Ansicht:' in ds_de and 'Admin view:' in ds_en):
+    sys.exit('Die App zeigt dem Admin fremde Faenge, die Datenschutzerklaerung sagt es nicht '
+             '(in beiden Sprachen, "Admin-Ansicht:" / "Admin view:").')
+if nennt_admin and not nutzt_admin:
+    sys.exit('Die Datenschutzerklaerung beschreibt eine Admin-Ansicht, die es im Code nicht '
+             'mehr gibt.')
+if nutzt_admin:
+    for pflicht in ['aller Konten', 'Fangort', 'Benutzername', 'Fotos und Notizen sind dort nicht',
+                    'wie viele Konten', 'Art. 6 Abs. 1 lit. f', 'Art. 21']:
+        if pflicht not in ds_de:
+            sys.exit(f'Datenschutz (deutsch): zur Admin-Ansicht fehlt "{pflicht}".')
+    for pflicht in ['all accounts', 'location', 'username', 'Photos and notes are not shown',
+                    'how many accounts', 'Art. 6(1)(f)', 'Art. 21']:
+        if pflicht not in ds_en:
+            sys.exit(f'Datenschutz (englisch): zur Admin-Ansicht fehlt "{pflicht}".')
+    if 'keine Auswertung deiner Daten zu anderen Zwecken' in ds_de \
+            or 'no evaluation of your data for other purposes.' in ds_en:
+        sys.exit('Datenschutz: das alte "keine Auswertung zu anderen Zwecken" steht wieder da. '
+                 'Seit der Admin-Karte ist es falsch.')
+print('Datenschutz: die Admin-Ansicht steht in beiden Sprachen in der Erklaerung, '
+      'und das alte Versprechen ist weg.')
 
 # ⚠️ Die Wetterwerte muessen an ZWEI Stellen zusammenpassen: in der Anfrage an
 # Open-Meteo und beim Zeichnen. Die Pruefungen im Browser bauen sich ihre Vorhersage

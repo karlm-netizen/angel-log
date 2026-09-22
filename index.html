@@ -368,6 +368,11 @@ setTimeout(function(){
   .leaflet-popup-content{margin:10px 12px; font-size:13px}
   .leaflet-popup-content img{width:100%; border-radius:8px; margin-bottom:6px; display:block}
   .leaflet-popup-content b{font-size:14px}
+  /* Fänge der anderen (Admin, 22.09.2026): runde Punkte statt der blauen Nadeln der
+     eigenen Fänge — auf einen Blick getrennt. Fest orange, weil die Karte in jeder
+     Farbpalette dieselbe ist; per CSS, weil Leaflet die Farbe sonst als Attribut
+     setzt und dort keine Variablen versteht. */
+  .leaflet-interactive.fremd-fang{stroke:#fff; stroke-width:2; fill:#f08c2e; fill-opacity:.92}
 
   /* Detail */
   .kv{display:flex; justify-content:space-between; gap:12px; padding:9px 0;
@@ -1249,6 +1254,16 @@ function splashWeg(){
       <button class="btn" id="btn-bug-ab">Abschicken</button>
       <p class="tiny muted" id="bug-warten" style="margin:8px 0 0" hidden></p>
     </div>
+    <!-- ======= Admin (22.09.2026) =======
+         Karls Ansagen: „admin panel mit usercount" und „eine möglichkeit im admin
+         panel das man sich auf der karte die fischdaten aller leute anzeigen lassen
+         kann". Unsichtbar, bis auf Home fünfmal auf das Logo getippt wird — siehe
+         adminGeste(). Gezeichnet wird er in renderAdmin().
+         ⚠️ Warum genau hier: unten gilt seit dem 12.08.2026 „nach dem Download nur noch
+            das Konto, und das Konto ganz unten" (Karls Ansage, zwei Prüfungen wachen
+            darüber). Direkt über dem Datenschutz passt er aber auch sachlich — die
+            Erklärung darunter beschreibt genau diese Ansicht. -->
+    <div id="admin" hidden></div>
     <label class="f">Datenschutz</label>
     <p class="tiny muted" style="margin:0 0 12px" id="sicherung-text"></p>
     <button class="btn" id="btn-datenschutz" style="margin-bottom:8px">Datenschutzerklärung</button>
@@ -2097,6 +2112,31 @@ const EN = {
   'Fehler:': 'Error:',
   'unbekannt': 'unknown',
   'HTTP': 'HTTP',
+  // Admin (22.09.2026)
+  'Admin': 'Admin',
+  'wird geholt …': 'loading …',
+  'Angelegte Konten:': 'Accounts created:',
+  'Jedes Konto zählt mit — auch Test-Konten und deins.': 'Every account counts — test accounts and yours included.',
+  '🗺️ Fänge aller auf der Karte zeigen': '🗺️ Show everyone’s catches on the map',
+  '🗺️ Fänge der anderen ausblenden': '🗺️ Hide the others’ catches',
+  'Zeigt auf der Karte die Fänge aller anderen Konten: Ort, Art, Länge, Gewicht, Zeit, Gewässer und Benutzername — ohne Fotos und Notizen.': 'Shows the catches of all other accounts on the map: location, species, length, weight, time, water and username — without photos and notes.',
+  'Die anderen merken davon nichts. Seit v60 steht es in der Datenschutzerklärung — wer sein Konto vorher angelegt hat, hat es dort nie gelesen.': 'The others don’t notice any of this. Since v60 it is in the privacy policy — anyone who signed up before has never read it there.',
+  'Admin zumachen': 'Close admin',
+  'Admin zu': 'Admin closed',
+  'Admin freigeschaltet — steht unten in den Einstellungen': 'Admin unlocked — it is at the bottom of the settings',
+  'Admin ist schon offen — steht unten in den Einstellungen': 'Admin is already open — it is at the bottom of the settings',
+  'Kein Netz — das kommt vom Server.': 'No connection — this comes from the server.',
+  'Fehlt noch in der Datenbank: den Admin-Teil aus supabase.sql im SQL-Editor ausführen.': 'Still missing in the database: run the admin part of supabase.sql in the SQL editor.',
+  'Dieses Konto ist kein Admin.': 'This account is not an admin.',
+  'Anmeldung abgelaufen — einmal abmelden und neu anmelden.': 'Sign-in expired — sign out once and sign in again.',
+  'Die Antwort des Servers war unbrauchbar.': 'The server’s response was unusable.',
+  'Der Server hat abgelehnt': 'The server refused',
+  'andere werden geholt …': 'loading the others …',
+  'andere: Fehler': 'others: error',
+  'von anderen': 'from others',
+  'Fänge der anderen:': 'The others’ catches:',
+  'von': 'by',
+  'ohne Benutzernamen': 'without username',
 };
 
 function T(de){
@@ -2109,7 +2149,7 @@ function T(de){
    an — sonst übersetzte er Fangdaten mit, und aus einem eingetragenen „Hecht"
    würde beim Umschalten ein „Pike", der so nie eingetippt wurde. Alles darin
    wird beim Umschalten ohnehin neu gezeichnet, dort steht T() im Quelltext. */
-const NICHT_UEBERSETZEN = ['#list', '#stats-body', '#detail-body', '#konto', '#gate-inner',
+const NICHT_UEBERSETZEN = ['#list', '#stats-body', '#detail-body', '#konto', '#admin', '#gate-inner',
   '#home-wetter', '#home-prognose',
   '#tour-inner', '#ds-text', '#g-ds-text', '#map', '#splash', '#toast',
   '#viewer', '#zeit-gesamt', '#zeit-laeuft', '#zeit-warnung', '#korr-start',
@@ -2179,6 +2219,7 @@ function spracheSetzen(s){
   try { renderZeit(); } catch {}
   try { renderList(); } catch {}
   try { renderKonto(); } catch {}
+  try { renderAdmin(); } catch {}
   try { $('#ds-text').innerHTML = ''; $('#ds-text').hidden = true; } catch {}
   try { $('#g-ds-text').innerHTML = ''; } catch {}
   try { if (state.view === 'map')   renderMap(); } catch {}
@@ -3897,10 +3938,59 @@ $('#btn-edit').onclick = () => {
 };
 
 /* ---------------------------- Kartenansicht ---------------------------- */
-let bigMap, markerLayer;
+let bigMap, markerLayer, fremdLayer;
+/* Zählt jeden Aufruf mit. Die Fänge der anderen (Admin) kommen übers Netz und damit
+   später — wer inzwischen die Karte neu gezeichnet oder den Schalter umgelegt hat,
+   soll nicht die Antwort einer überholten Anfrage auf die Karte bekommen. */
+let fremdLauf = 0;
+
+/* Aus der Serverantwort das machen, was auf die Karte darf (Admin, 22.09.2026).
+   🔴 Alles hier hat ein FREMDER eingetippt — Fischart, Gewässer, Benutzername. Bei
+   den eigenen Fängen weiter unten ist rohes HTML im Popup harmlos: man greift
+   höchstens sich selbst an (Sicherheitsdurchsicht vom 12.08.2026). Hier nicht mehr.
+   Ein `<img onerror=…>` im Fischnamen liefe in Karls Browser, mit seiner Anmeldung
+   und damit mit Admin-Rechten — und könnte genau diese Liste aller Fangplätze
+   weitertragen. Deshalb geht JEDES Feld durch esc(), auch die Zahlen.
+   ⚠️ Koordinaten werden geprüft, nicht vorausgesetzt: ein einziger kaputter Wert
+   brächte Leaflet beim Einpassen des Ausschnitts zum Absturz, und dann fehlte die
+   ganze Karte statt eines Punktes. */
+function fremdeFaengeAufbereiten(liste){
+  if (!Array.isArray(liste)) throw adminFehler('antwort');
+  const zahl = x => (typeof x === 'number' && isFinite(x)) ? x : null;
+  return liste
+    .filter(f => f && zahl(f.lat) != null && zahl(f.lon) != null
+                   && Math.abs(f.lat) <= 90 && Math.abs(f.lon) <= 180)
+    .map(f => {
+      const laenge = zahl(f.laenge), gewicht = zahl(f.gewicht);
+      const size = [laenge != null && laenge + ' cm',
+                    gewicht != null && String(gewicht).replace('.', ',') + ' kg']
+        .filter(Boolean).join(' · ');
+      const wann = typeof f.when === 'string' ? fmtDate(f.when) : '';
+      const zeilen = [`<b>${esc(f.art || T('Fang'))}</b>`];
+      if (size) zeilen.push(esc(size));
+      if (wann) zeilen.push(esc(wann));
+      if (f.gewaesser) zeilen.push(esc(f.gewaesser));
+      zeilen.push(`<span style="opacity:.7">${esc(T('von'))} ${esc(f.name || T('ohne Benutzernamen'))}</span>`);
+      return { lat: f.lat, lon: f.lon, popup: zeilen.join('<br>') };
+    });
+}
+
 async function renderMap(){
+  const lauf = ++fremdLauf;
   const withPos = state.catches.filter(c => c.lat != null);
-  $('#map-count').textContent = withPos.length + ' mit Standort';
+  const eigeneText = withPos.length + ' mit Standort';
+  $('#map-count').textContent = eigeneText;
+  /* Admin: die Anfrage startet VOR dem Laden der Karte und läuft neben ihr her —
+     beides dauert, nacheinander wäre es die Summe. Ohne Schalter wird niemand
+     gefragt, und die Karte ist genau die von vorher. */
+  const fremdP = adminKarteAn() ? adminAbfrage('angel_admin_faenge') : null;
+  if (fremdP){
+    /* Abgeholt wird unten. Ohne diesen leeren Fänger meldete der Browser einen
+       „unbehandelten" Fehlschlag, falls die Karte vorher scheitert — und daraus
+       macht die App einen Fehler-Toast über etwas, das niemand sehen wollte. */
+    fremdP.catch(() => {});
+    $('#map-count').textContent = eigeneText + ' · ' + T('andere werden geholt …');
+  }
 
   let L;
   try {
@@ -3917,8 +4007,10 @@ async function renderMap(){
     bigMap = L.map('map').setView([51.2, 10.4], 5);
     tileLayer(L).addTo(bigMap);
     markerLayer = L.layerGroup().addTo(bigMap);
+    fremdLayer  = L.layerGroup().addTo(bigMap);
   }
   markerLayer.clearLayers();
+  fremdLayer.clearLayers();
 
   withPos.forEach(c => {
     const size = [c.laenge && c.laenge + ' cm', c.gewicht && String(c.gewicht).replace('.', ',') + ' kg']
@@ -3935,6 +4027,26 @@ async function renderMap(){
                      { maxZoom: 15 });
   }
   setTimeout(() => bigMap.invalidateSize(), 60);
+
+  if (!fremdP) return;
+  let fremde;
+  try { fremde = fremdeFaengeAufbereiten(await fremdP); }
+  catch (e){
+    if (lauf !== fremdLauf) return;
+    /* ⚠️ Laut, nicht still. Eine Karte mit nur den eigenen Fängen sähe aus wie
+       „die anderen haben nichts" — und das wäre eine Antwort, die keine ist. */
+    $('#map-count').textContent = eigeneText + ' · ' + T('andere: Fehler');
+    toast(T('Fänge der anderen:') + ' ' + adminFehlerText(e));
+    return;
+  }
+  if (lauf !== fremdLauf) return;
+  fremde.forEach(f => L.circleMarker([f.lat, f.lon], { radius: 7, className: 'fremd-fang' })
+    .bindPopup(f.popup).addTo(fremdLayer));
+  $('#map-count').textContent = eigeneText + ' · ' + fremde.length + ' ' + T('von anderen');
+  if (fremde.length){
+    const alle = withPos.map(c => [c.lat, c.lon]).concat(fremde.map(f => [f.lat, f.lon]));
+    bigMap.fitBounds(L.latLngBounds(alle).pad(0.25), { maxZoom: 15 });
+  }
 }
 document.addEventListener('click', e => {
   const a = e.target.closest('[data-open]');
@@ -4042,7 +4154,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v59';
+const FASSUNG = 'v60';
 
 const KONTO_KEY = 'angellog-konto';
 /* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
@@ -5537,6 +5649,158 @@ function renderKonto(){
   };
 }
 
+/* ========================= Admin (22.09.2026) =========================
+   Karls Ansagen: „admin panel mit usercount" und „eine möglichkeit im admin panel
+   das man sich auf der karte die fischdaten aller leute anzeigen lassen kann".
+
+   Zwei Hälften, und nur die zweite schützt etwas:
+   1. **Die Anzeige** — auf diesem Gerät freigeschaltet über eine Geste (fünfmal auf
+      das Logo auf Home). Das ist KEINE Sperre, nur ein Vorhang: wer den Quelltext
+      liest, findet die Geste in einer Minute.
+   2. **Die Daten** — gibt ausschließlich die Datenbank heraus, über zwei Funktionen
+      in supabase.sql (Abschnitt 8). Die prüfen selbst, WER angemeldet ist, und
+      antworten nur dem einen Admin-Konto. Ein fremdes Konto, das die Geste kennt,
+      bekommt einen leeren Block mit „kein Admin" — und keinen einzigen Fang.
+
+   ⚠️ Deshalb geht jede Anfrage mit dem Zugangs-Token hinaus (über api()). Ohne ihn
+      fragt die App als `anon`, und die Datenbank lehnt ab — richtig so, aber dann
+      sähe der Admin nie etwas. */
+const ADMIN_KEY       = 'angellog-admin';        // '1' = Anzeige auf diesem Gerät frei
+const ADMIN_KARTE_KEY = 'angellog-admin-karte';  // '1' = Fänge der anderen auf der Karte
+
+function adminAn(){
+  try { return localStorage.getItem(ADMIN_KEY) === '1'; } catch { return false; }
+}
+function adminKarteAn(){
+  try { return adminAn() && localStorage.getItem(ADMIN_KARTE_KEY) === '1'; } catch { return false; }
+}
+
+/* Die Gründe, aus denen eine Admin-Abfrage nichts bringt — auseinandergehalten, weil
+   jeder etwas anderes verlangt. ⚠️ Keiner davon darf als „0 Konten" oder als leere
+   Karte erscheinen: das sähe aus wie eine Antwort und wäre keine.
+   ⚠️ Die Sätze stehen als T()-Aufruf mit festem Text da und nicht in einer Tabelle — sonst sähe
+   die Wörterbuch-Prüfung sie nicht, und die englische App zeigte still Deutsch. */
+function adminFehler(art, status){
+  const e = new Error(art); e.art = art; e.status = status; return e;
+}
+function adminFehlerText(e){
+  switch (e && e.art){
+    case 'netz':       return T('Kein Netz — das kommt vom Server.');
+    case 'abgemeldet': return T('Nicht angemeldet.');
+    case 'fehlt':      return T('Fehlt noch in der Datenbank: den Admin-Teil aus supabase.sql im SQL-Editor ausführen.');
+    case 'keinAdmin':  return T('Dieses Konto ist kein Admin.');
+    case 'abgelaufen': return T('Anmeldung abgelaufen — einmal abmelden und neu anmelden.');
+    case 'antwort':    return T('Die Antwort des Servers war unbrauchbar.');
+    default:           return T('Der Server hat abgelehnt') + (e && e.status ? ' (' + e.status + ')' : '');
+  }
+}
+
+/* Gemessen am 22.09.2026, bevor die Funktionen existierten: die Datenbank antwortet
+   dann mit 404 und `PGRST202`. Genau das wird hier zu „fehlt noch" — und nicht zu
+   einem allgemeinen Fehler, bei dem niemand an das SQL denkt. */
+async function adminAbfrage(fn){
+  if (!konto || !konto.access_token) throw adminFehler('abgemeldet');
+  let r;
+  try { r = await api('/rest/v1/rpc/' + fn, { method: 'POST', body: '{}' }); }
+  catch { throw adminFehler('netz'); }
+  let d = null;
+  try { d = await r.json(); } catch {}
+  if (r.ok) return d;
+  const code = d && d.code;
+  if (code === 'PGRST202' || r.status === 404) throw adminFehler('fehlt', r.status);
+  if (code === '42501'    || r.status === 403) throw adminFehler('keinAdmin', r.status);
+  if (r.status === 401)                        throw adminFehler('abgelaufen', r.status);
+  throw adminFehler('server', r.status);
+}
+
+/* null = noch nicht gefragt · 'laeuft' · { konten } · { fehler } */
+let adminZahl = null;
+let adminZahlLauf = 0;
+
+async function adminZahlHolen(){
+  if (!adminAn()) return;
+  const lauf = ++adminZahlLauf;
+  adminZahl = 'laeuft'; renderAdmin();
+  let neu;
+  try {
+    const d = await adminAbfrage('angel_admin_zahlen');
+    neu = (d && typeof d.konten === 'number') ? { konten: d.konten } : { fehler: adminFehler('antwort') };
+  } catch (e){ neu = { fehler: e }; }
+  if (lauf !== adminZahlLauf) return;
+  adminZahl = neu; renderAdmin();
+}
+
+function renderAdmin(){
+  const box = $('#admin');
+  if (!box) return;
+  if (!adminAn()){ box.innerHTML = ''; box.hidden = true; return; }
+  box.hidden = false;
+  const z = adminZahl;
+  /* ⚠️ „Konten" und nicht „Nutzer": gezählt wird jedes angelegte Konto, auch Karls
+     eigene Test-Konten. Wie viele davon wirklich angeln, sagt die Zahl nicht — und
+     eine Zahl, die mehr zu sagen scheint, als sie misst, ist schlimmer als keine. */
+  const zahlTeil = (z === null || z === 'laeuft')
+    ? `<span class="spin"></span>${T('wird geholt …')}`
+    : z.fehler
+      ? `<span style="color:var(--warn)">${esc(adminFehlerText(z.fehler))}</span>`
+      : `${T('Angelegte Konten:')} <b style="color:var(--txt)">${esc(z.konten)}</b><br>${
+          T('Jedes Konto zählt mit — auch Test-Konten und deins.')}`;
+  const karte = adminKarteAn();
+  /* ⚠️ Der Satz in Orange ist Karls Einwand-Regel: der Einwand steht im Bild, nicht
+     in einer Rückfrage. Wer den Schalter umlegt, liest ihn — jedes Mal. */
+  box.innerHTML = `
+    <label class="f">${T('Admin')}</label>
+    <p class="tiny muted" id="admin-konten" style="margin:0 0 10px; line-height:1.55">${zahlTeil}</p>
+    <button class="btn" id="admin-karte" style="margin-bottom:6px">${
+      karte ? T('🗺️ Fänge der anderen ausblenden') : T('🗺️ Fänge aller auf der Karte zeigen')}</button>
+    <p class="tiny muted" style="margin:0 0 8px; line-height:1.5">${
+      T('Zeigt auf der Karte die Fänge aller anderen Konten: Ort, Art, Länge, Gewicht, Zeit, Gewässer und Benutzername — ohne Fotos und Notizen.')}</p>
+    <p class="tiny" id="admin-hinweis" style="margin:0 0 10px; line-height:1.5; color:var(--warn)">${
+      T('Die anderen merken davon nichts. Seit v60 steht es in der Datenschutzerklärung — wer sein Konto vorher angelegt hat, hat es dort nie gelesen.')}</p>
+    <button class="btn sm" id="admin-zu" style="margin-bottom:16px">${T('Admin zumachen')}</button>`;
+  $('#admin-karte').onclick = () => {
+    const an = !adminKarteAn();
+    try { an ? localStorage.setItem(ADMIN_KARTE_KEY, '1') : localStorage.removeItem(ADMIN_KARTE_KEY); } catch {}
+    // Wer einschaltet, will sehen — also gleich hin. Ausschalten bleibt hier.
+    if (an) go('map'); else renderAdmin();
+  };
+  $('#admin-zu').onclick = () => {
+    /* ⚠️ Beide Schlüssel. Bliebe der Karten-Schalter stehen, fragte die Karte nach dem
+       nächsten Aufschließen sofort wieder nach fremden Fängen — ohne dass jemand den
+       Schalter in diesem Moment umgelegt hätte. */
+    try { localStorage.removeItem(ADMIN_KEY); localStorage.removeItem(ADMIN_KARTE_KEY); } catch {}
+    adminZahl = null;
+    fremdLauf++;   // eine noch laufende Kartenanfrage zeichnet danach nichts mehr
+    renderAdmin();
+    toast(T('Admin zu'));
+  };
+}
+
+/* Versteckter Zugang: fünfmal auf das Logo auf Home tippen, höchstens 1,5 s zwischen
+   zwei Tipps — dieselbe Geste wie bei Gym-Log (dort auf Brock).
+   ⚠️ Die Geste schließt NUR auf. Bei Gym-Log hat sie bis zum 27.08.2026 auch wieder
+      zugesperrt, und genau so ging Karls Admin-Konsole „weg": fünfmal getippt, während
+      sie schon offen war. Zumachen geht nur über den Knopf im Admin-Block.
+   ⚠️ Der Zuhörer hängt am Logo SELBST, nicht am Dokument: Safari am iPhone reicht Tipps
+      auf Elemente ohne eigenen Zuhörer nicht zuverlässig nach oben durch. */
+(function adminGeste(){
+  const logo = $('#v-home .head h1');
+  if (!logo) return;
+  let n = 0, t0 = 0;
+  logo.addEventListener('click', () => {
+    const jetzt = Date.now();
+    if (jetzt - t0 > 1500) n = 0;
+    t0 = jetzt; n++;
+    if (n < 5) return;
+    n = 0;
+    if (adminAn()){ toast(T('Admin ist schon offen — steht unten in den Einstellungen')); return; }
+    try { localStorage.setItem(ADMIN_KEY, '1'); } catch {}
+    // Privates Fenster: dann hielte der Toast eine Freischaltung fest, die es nicht gibt.
+    if (!adminAn()){ toast(T('Der Speicher dieses Browsers ist nicht erreichbar.')); return; }
+    toast(T('Admin freigeschaltet — steht unten in den Einstellungen'));
+  });
+})();
+
 /* ====================== Datenschutz ==========================
    ⚠️ Der Text beschreibt zwei verschiedene Apps und muss deshalb wissen,
    welche gerade läuft: ohne konfigurierte Cloud verlässt wirklich nichts das
@@ -5583,11 +5847,18 @@ function datenschutzEN(){
     <p>Your catches are also kept in your device's storage so the app works without a
     connection — at the water that is the normal case. You stay signed in; the session
     is remembered locally so poor reception does not sign you out.</p>
+    <p><b>Admin view:</b> The operator can display the catches of <b>all accounts</b>
+    on a map in the app — with <b>location</b>, species, length, weight, time, water
+    and <b>username</b>. Photos and notes are not shown there. The operator also sees
+    how many accounts exist. Other users do not see your catches. Purpose: to see
+    where and what is caught with the app. The legal basis is Art. 6(1)(f) GDPR
+    (legitimate interest). You can object to this at any time (Art. 21 GDPR) — an
+    e-mail to the address above is enough.</p>
     <p><b>Deletion:</b> In the settings, „Delete account" removes your account and all
     associated data on the server immediately and completely. The catches on your device
     are kept. „Sign out" only stops synchronising.</p>
     <p><b>Retention:</b> As long as the account exists. There is no automatic deletion
-    period and no evaluation of your data for other purposes.</p>`;
+    period and no evaluation of your data for purposes other than those named here.</p>`;
 
   return `
     <h3 style="font-size:15px; margin:0 0 8px">Privacy</h3>
@@ -5626,7 +5897,7 @@ function datenschutzEN(){
     and objection (Art. 15–21 GDPR), and to lodge a complaint with a supervisory
     authority. For data portability there is <b>„Download my data"</b> further down —
     it gives you all your catches including photos as a file, without having to ask.</p>
-    <p class="tiny muted">As of August 2026 · <b>The German version is authoritative.</b></p>`;
+    <p class="tiny muted">As of September 2026 · <b>The German version is authoritative.</b></p>`;
 }
 
 function datenschutzDE(){
@@ -5652,11 +5923,20 @@ function datenschutzDE(){
     App ohne Netz funktioniert — am Wasser ist das der Normalfall. Angemeldet
     bleibst du dabei; die Sitzung wird lokal gemerkt und du wirst bei schlechtem
     Empfang nicht abgemeldet.</p>
+    <p><b>Admin-Ansicht:</b> Der Betreiber kann sich in der App die Fänge
+    <b>aller Konten</b> auf einer Karte anzeigen lassen — mit <b>Fangort</b>,
+    Fischart, Länge, Gewicht, Zeitpunkt, Gewässer und <b>Benutzername</b>. Fotos und
+    Notizen sind dort nicht zu sehen. Außerdem sieht er, wie viele Konten es gibt.
+    Andere Nutzer sehen deine Fänge nicht. Zweck: sehen, wo und was mit der App
+    gefangen wird. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes
+    Interesse). Du kannst dem jederzeit widersprechen (Art. 21 DSGVO) — eine E-Mail
+    an die Adresse oben genügt.</p>
     <p><b>Löschen:</b> In den Einstellungen löscht „Konto löschen" dein Konto und
     alle zugehörigen Daten auf dem Server sofort und vollständig. Die Fänge auf
     deinem Gerät bleiben dabei erhalten. „Abmelden" beendet nur die Synchronisierung.</p>
     <p><b>Aufbewahrung:</b> Solange das Konto besteht. Es gibt keine automatische
-    Löschfrist und keine Auswertung deiner Daten zu anderen Zwecken.</p>`;
+    Löschfrist und keine Auswertung deiner Daten zu anderen als den hier genannten
+    Zwecken.</p>`;
 
   return `
     <h3 style="font-size:15px; margin:0 0 8px">Datenschutz</h3>
@@ -5697,7 +5977,7 @@ function datenschutzDE(){
     einer Aufsichtsbehörde. Für die Datenübertragbarkeit gibt es hier unten
     <b>„Meine Daten herunterladen"</b> — das liefert alle deine Fänge samt Fotos
     als Datei, ohne Umweg über eine Anfrage.</p>
-    <p class="tiny muted">Stand: August 2026</p>`;
+    <p class="tiny muted">Stand: September 2026</p>`;
 }
 
 /* =================== Kurze Einführung ===================
@@ -7619,6 +7899,10 @@ function go(view){
      Start. Sein Zustand kann sich außerhalb der App ändern: wer die Erlaubnis in den
      Geräte-Einstellungen zurücknimmt, hätte hier sonst weiterhin „ist an" stehen. */
   if (view === 'set') pushInfoZeichnen();
+  /* Admin: bei jedem Öffnen neu, aus demselben Grund wie der Push-Schalter — die Zahl
+     ändert sich, während die Seite zu ist. Ohne Freischaltung zeichnet das nichts und
+     fragt niemanden. */
+  if (view === 'set'){ renderAdmin(); adminZahlHolen(); }
   window.scrollTo(0, 0);
 }
 $$('.tab').forEach(t => t.onclick = () => {

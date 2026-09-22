@@ -695,3 +695,118 @@ create policy "eigene push-anmeldungen loeschen"
 --    er muss fremde Anmeldungen lesen duerfen, denn eine Antwort gehoert
 --    per Definition zu jemand anderem. Dasselbe gilt schon fuer
 --    angel_meldungen; hier steht es nur noch einmal dabei.
+
+-- ---------------------------------------------------------------------
+--  8. Admin: Kontenzahl und die Faenge aller auf der Karte  (22.09.2026)
+--
+--  Karls Ansagen: "admin panel mit usercount" und "eine moeglichkeit im
+--  admin panel das man sich auf der karte die fischdaten aller leute
+--  anzeigen lassen kann".
+--
+--  🔴 Das ist der ERSTE Weg in dieser Datenbank, auf dem ein Konto FREMDE
+--  Faenge zu sehen bekommt. Bis hierher galt ausnahmslos: jeder sieht nur
+--  seine eigenen Zeilen (Abschnitt 3). Beide Funktionen unten gehen mit
+--  `security definer` an RLS vorbei — sie MUESSEN deshalb selbst pruefen,
+--  wer fragt, und zwar als Allererstes. Ohne diese Pruefung koennte jeder
+--  mit dem oeffentlichen Schluessel aus dem Quelltext die Fangplaetze aller
+--  Leute abrufen. pruefungen.py wacht darueber.
+--
+--  Wer Admin ist, steht in angel_konfig (Abschnitt 3d — ohne Policy, ueber
+--  die API liest es niemand, auch kein angemeldetes Konto).
+--  ⚠️ Gesetzt wird es EINMAL, ueber den Benutzernamen, und `do nothing`
+--     sorgt dafuer, dass ein erneuter Lauf dieser Datei den Admin NIE
+--     umsetzt. Mit `do update` wuerde, falls das Konto "karl" je geloescht
+--     und der Name neu vergeben wird, beim naechsten Lauf der Naechste mit
+--     diesem Namen Admin. Die gespeicherte id eines geloeschten Kontos passt
+--     dagegen auf niemanden mehr.
+--  Admin von Hand aendern:
+--     update public.angel_konfig set wert = '<user-id>' where schluessel = 'admin';
+-- ---------------------------------------------------------------------
+insert into public.angel_konfig (schluessel, wert)
+select 'admin', p.id::text from public.profil p where p.username = 'karl'
+on conflict (schluessel) do nothing;
+
+-- Nur fuer die beiden Funktionen darunter, nicht zum Aufrufen von aussen.
+create or replace function public.angel_ist_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select auth.uid() is not null and exists (
+    select 1 from public.angel_konfig k
+     where k.schluessel = 'admin' and k.wert = auth.uid()::text);
+$$;
+revoke all on function public.angel_ist_admin() from public, anon, authenticated;
+
+-- Wie viele Konten es gibt. ⚠️ auth.users und nicht profil: wer sich nur
+-- mit E-Mail registriert hat, hat keine Zeile in profil (Abschnitt 5) und
+-- fehlte sonst in der Zahl.
+create or replace function public.angel_admin_zahlen()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public, auth
+as $$
+begin
+  if not public.angel_ist_admin() then
+    raise exception 'kein Admin' using errcode = '42501';
+  end if;
+  return jsonb_build_object('konten', (select count(*) from auth.users));
+end $$;
+revoke all on function public.angel_admin_zahlen() from public, anon;
+grant execute on function public.angel_admin_zahlen() to authenticated;
+
+-- Die Faenge der ANDEREN — die eigenen hat die App ohnehin schon auf der
+-- Karte, samt Fotos.
+-- ⚠️ Nur, was die Karte braucht: Ort, Art, Laenge, Gewicht, Zeit, Gewaesser
+--    und der Benutzername. Keine Fotos, keine Notiz, kein Koeder — die
+--    Datenschutzerklaerung sagt genau das, und pruefungen.py haelt beides
+--    zusammen.
+-- ⚠️ Nur echte Zahlen als Koordinaten. Ein einziger Fang mit einem Text im
+--    Ort liesse sonst beim Umwandeln die ganze Abfrage scheitern — und der
+--    Admin saehe gar keinen Fang statt eines fehlenden.
+-- ⚠️ Ohne Entwuerfe (halb ausgefuellt, oft ohne Fisch) und ohne Grabsteine.
+create or replace function public.angel_admin_faenge()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not public.angel_ist_admin() then
+    raise exception 'kein Admin' using errcode = '42501';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+             'lat',       f.daten->'lat',
+             'lon',       f.daten->'lon',
+             'art',       f.daten->>'art',
+             'laenge',    f.daten->'laenge',
+             'gewicht',   f.daten->'gewicht',
+             'when',      f.daten->>'when',
+             'gewaesser', f.daten->>'gewaesser',
+             'name',      p.username))
+      from public.angel_faenge f
+      left join public.profil p on p.id = f.user_id
+     where not f.geloescht
+       and f.user_id <> auth.uid()
+       and jsonb_typeof(f.daten->'lat') = 'number'
+       and jsonb_typeof(f.daten->'lon') = 'number'
+       and (f.daten->'entwurf') is distinct from 'true'::jsonb
+  ), '[]'::jsonb);
+end $$;
+revoke all on function public.angel_admin_faenge() from public, anon;
+grant execute on function public.angel_admin_faenge() to authenticated;
+
+-- ✅ Zaehlzeile ("No rows returned" beweist nichts). Erwartet:
+--    admin_gesetzt = 1 · admin_name = karl · funktionen = 3
+select (select count(*) from public.angel_konfig where schluessel = 'admin') as admin_gesetzt,
+       (select p.username from public.angel_konfig k
+          join public.profil p on p.id::text = k.wert
+         where k.schluessel = 'admin') as admin_name,
+       (select count(*) from pg_proc
+         where proname in ('angel_ist_admin', 'angel_admin_zahlen', 'angel_admin_faenge')) as funktionen;

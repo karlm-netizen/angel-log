@@ -6,6 +6,67 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 22.09.2026 (v60) — Admin: Kontenzahl und die Fänge aller auf der Karte
+
+**Karls Ansagen:** *„admin panel mit usercount"* und *„eine möglichkeit im admin panel das
+man sich auf der karte die fischdaten aller leute anzeigen lassen kann"*.
+
+### Was es gibt
+
+- **Zugang:** auf Home **fünfmal auf das Logo** tippen (höchstens 1,5 s zwischen zwei Tipps) —
+  dieselbe Geste wie bei Gym-Log. Danach steht in den Einstellungen ein Block **Admin**, direkt
+  über dem Datenschutz. Die Geste schließt nur auf; zu geht es über „Admin zumachen".
+- **Angelegte Konten:** die Zahl kommt bei jedem Öffnen der Einstellungen frisch vom Server.
+  Gezählt wird jedes Konto, auch Test-Konten — deshalb heißt es „Konten" und nicht „Nutzer".
+- **Fänge aller auf der Karte:** ein Schalter im Admin-Block. Die Fänge der anderen erscheinen
+  als **orange Punkte** neben den eigenen blauen Nadeln, mit Art, Länge, Gewicht, Zeit, Gewässer
+  und Benutzername. **Ohne Fotos und Notizen**, ohne Entwürfe, ohne Gelöschtes. Der Zähler oben
+  sagt „· 12 von anderen".
+
+### 🔴 Was daran gefährlich ist — und wie es abgesichert ist
+
+Das ist der **erste Weg, auf dem ein Konto fremde Fänge zu sehen bekommt.** Bis v59 galt
+ausnahmslos: jeder sieht nur seine eigenen Zeilen.
+
+- **Die Geste ist keine Sperre**, nur ein Vorhang. Was herauskommt, entscheidet allein die
+  Datenbank: `angel_admin_zahlen()` und `angel_admin_faenge()` (supabase.sql, Abschnitt 8)
+  prüfen **als Erstes**, ob das angemeldete Konto der Admin ist, und sind für nicht Angemeldete
+  gar nicht aufrufbar. Wer Admin ist, steht in `angel_konfig` — über die API liest das niemand.
+- **Der Admin wird einmal gesetzt und nie überschrieben** (`on conflict do nothing`). Sonst würde
+  nach dem Löschen des Kontos „karl" der Nächste mit diesem Namen beim nächsten SQL-Lauf Admin.
+- **Alles Fremde wird entschärft.** Die eigenen Popups setzen Fischart und Gewässer roh ins
+  HTML — harmlos, solange man nur sich selbst angreifen kann (Sicherheitsdurchsicht 12.08.).
+  Bei fremden Fängen nicht mehr: ein `<img onerror=…>` im Fischnamen liefe in Karls Browser mit
+  Admin-Rechten. Deshalb geht dort jedes Feld durch `esc()`.
+
+### ⚖️ Die Datenschutzerklärung ist mitgeändert
+
+Sie versprach bis v59 wörtlich *„keine Auswertung deiner Daten zu anderen Zwecken"*. Mit der
+Karte wäre das ab dem ersten Blick falsch gewesen. Neu ist ein Absatz **„Admin-Ansicht"** (was
+der Betreiber sieht, was nicht, Rechtsgrundlage Art. 6 Abs. 1 lit. f, Widerspruch nach Art. 21),
+beide Sprachen, Stand September 2026.
+⚠️ **Offen und bei Karl:** wer sein Konto vor v60 angelegt hat, hat den neuen Absatz nie
+gelesen. Das steht auch orange im Admin-Block selbst. Und der Zweck-Satz („sehen, wo und was
+mit der App gefangen wird") ist meine Formulierung, nicht Karls.
+
+### Einspielen
+
+Die App allein zeigt nur „Fehlt noch in der Datenbank". **Abschnitt 8 aus `supabase.sql` muss
+einmal im SQL-Editor laufen.** Die Zählzeile am Ende muss `admin_gesetzt = 1`,
+`admin_name = karl` und `funktionen = 3` zeigen.
+
+### Prüfungen
+
+**700 → 722** im Browser, dazu zwei neue statische Blöcke (die Admin-Funktionen in
+supabase.sql, die Admin-Ansicht in der Datenschutzerklärung — in beide Richtungen: was der
+Code tut, muss der Text sagen, und umgekehrt).
+🔴 **Beim Bau gefunden:** viele ältere Prüfungen ersetzen `api()` durch eine Attrappe und
+stellen nicht zurück. Die neuen liefen dadurch beim ersten Versuch gegen die Attrappe des
+Vorgängers — **zwei davon waren zufällig grün.** Jetzt wird die echte `api()` ganz am Anfang
+festgehalten und in den Admin-Prüfungen wieder eingesetzt.
+🧪 **Neu: `gegenprobe.py`** — macht je einen Handgriff kaputt und erwartet genau die passende
+rote Prüfung. Angel-Log hatte das bisher nicht.
+
 ## 19.08.2026 (v59) — Eine Stunde Pause zwischen zwei Rücksetz-Links
 
 **Karls Ansage:** *„setz den cooldown in der app für eine pw zurücksetzung auf 1 std"* — nachdem
