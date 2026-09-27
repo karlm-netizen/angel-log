@@ -6004,6 +6004,8 @@ window.addEventListener('error', e => {
   const adminAufraeumen = () => {
     try { localStorage.removeItem(ADMIN_KEY); localStorage.removeItem(ADMIN_KARTE_KEY); } catch {}
     adminZahl = null; konto = null; renderAdmin();
+    // Seit v66 oeffnet die Geste die Admin-Seite -- danach wieder weg von ihr.
+    if (state.view === 'admin') go('home');
   };
   const logoTippen = n => {
     const logo = document.querySelector('#v-home .head h1');
@@ -6128,6 +6130,180 @@ window.addEventListener('error', e => {
       if (/undefined|null|NaN/.test(txt)) return txt;
       return /unbrauchbar/.test(txt) || txt;
     } finally { fetchWeg(); adminAufraeumen(); }
+  });
+
+  // ==================== Die Admin-Seite (v66, 27.09.2026) ====================
+  /* Karls Ansage: "ein Admin Panel ein richtiges wo man zb das Tutorial angucken kann".
+     Zugang nur ueber 5x aufs Logo (Karls Entscheidung) -- kein Knopf in den Einstellungen.
+     Gegenprobe: python gegenprobe.py Adminseite / Vorschau */
+  t('Admin-Seite: fuenf Tipps auf das Logo oeffnen sie', () => {
+    adminAufraeumen(); go('home'); logoTippen(5);
+    const sicht = !document.querySelector('#v-admin').classList.contains('hidden');
+    const r = (state.view === 'admin' && sicht) || `Ansicht: ${state.view}, sichtbar: ${sicht}`;
+    adminAufraeumen(); return r;
+  });
+  t('Admin-Seite: ist der Admin schon offen, oeffnen fuenf Tipps sie trotzdem', () => {
+    adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1'); go('home'); logoTippen(5);
+    const r = state.view === 'admin' || 'Ansicht: ' + state.view;
+    adminAufraeumen(); return r;
+  });
+  t('Admin-Seite: in den Einstellungen steht nichts mehr davon', () => {
+    adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1'); renderAdmin();
+    const imSet = document.querySelector('#v-set #admin, #v-set #admin-zu, #v-set #admin-karte');
+    const aufSeite = document.querySelector('#v-admin #admin-zu');
+    adminAufraeumen();
+    return (!imSet && !!aufSeite) || `in den Einstellungen: ${!!imSet}, auf der Seite: ${!!aufSeite}`;
+  });
+  t('Admin-Seite: unten leuchtet Home, und sie ist kein Reiter zum Wischen', () => {
+    adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1'); go('admin');
+    const an = Array.from(document.querySelectorAll('.tab.on')).map(b => b.dataset.go).join(',');
+    adminAufraeumen();
+    return (an === 'home' && REITER.indexOf('admin') === -1)
+        || `leuchtet: "${an}", REITER: ${REITER.join(',')}`;
+  });
+  t('Admin-Seite: Zumachen fuehrt nach Home zurueck', () => {
+    adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1'); go('admin');
+    document.querySelector('#admin-zu').onclick();
+    const r = (state.view === 'home' && !adminAn()) || `Ansicht: ${state.view}, offen: ${adminAn()}`;
+    adminAufraeumen(); return r;
+  });
+  t('Admin-Seite: der Pfeil fuehrt nach Home zurueck', () => {
+    adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1'); go('admin');
+    document.querySelector('#btn-admin-zurueck').click();
+    const r = state.view === 'home' || 'Ansicht: ' + state.view;
+    adminAufraeumen(); return r;
+  });
+  ta('Admin-Seite: beim Oeffnen wird die Kontenzahl geholt', async () => {
+    adminStart(false);
+    fetchGibt(adminAntwort(200, { konten: 5 }));
+    try {
+      go('admin');
+      await new Promise(r => setTimeout(r, 30));
+      const el = document.querySelector('#admin-konten');
+      const txt = el ? el.textContent : '(kein Feld)';
+      return /Angelegte Konten:\s*5/.test(txt) || txt;
+    } finally { fetchWeg(); adminAufraeumen(); }
+  });
+
+  /* ---- Die Tutorials als Vorschau ----
+     🔴 Das Versprechen: eine Vorschau hinterlaesst NICHTS. Kein Profil, kein "gesehen", kein
+     Entwurf, kein Fang. Ein Entwurf oder Fang waere ein echter Eintrag im Konto, der beim
+     Abgleich hochgeht -- der Teil, der nicht nebenbei passieren darf. */
+  const vorschauAus = () => {
+    fuNr = -1; tutorialVorschau = null; vorschauProfil = {};
+    window.removeEventListener('scroll', fuehrungZeichnen, true);
+    window.removeEventListener('resize', fuehrungZeichnen);
+    document.getElementById('tour').classList.remove('on');
+    document.getElementById('fuehrung').classList.remove('on');
+    document.getElementById('f-art').value = '';
+    entwurfWeckerAus(); state.editId = null;
+    adminAufraeumen();
+    if (state.view === 'new') go('home');
+  };
+  const merkerSetzen = (k, v) => { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); };
+
+  t('Admin-Seite: die Tutorial-Knoepfe starten die Vorschau', () => {
+    adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1'); go('admin');
+    document.querySelector('#admin-tour').click();
+    const tour = tutorialVorschau === 'tour' && document.getElementById('tour').classList.contains('on');
+    vorschauAus(); localStorage.setItem(ADMIN_KEY, '1'); go('admin');
+    document.querySelector('#admin-fuehrung').click();
+    const fu = tutorialVorschau === 'fuehrung' && document.getElementById('fuehrung').classList.contains('on');
+    vorschauAus();
+    return (tour && fu) || `Einfuehrung: ${tour}, Fuehrung: ${fu}`;
+  });
+  t('Tutorial-Vorschau: eine Antwort aendert das echte Profil nicht', () => {
+    const vorher = localStorage.getItem(PROFIL_KEY);
+    // Ein Wert, der vom jetzigen abweicht -- sonst bliebe das Profil auch beim Schreiben gleich.
+    const wert = profilLesen().wo === 'see' ? 'meer' : 'see';
+    vorschauStarten('tour');
+    tourNr = TOUR.findIndex(k => k.feld === 'wo'); tourRendern();
+    document.querySelector(`#tour-inner .tour-opt[data-wert="${wert}"]`).click();
+    const markiert = !!document.querySelector(`#tour-inner .tour-opt.da[data-wert="${wert}"]`);
+    const nachher = localStorage.getItem(PROFIL_KEY);
+    vorschauAus();
+    if (nachher !== vorher){ merkerSetzen(PROFIL_KEY, vorher); try { buildStatics(); } catch (e) {}
+      return `Profil vorher ${vorher}, nachher ${nachher}`; }
+    return markiert || 'die Wahl ist in der Vorschau nicht zu sehen';
+  });
+  t('Tutorial-Vorschau: am Ende zurueck auf die Admin-Seite, die Einfuehrung nicht als gesehen gemerkt', () => {
+    const alt = localStorage.getItem(TOUR_KEY);
+    adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1'); localStorage.setItem(TOUR_KEY, 'VORHER');
+    vorschauStarten('tour');
+    tourNr = TOUR.length - 1; tourRendern();
+    document.getElementById('tour-weiter').click();
+    const merker = localStorage.getItem(TOUR_KEY), wo = state.view, noch = tutorialVorschau;
+    const zu = !document.getElementById('tour').classList.contains('on');
+    vorschauAus(); merkerSetzen(TOUR_KEY, alt);
+    return (merker === 'VORHER' && wo === 'admin' && noch === null && zu)
+        || `Merker: ${merker}, Ansicht: ${wo}, Vorschau: ${noch}, zu: ${zu}`;
+  });
+  t('Tutorial-Vorschau: "Fuehrung beenden" fuehrt zurueck zum Admin, ohne sie als gelaufen zu merken', () => {
+    const alt = localStorage.getItem(FUEHRUNG_KEY);
+    adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1'); localStorage.setItem(FUEHRUNG_KEY, 'VORHER');
+    vorschauStarten('fuehrung');
+    const an = document.getElementById('fuehrung').classList.contains('on') && state.view === 'new';
+    document.getElementById('fu-ende').click();
+    const merker = localStorage.getItem(FUEHRUNG_KEY), wo = state.view, noch = tutorialVorschau;
+    vorschauAus(); merkerSetzen(FUEHRUNG_KEY, alt);
+    return (an && merker === 'VORHER' && wo === 'admin' && noch === null)
+        || `lief an: ${an}, Merker: ${merker}, Ansicht: ${wo}, Vorschau: ${noch}`;
+  });
+  /* Ein Nachzuegler-Wecker (60 bzw. 260 ms nach einem Schritt) nach dem Ende der Fuehrung
+     beendete sie bis v65 ein zweites Mal -- und merkte sie dabei als gelaufen. */
+  t('Fuehrung: ein Nachzuegler-Wecker nach dem Ende merkt sie nicht noch einmal als gelaufen', () => {
+    const alt = localStorage.getItem(FUEHRUNG_KEY);
+    vorschauStarten('fuehrung');
+    document.getElementById('fu-ende').click();
+    localStorage.setItem(FUEHRUNG_KEY, 'VORHER');
+    fuehrungZeichnen();                     // das tut der Wecker, der danach noch kommt
+    const merker = localStorage.getItem(FUEHRUNG_KEY);
+    vorschauAus(); merkerSetzen(FUEHRUNG_KEY, alt);
+    return merker === 'VORHER' || 'Merker neu gesetzt: ' + merker;
+  });
+  t('Tutorial-Vorschau: Tippen in der Fuehrung stellt keinen Entwurfs-Wecker', () => {
+    vorschauStarten('fuehrung');
+    const feld = document.getElementById('f-art');
+    feld.value = 'Vorschau-Hecht';
+    feld.dispatchEvent(new Event('input', { bubbles: true }));
+    const wecker = draftTimer;
+    vorschauAus();
+    return wecker === null || 'der Entwurfs-Wecker laeuft -- in 0,7 s laege ein Entwurf im Konto';
+  });
+  t('Tutorial-Vorschau: das Schild "Vorschau" steht da -- und nur in der Vorschau', () => {
+    vorschauStarten('tour');
+    const tour = /Vorschau/.test((document.querySelector('#tour-inner .vorschau-marke') || {}).textContent || '');
+    vorschauAus();
+    vorschauStarten('fuehrung');
+    const fu = /Vorschau/.test((document.querySelector('#fu-sprech .vorschau-marke') || {}).textContent || '');
+    vorschauAus();
+    tourZeigen();
+    const echt = !!document.querySelector('#tour-inner .vorschau-marke');
+    document.getElementById('tour').classList.remove('on');
+    return (tour && fu && !echt) || `Einfuehrung: ${tour}, Fuehrung: ${fu}, in der echten: ${echt}`;
+  });
+  ta('Tutorial-Vorschau: auch ein direkter Entwurfs-Speicher legt nichts an', async () => {
+    const put = putCatch, neuLaden = reload; let n = 0;
+    putCatch = async rec => { n++; return rec; }; reload = async () => {};
+    try {
+      vorschauStarten('fuehrung');
+      document.getElementById('f-art').value = 'Vorschau-Hecht';
+      await saveDraft();
+      return n === 0 || n + ' Eintrag angelegt';
+    } finally { putCatch = put; reload = neuLaden; vorschauAus(); }
+  });
+  ta('Tutorial-Vorschau: "Speichern" in der Fuehrung legt keinen Fang an', async () => {
+    const put = putCatch, neuLaden = reload; let n = 0;
+    putCatch = async rec => { n++; return rec; }; reload = async () => {};
+    try {
+      adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1');
+      vorschauStarten('fuehrung');
+      document.getElementById('f-art').value = 'Vorschau-Hecht';
+      document.getElementById('fab-save').onclick();
+      await new Promise(r => setTimeout(r, 50));
+      const wo = state.view;
+      return (n === 0 && wo === 'admin') || `angelegt: ${n}, Ansicht: ${wo}`;
+    } finally { putCatch = put; reload = neuLaden; vorschauAus(); }
   });
 
   /* 🔴 Die wichtigste Pruefung dieses Abschnitts. Fremde tippen diese Felder ein. */

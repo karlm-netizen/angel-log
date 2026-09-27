@@ -6,6 +6,53 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 27.09.2026 (v66) — Eine eigene Admin-Seite, mit den Tutorials als Vorschau
+
+**Karls Ansage:** *„ich brauche allerdings noch ein Admin Panel ein richtiges wo man zb das
+Tutorial angucken kann"*. Auf Nachfrage: Inhalt **Tutorials, Verbindungen testen, App-Stand,
+Testdaten** — gebaut in Paketen, das hier ist Paket 2 (Paket 1 war v65). Zugang: *„Nur 5× aufs
+Logo"*, kein Knopf in den Einstellungen.
+
+**Die Seite:** Bis v65 war der Admin ein Block unten in den Einstellungen. Jetzt ist er eine
+eigene Seite mit Kopf und Zurück-Pfeil. Darauf stehen:
+
+- **Konten** — die Kontenzahl, wie vorher
+- **Karte** — „Fänge aller auf der Karte", wie vorher samt dem orangen Einwand
+- **Tutorials** — neu: *Einführung abspielen* und *Führung durch den ersten Fang*
+- **Admin zumachen** — führt danach nach Home zurück
+
+**Der Eingang:** fünfmal aufs Logo auf Home öffnet die Seite. Beim ersten Mal schließt die Geste
+vorher auf. Zugesperrt wird mit ihr weiterhin nie (die Lehre aus Gym-Log vom 27.08.). Die Seite
+ist kein Reiter: kein Wischen dorthin, unten leuchtet „Home".
+
+**Die Tutorials als Vorschau:** dieselbe Einführung und dieselbe Führung wie bei einem neuen
+Konto. Oben steht ein oranges Schild *„Vorschau — es wird nichts gespeichert"*. Die Vorschau
+hinterlässt nichts:
+
+- Die Antworten auf den Fragekarten landen in einem Wegwerf-Profil. Ein Durchklicken stellt die
+  eigene Fisch- und Köderliste also nicht um.
+- „Einführung gesehen" und „Führung gelaufen" werden nicht gemerkt.
+- In der Führung entsteht **kein Entwurf**, und „Speichern" legt **keinen Fang** an. Beides wäre
+  ein echter Eintrag im Konto, der beim Abgleich hochgeht.
+
+Am Ende geht es zurück auf die Admin-Seite.
+
+🔴 **Beim Bau gefunden:** die naheliegende Fassung hätte doch gespeichert. „Speichern" beendet
+die Führung, und bei der Führungs-Vorschau endet damit die Vorschau selbst. Ein `saveNow()`
+danach hätte das Formular als echten Fang angelegt. Deshalb steht die Abfrage **vor** dem Beenden.
+
+🔧 **Nebenbei behoben:** Ein Nachzügler-Wecker der Führung (60 bzw. 260 ms) hat sie nach dem
+Ende ein zweites Mal beendet und dabei als gelaufen gemerkt. Bisher war das harmlos, nach einer
+Vorschau wäre es eine Spur gewesen. `fuehrungZeichnen()` tut jetzt nichts mehr, wenn sie nicht läuft.
+
+**Wörterbuch:** 2 Einträge raus (*„… steht unten in den Einstellungen"*), 8 rein.
+**Datenschutz:** unverändert — die Seite zeigt dieselben Daten wie vorher der Block. Die Vorschau
+verlässt das Gerät nicht.
+
+🧪 **Prüfstand 739 → 755** (16 neu). **Gegenprobe 18 von 18:** 16 neue Hebel
+(`python gegenprobe.py Adminseite Vorschau`), zwei bestehende auf den neuen Code nachgezogen
+(Geste sperrt zu · Blase in go()). Die Gegenprobe nimmt seit heute mehrere Namen auf einmal.
+
 ## 27.09.2026 (v65) — Die Fangprognose ist raus
 
 **Karls Ansage:** *„Fangprognose kann ganz raus"*.

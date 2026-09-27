@@ -134,8 +134,9 @@ PROBEN = [
     # ---- Die Geste und das Zumachen ----
     ('Geste sperrt wieder zu (der Fehler von Gym-Log, 27.08.2026)',
      'index.html',
-     "if (adminAn()){ toast(T('Admin ist schon offen — steht unten in den Einstellungen')); return; }",
-     "if (adminAn()){ try { localStorage.removeItem(ADMIN_KEY); } catch {} return; }",
+     "    if (!adminAn()){\n      try { localStorage.setItem(ADMIN_KEY, '1'); } catch {}",
+     "    if (adminAn()){ try { localStorage.removeItem(ADMIN_KEY); } catch {} return; }\n"
+     "    if (!adminAn()){\n      try { localStorage.setItem(ADMIN_KEY, '1'); } catch {}",
      'sperren NICHT wieder zu'),
 
     ('Zumachen laesst den Karten-Schalter stehen',
@@ -297,8 +298,8 @@ PROBEN = [
 
     ('Leiste: go() zieht die Blase nicht nach',
      'index.html',
-     "t.dataset.go === 'log')));\n  navBlaseSetzen();\n",
-     "t.dataset.go === 'log')));\n",
+     "t.dataset.go === 'home')));\n  navBlaseSetzen();\n",
+     "t.dataset.go === 'home')));\n",
      'die Blase steht unter dem aktiven Reiter'),
 
     ('Leiste: Beschriftung mit display:none statt font-size:0',
@@ -436,6 +437,110 @@ PROBEN = [
      ["  clearTimeout(draftTimer);\n  try {\n    await removeCatch(state.editId);",
       ""],
      'wieder angelegt'),
+
+    # ---- Die Admin-Seite (27.09.2026, v66) ----
+    #   python gegenprobe.py Adminseite  -> nur diese sechs
+    ('Adminseite: die Geste oeffnet die Seite nicht',
+     'index.html',
+     "      toast(T('Admin freigeschaltet'));\n    }\n    go('admin');\n",
+     "      toast(T('Admin freigeschaltet'));\n    }\n",
+     'fuenf Tipps auf das Logo oeffnen sie'),
+
+    ('Adminseite: der Block steht wieder in den Einstellungen',
+     'index.html',
+     ["  <div class=\"wrap\"><div id=\"admin\" hidden></div></div>\n",
+      "    <label class=\"f\">Datenschutz</label>"],
+     ["  <div class=\"wrap\"></div>\n",
+      "    <div id=\"admin\" hidden></div>\n    <label class=\"f\">Datenschutz</label>"],
+     'in den Einstellungen steht nichts mehr davon'),
+
+    ('Adminseite: auf der Admin-Seite leuchtet unten nichts',
+     'index.html',
+     "\n    || (view === 'admin' && t.dataset.go === 'home')",
+     "",
+     'unten leuchtet Home'),
+
+    ('Adminseite: Zumachen laesst einen auf der leeren Seite stehen',
+     'index.html',
+     "    if (state.view === 'admin') go('home');\n",
+     "",
+     'Zumachen fuehrt nach Home'),
+
+    ('Adminseite: go() holt die Kontenzahl nicht mehr',
+     'index.html',
+     "  if (view === 'admin'){ renderAdmin(); adminZahlHolen(); }",
+     "  if (view === 'set'){ renderAdmin(); adminZahlHolen(); }",
+     'beim Oeffnen wird die Kontenzahl geholt'),
+
+    ('Adminseite: der Pfeil fuehrt nirgends hin',
+     'index.html',
+     "$('#btn-admin-zurueck').onclick = () => go('home');",
+     "",
+     'der Pfeil fuehrt nach Home'),
+
+    # ---- Die Tutorials als Vorschau (27.09.2026, v66) ----
+    #   python gegenprobe.py Vorschau  -> nur diese zehn. Jeder laesst eine Spur zurueck.
+    ('Vorschau: Antworten landen im echten Profil',
+     'index.html',
+     "  if (tutorialVorschau) return tourRendern();\n",
+     "",
+     'eine Antwort aendert das echte Profil nicht'),
+
+    ('Vorschau: die Einfuehrung wird als gesehen gemerkt',
+     'index.html',
+     "  if (tutorialVorschau) return;   // Vorschau: nicht als gesehen merken\n",
+     "",
+     'die Einfuehrung nicht als gesehen gemerkt'),
+
+    ('Vorschau: am Ende nicht zurueck zum Admin',
+     'index.html',
+     "    if (letzte){ tourSchliessen(); if (tutorialVorschau) vorschauBeenden(); return; }",
+     "    if (letzte) return tourSchliessen();",
+     'am Ende zurueck auf die Admin-Seite'),
+
+    ('Vorschau: die Fuehrung wird als gelaufen gemerkt',
+     'index.html',
+     "  if (!tutorialVorschau) try { localStorage.setItem(FUEHRUNG_KEY",
+     "  try { localStorage.setItem(FUEHRUNG_KEY",
+     'ohne sie als gelaufen zu merken'),
+
+    ('Vorschau: nach der Fuehrung nicht zurueck zum Admin',
+     'index.html',
+     "  if (tutorialVorschau === 'fuehrung'){ if (lief) vorschauBeenden(); return; }\n",
+     "",
+     'ohne sie als gelaufen zu merken'),
+
+    ('Vorschau: Tippen stellt den Entwurfs-Wecker',
+     'index.html',
+     "  if (state.view !== 'new' || tutorialVorschau) return;",
+     "  if (state.view !== 'new') return;",
+     'stellt keinen Entwurfs-Wecker'),
+
+    ('Vorschau: saveDraft speichert doch',
+     'index.html',
+     "  if (state.view !== 'new' || tutorialVorschau || !formHatInhalt()) return;",
+     "  if (state.view !== 'new' || !formHatInhalt()) return;",
+     'direkter Entwurfs-Speicher'),
+
+    # 🔴 Der wichtigste: ohne die Abfrage VOR fuehrungBeenden() endet erst die Vorschau, und
+    # saveNow() speichert danach das Formular als echten Fang.
+    ('Vorschau: Speichern legt einen echten Fang an',
+     'index.html',
+     "  if (tutorialVorschau){ if (fuNr >= 0) fuehrungBeenden(); toast(T('Vorschau — kein Fang gespeichert')); return; }\n",
+     "",
+     'legt keinen Fang an'),
+
+    ('Vorschau: ein Nachzuegler-Wecker beendet die Fuehrung ein zweites Mal (wie bis v65)',
+     'index.html',
+     "  if (fuNr < 0) return;\n  if (fuNr >= FUEHRUNG.length) return fuehrungBeenden();",
+     "  if (fuNr < 0 || fuNr >= FUEHRUNG.length) return fuehrungBeenden();",
+     'Nachzuegler-Wecker'),
+
+    ('Vorschau: das Schild fehlt in der Einfuehrung',
+     'index.html',
+     "$('#tour-inner').innerHTML = `${tutorialVorschau\n",
+     "$('#tour-inner').innerHTML = `${false\n",
+     'das Schild "Vorschau" steht da'),
 ]
 
 
@@ -462,9 +567,12 @@ zeigen('Unveraendert: gruen. Jetzt die Handgriffe.\n')
 
 #   python gegenprobe.py Nadel      -> nur die Hebel, in deren Namen "Nadel" vorkommt.
 # Fuer einen einzeln nachgezogenen Hebel, statt 20 Minuten alles neu.
+#   python gegenprobe.py Adminseite Vorschau  -> seit v66 auch mehrere Namen auf einmal
+#   (ein Hebel reicht, dass einer passt) -- sonst liefe der Pruefstand vorab je Name einmal.
 if len(sys.argv) > 1:
-    PROBEN = [p for p in PROBEN if sys.argv[1].lower() in p[0].lower()]
-    zeigen(f'Nur {len(PROBEN)} Hebel mit "{sys.argv[1]}".\n')
+    wahl = [a.lower() for a in sys.argv[1:]]
+    PROBEN = [p for p in PROBEN if any(w in p[0].lower() for w in wahl)]
+    zeigen(f'Nur {len(PROBEN)} Hebel mit {" / ".join(sys.argv[1:])}.\n')
 
 fehler = 0
 for name, datei, alt, neu, erwartet in PROBEN:

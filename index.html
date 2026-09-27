@@ -661,6 +661,10 @@ setTimeout(function(){
   .fuehrung .sprech .btn{margin:0; width:auto; padding:8px 16px}
   .tour .weg{background:none; border:0; color:var(--muted); font-size:13px;
     width:100%; text-align:center; margin-top:12px; padding:8px}
+  /* Das Schild über einer Tutorial-Vorschau aus der Admin-Seite (v66). Orange wie der
+     Einwand dort: wer sie abspielt, soll nie denken, er richte gerade sein Konto ein. */
+  .vorschau-marke{display:inline-block; padding:4px 12px; border-radius:99px;
+    border:1px solid var(--warn); color:var(--warn); font-size:12px; font-weight:700}
 
   /* Das kleine Fenster nach dem Abschicken einer Meldung (16.08.2026, Karls Ansage:
      „ich will ein kleines fenster ferstehst du pop up").
@@ -1370,16 +1374,8 @@ function splashWeg(){
       <button class="btn" id="btn-bug-ab">Abschicken</button>
       <p class="tiny muted" id="bug-warten" style="margin:8px 0 0" hidden></p>
     </div>
-    <!-- ======= Admin (22.09.2026) =======
-         Karls Ansagen: „admin panel mit usercount" und „eine möglichkeit im admin
-         panel das man sich auf der karte die fischdaten aller leute anzeigen lassen
-         kann". Unsichtbar, bis auf Home fünfmal auf das Logo getippt wird — siehe
-         adminGeste(). Gezeichnet wird er in renderAdmin().
-         ⚠️ Warum genau hier: unten gilt seit dem 12.08.2026 „nach dem Download nur noch
-            das Konto, und das Konto ganz unten" (Karls Ansage, zwei Prüfungen wachen
-            darüber). Direkt über dem Datenschutz passt er aber auch sachlich — die
-            Erklärung darunter beschreibt genau diese Ansicht. -->
-    <div id="admin" hidden></div>
+    <!-- Hier stand vom 22.09. bis v65 der Admin-Block. Seit v66 ist er eine eigene Seite
+         (#v-admin, ganz unten in <main>) — Karls Ansage: „ein Admin Panel ein richtiges". -->
     <label class="f">Datenschutz</label>
     <p class="tiny muted" style="margin:0 0 12px" id="sicherung-text"></p>
     <button class="btn" id="btn-datenschutz" style="margin-bottom:8px">Datenschutzerklärung</button>
@@ -1401,6 +1397,27 @@ function splashWeg(){
             der ihn sucht. -->
     <div id="konto" hidden></div>
   </div>
+</section>
+
+<!-- ======================= ADMIN (v66, 27.09.2026) =======================
+     Karls Ansage: „ich brauche allerdings noch ein Admin Panel ein richtiges wo man zb das
+     Tutorial angucken kann". Bis v65 war der Admin ein Block unten in den Einstellungen.
+     ⚠️ Einziger Eingang: fünfmal auf das Logo auf Home (Karls Entscheidung: „Nur 5× aufs
+        Logo" — kein Knopf in den Einstellungen). Deshalb kein Reiter in der Leiste und kein
+        Wischen hierher; unten leuchtet „Home", weil man von dort kommt.
+     Was darin steht (Konten, Karte, Tutorials, Zumachen), zeichnet renderAdmin().
+     ⚠️ Die Admin-Funktionen selbst schützt weiter nur die Datenbank — diese Seite ist, wie
+        vorher der Block, ein Vorhang, keine Sperre. Siehe den Kommentar bei ADMIN_KEY. -->
+<section id="v-admin" class="hidden">
+  <div class="head">
+    <button class="iconbtn" id="btn-admin-zurueck" aria-label="Zurück">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 5l-7 7 7 7"/>
+      </svg>
+    </button>
+    <h1 style="flex:1; font-size:19px; margin-left:12px">Admin</h1>
+  </div>
+  <div class="wrap"><div id="admin" hidden></div></div>
 </section>
 </main>
 
@@ -2219,8 +2236,15 @@ const EN = {
   'Die anderen merken davon nichts. Seit v60 steht es in der Datenschutzerklärung — wer sein Konto vorher angelegt hat, hat es dort nie gelesen.': 'The others don’t notice any of this. Since v60 it is in the privacy policy — anyone who signed up before has never read it there.',
   'Admin zumachen': 'Close admin',
   'Admin zu': 'Admin closed',
-  'Admin freigeschaltet — steht unten in den Einstellungen': 'Admin unlocked — it is at the bottom of the settings',
-  'Admin ist schon offen — steht unten in den Einstellungen': 'Admin is already open — it is at the bottom of the settings',
+  'Admin freigeschaltet': 'Admin unlocked',
+  // Die Admin-Seite (v66)
+  'Konten': 'Accounts',
+  'Tutorials': 'Tutorials',
+  'Abgespielt wie bei einem neuen Konto, aber als Vorschau: deine Antworten werden nicht gespeichert, es entsteht kein Entwurf und kein Fang, und die Einführung zählt danach nicht als gesehen.': 'Played as a new account sees it, but as a preview: your answers are not saved, no draft and no catch is created, and the introduction does not count as seen afterwards.',
+  '▶︎ Einführung abspielen': '▶︎ Play the introduction',
+  '▶︎ Führung durch den ersten Fang': '▶︎ Guided first catch',
+  'Vorschau — es wird nichts gespeichert': 'Preview — nothing is saved',
+  'Vorschau — kein Fang gespeichert': 'Preview — no catch saved',
   'Kein Netz — das kommt vom Server.': 'No connection — this comes from the server.',
   'Fehlt noch in der Datenbank: den Admin-Teil aus supabase.sql im SQL-Editor ausführen.': 'Still missing in the database: run the admin part of supabase.sql in the SQL editor.',
   'Dieses Konto ist kein Admin.': 'This account is not an admin.',
@@ -3636,6 +3660,10 @@ function buildRecord(entwurf){
    der Datenbank. Wer mitten im Erfassen die App wegwischt, findet den Fang beim
    nächsten Start als gelben Entwurf wieder — erst der Haken macht ihn fertig. */
 let draftTimer = null;
+/* Läuft gerade eine Tutorial-Vorschau aus der Admin-Seite? (v66) null = nein · 'tour' = die
+   ganze Einführung · 'fuehrung' = nur die Führung. Steht hier oben und nicht bei der
+   Einführung, weil der Entwurf gleich darunter ihn schon braucht. Mehr bei vorschauStarten(). */
+let tutorialVorschau = null;
 function formHatInhalt(){
   const felder = ['#f-art','#f-laenge','#f-gewicht','#f-gewaesser','#f-luft','#f-druck',
                   '#f-windstaerke','#f-wasser','#f-tiefe','#f-bewoelkung','#f-koeder',
@@ -3646,7 +3674,9 @@ function formHatInhalt(){
       || state.form.farben.length > 0;
 }
 function scheduleDraft(){
-  if (state.view !== 'new') return;
+  /* Tutorial-Vorschau (Admin, v66): kein Entwurf. Steht hier UND in saveDraft() — ein
+     Entwurf ist ein Eintrag im Konto und geht beim Abgleich hoch. */
+  if (state.view !== 'new' || tutorialVorschau) return;
   clearTimeout(draftTimer);
   draftTimer = setTimeout(() => { draftTimer = null; saveDraft(); }, 700);
 }
@@ -3673,7 +3703,7 @@ async function entwurfSofort(){
   else if (state.view === 'detail') renderDetail();
 }
 async function saveDraft(){
-  if (state.view !== 'new' || !formHatInhalt()) return;
+  if (state.view !== 'new' || tutorialVorschau || !formHatInhalt()) return;
   if (!state.editId) state.editId = uid();   // ab jetzt wird derselbe Eintrag fortgeschrieben
   try {
     // Beim Bearbeiten eines fertigen Fangs bleibt er fertig — nur neue Erfassungen
@@ -3718,7 +3748,14 @@ async function saveNow(){
 /* ⚠️ Die Führung endet **auch** hier, nicht nur über ihre eigenen Knöpfe. Wer den
    Fang speichert, ist fertig — bliebe die Abdunkelung stehen, säße er hinter einem
    grauen Schleier vor seiner eigenen Fangliste. */
-$('#fab-save').onclick = () => { if (fuNr >= 0) fuehrungBeenden(); saveNow(); };
+/* 🔴 Tutorial-Vorschau (Admin, v66): „Speichern" beendet die Führung wie sonst auch, legt
+   aber KEINEN Fang an. Die Abfrage muss VOR fuehrungBeenden() stehen — das beendet bei der
+   Führungs-Vorschau auch die Vorschau selbst, und ein saveNow() danach speicherte, was im
+   Formular steht, als echten Fang. */
+$('#fab-save').onclick = () => {
+  if (tutorialVorschau){ if (fuNr >= 0) fuehrungBeenden(); toast(T('Vorschau — kein Fang gespeichert')); return; }
+  if (fuNr >= 0) fuehrungBeenden(); saveNow();
+};
 
 $('#btn-del').onclick = async () => {
   if (!state.editId) return;
@@ -4337,7 +4374,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v65';
+const FASSUNG = 'v66';
 
 const KONTO_KEY = 'angellog-konto';
 /* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
@@ -5932,16 +5969,27 @@ function renderAdmin(){
   const karte = adminKarteAn();
   /* ⚠️ Der Satz in Orange ist Karls Einwand-Regel: der Einwand steht im Bild, nicht
      in einer Rückfrage. Wer den Schalter umlegt, liest ihn — jedes Mal. */
+  /* Seit v66 eine eigene Seite (Karls Ansage: „ein Admin Panel ein richtiges wo man zb das
+     Tutorial angucken kann"). Die Überschrift „Admin" steht jetzt oben im Kopf; hier drin
+     stehen die Teile mit je einer eigenen. */
   box.innerHTML = `
-    <label class="f">${T('Admin')}</label>
-    <p class="tiny muted" id="admin-konten" style="margin:0 0 10px; line-height:1.55">${zahlTeil}</p>
+    <label class="f">${T('Konten')}</label>
+    <p class="tiny muted" id="admin-konten" style="margin:0 0 14px; line-height:1.55">${zahlTeil}</p>
+    <label class="f">${T('Karte')}</label>
     <button class="btn" id="admin-karte" style="margin-bottom:6px">${
       karte ? T('🗺️ Fänge der anderen ausblenden') : T('🗺️ Fänge aller auf der Karte zeigen')}</button>
     <p class="tiny muted" style="margin:0 0 8px; line-height:1.5">${
       T('Zeigt die Fänge aller anderen Konten als rote Nadeln. Antippen zeigt alle Angaben zum Fang samt Notiz und Benutzername — nur keine Fotos.')}</p>
-    <p class="tiny" id="admin-hinweis" style="margin:0 0 10px; line-height:1.5; color:var(--warn)">${
+    <p class="tiny" id="admin-hinweis" style="margin:0 0 14px; line-height:1.5; color:var(--warn)">${
       T('Die anderen merken davon nichts. Seit v60 steht es in der Datenschutzerklärung — wer sein Konto vorher angelegt hat, hat es dort nie gelesen.')}</p>
+    <label class="f">${T('Tutorials')}</label>
+    <p class="tiny muted" style="margin:0 0 8px; line-height:1.5">${
+      T('Abgespielt wie bei einem neuen Konto, aber als Vorschau: deine Antworten werden nicht gespeichert, es entsteht kein Entwurf und kein Fang, und die Einführung zählt danach nicht als gesehen.')}</p>
+    <button class="btn" id="admin-tour" style="margin-bottom:8px">${T('▶︎ Einführung abspielen')}</button>
+    <button class="btn" id="admin-fuehrung" style="margin-bottom:18px">${T('▶︎ Führung durch den ersten Fang')}</button>
     <button class="btn sm" id="admin-zu" style="margin-bottom:16px">${T('Admin zumachen')}</button>`;
+  $('#admin-tour').onclick     = () => vorschauStarten('tour');
+  $('#admin-fuehrung').onclick = () => vorschauStarten('fuehrung');
   $('#admin-karte').onclick = () => {
     const an = !adminKarteAn();
     try { an ? localStorage.setItem(ADMIN_KARTE_KEY, '1') : localStorage.removeItem(ADMIN_KARTE_KEY); } catch {}
@@ -5957,6 +6005,8 @@ function renderAdmin(){
     fremdLauf++;   // eine noch laufende Kartenanfrage zeichnet danach nichts mehr
     renderAdmin();
     toast(T('Admin zu'));
+    // Die Seite ist danach leer — zurück nach Home, wo die Geste sitzt.
+    if (state.view === 'admin') go('home');
   };
 }
 
@@ -5964,9 +6014,11 @@ function renderAdmin(){
    zwei Tipps — dieselbe Geste wie bei Gym-Log (dort auf Brock).
    ⚠️ Die Geste schließt NUR auf. Bei Gym-Log hat sie bis zum 27.08.2026 auch wieder
       zugesperrt, und genau so ging Karls Admin-Konsole „weg": fünfmal getippt, während
-      sie schon offen war. Zumachen geht nur über den Knopf im Admin-Block.
+      sie schon offen war. Zumachen geht nur über den Knopf auf der Admin-Seite.
    ⚠️ Der Zuhörer hängt am Logo SELBST, nicht am Dokument: Safari am iPhone reicht Tipps
-      auf Elemente ohne eigenen Zuhörer nicht zuverlässig nach oben durch. */
+      auf Elemente ohne eigenen Zuhörer nicht zuverlässig nach oben durch.
+   Seit v66 ÖFFNET die Geste die Admin-Seite — sie ist ihr einziger Eingang (Karl: „Nur 5×
+   aufs Logo"). Beim ersten Mal schließt sie vorher auf; ist schon offen, geht sie nur hin. */
 (function adminGeste(){
   const logo = $('#v-home .head h1');
   if (!logo) return;
@@ -5977,13 +6029,16 @@ function renderAdmin(){
     t0 = jetzt; n++;
     if (n < 5) return;
     n = 0;
-    if (adminAn()){ toast(T('Admin ist schon offen — steht unten in den Einstellungen')); return; }
-    try { localStorage.setItem(ADMIN_KEY, '1'); } catch {}
-    // Privates Fenster: dann hielte der Toast eine Freischaltung fest, die es nicht gibt.
-    if (!adminAn()){ toast(T('Der Speicher dieses Browsers ist nicht erreichbar.')); return; }
-    toast(T('Admin freigeschaltet — steht unten in den Einstellungen'));
+    if (!adminAn()){
+      try { localStorage.setItem(ADMIN_KEY, '1'); } catch {}
+      // Privates Fenster: dann öffnete sich eine Seite, die beim nächsten Tipp wieder weg ist.
+      if (!adminAn()){ toast(T('Der Speicher dieses Browsers ist nicht erreichbar.')); return; }
+      toast(T('Admin freigeschaltet'));
+    }
+    go('admin');
   });
 })();
+$('#btn-admin-zurueck').onclick = () => go('home');
 
 /* ====================== Datenschutz ==========================
    ⚠️ Der Text beschreibt zwei verschiedene Apps und muss deshalb wissen,
@@ -6258,12 +6313,37 @@ function tourZeigen(){
 }
 function tourSchliessen(){
   $('#tour').classList.remove('on');
+  if (tutorialVorschau) return;   // Vorschau: nicht als gesehen merken
   try { localStorage.setItem(TOUR_KEY, String(Date.now())); } catch {}
 }
+
+/* ---------- Die Tutorials als Vorschau (Admin-Seite, v66) ----------
+   Karls Ansage vom 27.09.2026: „ein Admin Panel ein richtiges wo man zb das Tutorial
+   angucken kann". Abgespielt werden dieselbe Einführung und dieselbe Führung wie bei einem
+   neuen Konto — nur dass sie nichts hinterlassen:
+     · die Antworten auf den Fragekarten landen in einem Wegwerf-Profil, nicht im echten.
+       Sonst stellte ein Durchklicken Karls eigene Fisch- und Köderliste um.
+     · „Einführung gesehen" und „Führung gelaufen" werden nicht gemerkt.
+     · In der Führung entsteht kein Entwurf, und „Speichern" legt keinen Fang an — beides
+       wäre ein echter Eintrag im Konto, der beim Abgleich hochgeht.
+   Das Wegwerf-Profil fängt leer an: so sieht es ein neues Konto.
+   Am Ende geht es zurück auf die Admin-Seite. */
+let vorschauProfil = {};
+function vorschauStarten(art){
+  tutorialVorschau = art;
+  vorschauProfil = {};
+  if (art === 'tour') tourZeigen(); else fuehrungStarten();
+}
+function vorschauBeenden(){
+  tutorialVorschau = null;
+  vorschauProfil = {};
+  go('admin');
+}
+
 /* Die Auswahl auf einer Fragekarte. `mehrfach` entscheidet, ob ein Antippen
    umschaltet oder ersetzt. */
 function tourWaehlen(feld, wert, mehrfach){
-  const p = profilLesen();
+  const p = tutorialVorschau ? vorschauProfil : profilLesen();
   if (!mehrfach){
     p[feld] = wert;
   } else {
@@ -6272,6 +6352,8 @@ function tourWaehlen(feld, wert, mehrfach){
     if (i === -1) l.push(wert); else l.splice(i, 1);
     p[feld] = l;
   }
+  // Vorschau: nur das Wegwerf-Profil (p IST es) — kein Schreiben, kein Neuaufbau der Listen.
+  if (tutorialVorschau) return tourRendern();
   profilSchreiben(p);
   /* ⚠️ Sofort neu aufbauen, nicht erst am Ende der Tour. Die Zielfisch-Karte
      weiter hinten liest die Artenliste, die aus **dieser** Antwort folgt — wer
@@ -6285,7 +6367,7 @@ function tourWaehlen(feld, wert, mehrfach){
 function tourRendern(){
   const k = TOUR[tourNr];
   const letzte = tourNr === TOUR.length - 1;
-  const p = profilLesen();
+  const p = tutorialVorschau ? vorschauProfil : profilLesen();
 
   /* Die Zielfisch-Karte hat keine feste Auswahl — sie kommt aus den Antworten
      davor. Deshalb hier gebaut und nicht oben in der Tabelle. */
@@ -6318,7 +6400,8 @@ function tourRendern(){
      wegklickt, steht vor einer leeren Liste und weiß nicht, was die App für ihn
      tut. Sie ist sieben Schritte lang, davon zwei mit einer Frage. */
   const anteil = Math.round(((tourNr + 1) / TOUR.length) * 100);
-  $('#tour-inner').innerHTML = `
+  $('#tour-inner').innerHTML = `${tutorialVorschau
+      ? `<div class="center"><span class="vorschau-marke" id="tour-vorschau">${T('Vorschau — es wird nichts gespeichert')}</span></div>` : ''}
     <div class="mitte">
       <div class="bild" aria-hidden="true">${k.bild}</div>
       <h2>${T(k.titel)}</h2>
@@ -6341,7 +6424,7 @@ function tourRendern(){
     /* Die Karte mit `fuehrung` endet nicht in der nächsten Karte, sondern in der
        App: von hier aus wird der erste Fang gemeinsam eingetragen. */
     if (k.fuehrung) return fuehrungStarten();
-    if (letzte) return tourSchliessen();
+    if (letzte){ tourSchliessen(); if (tutorialVorschau) vorschauBeenden(); return; }
     tourNr++; tourRendern();
     $('#tour').scrollTop = 0;
   };
@@ -6408,9 +6491,13 @@ function fuehrungBeenden(){
   const lief = fuNr >= 0;
   fuNr = -1;
   $('#fuehrung').classList.remove('on');
-  try { localStorage.setItem(FUEHRUNG_KEY, String(Date.now())); } catch {}
+  if (!tutorialVorschau) try { localStorage.setItem(FUEHRUNG_KEY, String(Date.now())); } catch {}
   window.removeEventListener('scroll', fuehrungZeichnen, true);
   window.removeEventListener('resize', fuehrungZeichnen);
+
+  /* Vorschau nur der Führung (Admin, v66): zurück auf die Admin-Seite statt weiter in die
+     Einführung. Bei der Vorschau der ganzen Einführung geht es dagegen genau wie sonst weiter. */
+  if (tutorialVorschau === 'fuehrung'){ if (lief) vorschauBeenden(); return; }
 
   /* ⚠️ Danach läuft die Einführung weiter, statt zu enden. Hinter der Führung
      stehen noch drei Karten (Auswertungen, „alles bleibt deins", Support) — ohne
@@ -6438,7 +6525,12 @@ function fuehrungStarten(){
 }
 
 function fuehrungZeichnen(){
-  if (fuNr < 0 || fuNr >= FUEHRUNG.length) return fuehrungBeenden();
+  /* ⚠️ Läuft sie nicht (mehr), wird nichts gezeichnet und auch nichts beendet (v66). Hier
+     stand `fuNr < 0 || …` → fuehrungBeenden(): ein Nachzügler-Wecker (60 bzw. 260 ms) nach dem
+     Ende beendete sie ein zweites Mal — und merkte sie dabei als gelaufen. Nach einer
+     Vorschau hätte genau das eine Spur hinterlassen. */
+  if (fuNr < 0) return;
+  if (fuNr >= FUEHRUNG.length) return fuehrungBeenden();
   const schritt = FUEHRUNG[fuNr];
   const el = $(schritt.ziel);
   /* ⚠️ Fehlt das Element, wird übersprungen statt gewartet. Ein Schritt, der auf
@@ -6466,6 +6558,8 @@ function fuehrungZeichnen(){
   const letzter = fuNr === FUEHRUNG.length - 1;
   sprech.innerHTML = `
     <div class="kasten">
+      ${tutorialVorschau ? `<div style="margin-bottom:8px"><span class="vorschau-marke" id="fu-vorschau">${
+        T('Vorschau — es wird nichts gespeichert')}</span></div>` : ''}
       <h3>${T(schritt.titel)}</h3>
       <p>${T(schritt.text)}</p>
       <div class="zeile">
@@ -7884,7 +7978,7 @@ function go(view){
      resetForm() leert das Formular und scrollt dabei selbst hoch.) */
   if (state.view !== view) window.scrollTo(0, 0);
   state.view = view;
-  ['home', 'log', 'new', 'map', 'stats', 'detail', 'set'].forEach(v => $('#v-' + v).classList.toggle('hidden', v !== view));
+  ['home', 'log', 'new', 'map', 'stats', 'detail', 'set', 'admin'].forEach(v => $('#v-' + v).classList.toggle('hidden', v !== view));
   $('#fab-save').classList.toggle('on', view === 'new');
 
   /* Kopf und Umschalter gehören zu den drei Sammel-Ansichten. Beim Erfassen und
@@ -7899,9 +7993,11 @@ function go(view){
 
   /* ⚠️ Die Kachel „Fänge" bleibt an, solange man irgendwo in dieser Gruppe ist —
      auch in der Karte, der Auswertung und im einzelnen Fang. Sonst leuchtete
-     unten nichts, und die Leiste sähe aus, als sei man nirgends. */
+     unten nichts, und die Leiste sähe aus, als sei man nirgends.
+     Aus demselben Grund leuchtet auf der Admin-Seite (v66) „Home" — von dort kommt man. */
   $$('.tab').forEach(t => t.classList.toggle('on',
-    t.dataset.go === view || ((sammel || view === 'detail') && t.dataset.go === 'log')));
+    t.dataset.go === view || ((sammel || view === 'detail') && t.dataset.go === 'log')
+    || (view === 'admin' && t.dataset.go === 'home')));
   navBlaseSetzen();
 
   if (view === 'home')   renderHome();
@@ -7916,8 +8012,8 @@ function go(view){
   if (view === 'set') pushInfoZeichnen();
   /* Admin: bei jedem Öffnen neu, aus demselben Grund wie der Push-Schalter — die Zahl
      ändert sich, während die Seite zu ist. Ohne Freischaltung zeichnet das nichts und
-     fragt niemanden. */
-  if (view === 'set'){ renderAdmin(); adminZahlHolen(); }
+     fragt niemanden. Seit v66 auf der eigenen Seite, nicht mehr in den Einstellungen. */
+  if (view === 'admin'){ renderAdmin(); adminZahlHolen(); }
 }
 /* Die Blase unter den aktiven Reiter schieben (aus gym-log) — Begründung beim CSS.
    ⚠️ Das allererste Mal OHNE Bewegung (`sofort`): sonst fliegt sie beim Öffnen der App von
