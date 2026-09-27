@@ -324,6 +324,53 @@ PROBEN = [
      "  body{min-height:calc(100vh + 1px)}",
      "",
      'mindestens bildschirmhoch'),
+
+    # ---- Wischen und Hereinschieben (27.09.2026, v63) ----
+    #   python gegenprobe.py Wisch    -> nur diese sieben
+    ('Wisch: der Wisch ruft den Wechsel gar nicht auf',
+     'index.html',
+     "      reiterZeigen(REITER[ziel]);\n      return;",
+     "      return;",
+     'Wischen: wohin es geht'),
+
+    ('Wisch: nach "Neuer Fang" gewischt bleibt der alte Fang offen',
+     'index.html',
+     "  if (ziel === 'new'){ state.editId = null; state.editWasSaved = false; }\n  go(ziel);",
+     "  go(ziel);",
+     'bleibt der alte Fang offen'),
+
+    ('Wisch: weg von "Neuer Fang" ist erlaubt (Entwurf geht verloren)',
+     'index.html',
+     "    if (state.view === 'new') return false;                        // Entwurf, siehe oben\n",
+     "",
+     'weg von "Neuer Fang"'),
+
+    ('Wisch: ueber die Leiste zieht die Seite weg',
+     'index.html',
+     "const WISCH_NICHT = 'input,textarea,select,.tabs,#fab-save,",
+     "const WISCH_NICHT = 'input,textarea,select,#fab-save,",
+     'ueber die Leiste gewechselt'),
+
+    ('Wisch: der Tipp auf die Leiste geht wieder an reiterZeigen vorbei',
+     'index.html',
+     "$$('.tab').forEach(t => t.onclick = () => reiterZeigen(t.dataset.go));",
+     "$$('.tab').forEach(t => t.onclick = () => go(t.dataset.go));",
+     'Hereinschieben: der Tipp auf die Leiste'),
+
+    ('Wisch: ohne clip wird die Seite beim Hereinschieben breiter',
+     'index.html',
+     "  html, body{ overflow-x:clip }\n",
+     "",
+     'overflow-x:clip fehlt'),
+
+    # 🔴 Der wichtigste: MIT clip muss eine zu breite Seite trotzdem auffallen. Vor v63
+    # massen fuenf Pruefungen nur am html -- das meldet mit clip nie mehr als die
+    # Fensterbreite. Dieser Hebel macht die Auswertung 500 px breit.
+    ('Wisch: eine zu breite Seite faellt trotz clip auf',
+     'index.html',
+     "  .seg[hidden]{display:none}\n",
+     "  .seg[hidden]{display:none}\n  #v-stats{min-width:500px}\n",
+     'Statistik passt auf 320 px'),
 ]
 
 

@@ -3652,12 +3652,19 @@ window.addEventListener('error', e => {
     f.onerror = () => { f.remove(); schief(new Error('iframe laedt nicht')); };
     document.body.appendChild(f);
   });
+  /* 🔴 27.09.2026: die Breite der Seite am body messen, nicht nur am html.
+     Seit v63 steht `html, body{overflow-x:clip}` (gegen das Hereinschieben der Seite,
+     aus gym-log). Damit meldet `documentElement.scrollWidth` NIE mehr als die Fensterbreite
+     -- gemessen: ein 500 px breites Element, 390 px Fenster, html sagt 390, body sagt 500.
+     Alle Pruefungen, die nur am html gemessen haben, waeren ab da still gruen gewesen,
+     egal was herausragt. Das Maximum aus beiden haelt sie scharf. */
+  const seitenBreite = d => Math.max(d.documentElement.scrollWidth, d.body.scrollWidth);
 
   for (const breite of [320, 360, 390]){
     ta(`Statistik passt auf ${breite} px`, async () => {
       return await imRahmen(breite, (w, d) => {
         w.go('stats');
-        const ueber = d.documentElement.scrollWidth - w.innerWidth;
+        const ueber = seitenBreite(d) - w.innerWidth;
         return ueber <= 1 || (ueber + ' px zu breit');
       });
     });
@@ -3752,7 +3759,7 @@ window.addEventListener('error', e => {
   ta('am Handy ragt dabei nichts heraus', async () => {
     return await imRahmen(390, (w, d) => {
       mitDreien(w);
-      const ueber = d.documentElement.scrollWidth - w.innerWidth;
+      const ueber = seitenBreite(d) - w.innerWidth;
       return ueber <= 1 || (ueber + ' px zu breit');
     });
   });
@@ -3822,8 +3829,8 @@ window.addEventListener('error', e => {
   ta('am PC ragt nichts heraus', async () => {
     return await imRahmen(1200, (w, d) => {
       mitDreien(w);
-      return d.documentElement.scrollWidth - w.innerWidth <= 1
-          || ((d.documentElement.scrollWidth - w.innerWidth) + ' px zu breit');
+      return seitenBreite(d) - w.innerWidth <= 1
+          || ((seitenBreite(d) - w.innerWidth) + ' px zu breit');
     });
   });
 
@@ -4234,7 +4241,7 @@ window.addEventListener('error', e => {
     return await imRahmenVon('index.html', 500, (w, d) => {
       const s = d.getElementById('splash');
       return w.getComputedStyle(s).position === 'fixed'
-          && d.documentElement.scrollWidth - w.innerWidth <= 1
+          && seitenBreite(d) - w.innerWidth <= 1
           || 'Schirm schiebt das Layout';
     });
   });
@@ -4631,6 +4638,104 @@ window.addEventListener('error', e => {
       });
     });
   }
+
+  /* ====== Wischen und Hereinschieben (27.09.2026, aus gym-log) ======
+     Karl: "Ja, beides uebernehmen". Gewischt wird mit ECHTEN Touch-Ereignissen im
+     390-px-Rahmen. `state` ist im Rahmen nicht als w.state zu erreichen (const), deshalb
+     w.eval('state.view').
+     ⚠️ Jeder Rahmen laedt die ganze App und kostet Zeitbudget -- die Faelle stehen deshalb
+     zu dritt in drei Rahmen statt einzeln in elf. Die Meldung sagt, welcher Fall rot ist. */
+  const wischIn = (w, ziel, dx, dy) => {
+    const x = 200, y = 300; dy = dy || 0;
+    const tp = (cx, cy) => new w.Touch({ identifier: 7, target: ziel, clientX: cx, clientY: cy });
+    const ev = (typ, cx, cy, liegt) => ziel.dispatchEvent(new w.TouchEvent(typ, { bubbles: true,
+      touches: liegt ? [tp(cx, cy)] : [], changedTouches: [tp(cx, cy)] }));
+    ev('touchstart', x, y, true);
+    ev('touchmove', x + dx / 2, y + dy / 2, true);
+    ev('touchmove', x + dx, y + dy, true);
+    ev('touchend', x + dx, y + dy, false);
+  };
+  const imWischRahmen = (was) => imRahmen(390, (w, d) => {
+    if (typeof w.Touch !== 'function' || typeof w.TouchEvent !== 'function')
+      return 'Touch-Ereignisse gibt es im Rahmen nicht';
+    if (w.innerWidth >= 900) return 'Rahmen ist PC-breit (' + w.innerWidth + ')';
+    return was(w, d, () => w.eval('state.view'));
+  });
+  ta('Wischen: wohin es geht (weiter, zurueck, vom Knopf aus, am Rand nicht)', async () => {
+    return await imWischRahmen((w, d, ansicht) => {
+      w.go('home'); wischIn(w, d.body, -120);
+      if (ansicht() !== 'log') return 'Home -> links vom Hintergrund: ' + ansicht() + ' statt log';
+      /* Der Wisch faengt auf einem Knopf an -- und landet auf "Neuer Fang": HIN geht. */
+      w.eval("state.editId = 'alter-fang'");
+      wischIn(w, d.querySelector('.segbtn'), -120);
+      if (ansicht() !== 'new') return 'Faenge -> links vom Knopf: ' + ansicht() + ' statt new';
+      if (w.eval('state.editId') !== null) return 'per Wisch nach "Neuer Fang" bleibt der alte Fang offen';
+      w.go('set'); wischIn(w, d.body, 120);
+      if (ansicht() !== 'new') return 'Einstellungen -> rechts: ' + ansicht() + ' statt new';
+      w.go('home'); wischIn(w, d.body, 120);
+      if (ansicht() !== 'home') return 'am linken Rand trotzdem gewechselt: ' + ansicht();
+      w.go('set'); wischIn(w, d.body, -120);
+      return ansicht() === 'set' || 'am rechten Rand trotzdem gewechselt: ' + ansicht();
+    });
+  });
+  ta('Wischen: wo es nicht geht (Leiste, Eingabefeld, weg von "Neuer Fang", Unteransicht, senkrecht)', async () => {
+    return await imWischRahmen((w, d, ansicht) => {
+      w.go('home'); wischIn(w, d.querySelector('.tabs .tab[data-go="home"]'), -120);
+      if (ansicht() !== 'home') return 'ueber die Leiste gewechselt: ' + ansicht();
+      w.go('log'); wischIn(w, d.getElementById('q'), -120);
+      if (ansicht() !== 'log') return 'aus dem Suchfeld heraus gewechselt: ' + ansicht();
+      /* 🔴 Der Entwurf wird erst 0,7 s nach der letzten Eingabe gespeichert, und nur,
+         solange man auf der Seite steht. Ein Wisch weg davon nimmt die Eingabe mit. */
+      w.go('new'); wischIn(w, d.body, -120);
+      if (ansicht() !== 'new') return 'weg von "Neuer Fang" nach links: ' + ansicht();
+      wischIn(w, d.body, 120);
+      if (ansicht() !== 'new') return 'weg von "Neuer Fang" nach rechts: ' + ansicht();
+      w.go('map'); wischIn(w, d.body, -120);
+      if (ansicht() !== 'map') return 'aus der Karte heraus gewechselt: ' + ansicht();
+      w.go('home'); wischIn(w, d.body, -40, 140);
+      return ansicht() === 'home' || 'senkrecht gewischt und trotzdem gewechselt: ' + ansicht();
+    });
+  });
+  ta('Hereinschieben: der Tipp auf die Leiste schiebt aus der richtigen Richtung, derselbe Reiter zuckt nicht', async () => {
+    return await imRahmen(390, (w, d) => {
+      const app = d.getElementById('app');
+      if (!app) return 'kein #app';
+      const tipp = go => d.querySelector('.tabs .tab[data-go="' + go + '"]').click();
+      w.go('home');
+      tipp('set');
+      if (!app.classList.contains('rein-r')) return 'Home -> Einstellungen: ' + app.className + ' statt rein-r';
+      tipp('home');
+      if (!app.classList.contains('rein-l')) return 'Einstellungen -> Home: ' + app.className + ' statt rein-l';
+      tipp('home');
+      return !/rein-/.test(app.className) || 'derselbe Reiter schiebt trotzdem: ' + app.className;
+    });
+  });
+  /* 🔴 Eine Verschiebung am Kasten macht ihn fuer die Dauer der Bewegung zum Bezugsrahmen
+     fuer position:fixed. Steckte etwas Schwebendes darin, wanderte es mit. Gemessen wird
+     am berechneten Stil jedes Elements, nicht an einer Liste von Namen. */
+  t('Hereinschieben: im bewegten Kasten schwebt nichts', () => {
+    const app = document.getElementById('app');
+    if (!app) return 'kein #app';
+    const fest = Array.from(app.querySelectorAll('*')).filter(e => getComputedStyle(e).position === 'fixed')
+      .map(e => e.id || e.className || e.tagName);
+    return fest.length === 0 || 'schwebt im Kasten: ' + fest.slice(0, 5).join(', ');
+  });
+  t('Hereinschieben: die Leiste und der Speichern-Haken stehen ausserhalb des Kastens', () => {
+    const app = document.getElementById('app');
+    const drin = ['.tabs', '#fab-save', '#toast', '#splash'].filter(s => { const e = document.querySelector(s); return e && app.contains(e); });
+    return drin.length === 0 || 'im Kasten: ' + drin.join(', ');
+  });
+  /* gym-log v0.111: translateX(42px) machte das Dokument breiter als den Bildschirm. */
+  t('Hereinschieben: macht die Seite nicht breiter (overflow-x:clip an html und body)', () => {
+    const regeln = [];
+    for (const sh of document.styleSheets){ try { for (const r of sh.cssRules) regeln.push(r); } catch (e) {} }
+    const hat = el => regeln.some(r => r.selectorText && new RegExp('(^|,)\\s*' + el + '\\s*(,|$)').test(r.selectorText) && r.style.overflowX === 'clip');
+    return (hat('html') && hat('body')) || 'overflow-x:clip fehlt an ' + (hat('html') ? '' : 'html ') + (hat('body') ? '' : 'body');
+  });
+  t('Hereinschieben: bei reduzierter Bewegung steht die Seite einfach da', () => {
+    return /prefers-reduced-motion[^{]*\{\s*#app\.rein-r,\s*#app\.rein-l\{\s*animation:none/.test(stilText())
+      || 'keine Ausnahme fuer reduzierte Bewegung';
+  });
   t('beim Erfassen sind Kopf und Umschalter weg', () => {
     go('new');
     const k = document.getElementById('kopf').hidden, s = document.getElementById('seg').hidden;
@@ -5854,8 +5959,8 @@ window.addEventListener('error', e => {
           w.go(seite);
           fuellen();
           const raus = zuBreit(w, d);
-          if (d.documentElement.scrollWidth > w.innerWidth + 1)
-            raus.push('Seite scrollt seitlich (' + d.documentElement.scrollWidth + ')');
+          if (seitenBreite(d) > w.innerWidth + 1)
+            raus.push('Seite scrollt seitlich (' + seitenBreite(d) + ')');
           if (raus.length) klagen.push(seite + ': ' + raus.join(', '));
         }
         f.remove();

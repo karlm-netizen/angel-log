@@ -6,6 +6,39 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 27.09.2026 (v63) — Wischen zwischen den Reitern, und die Seite schiebt sich herein
+
+**Karls Antwort** auf die Frage nach v62, ob das auch mitkommt: *„Ja, beides übernehmen"*.
+Wie in gym-log:
+
+| | Was jetzt gilt |
+|---|---|
+| 👉 **Wischen** | Auf dem Handy nach links/rechts zwischen Home · Fänge · Neuer Fang · Einstellungen. Die Seite geht mit dem Finger mit; am Rand wird es zäh und federt zurück |
+| ➡️ **Hereinschieben** | Die neue Seite kommt aus der Richtung herein, in die es geht — beim Wischen **und** beim Tipp auf die Leiste. Ein Tipp auf den Reiter, auf dem man schon ist, bewegt nichts |
+| 🖥️ **PC** | Kein Wischen (Seitenleiste); das Hereinschieben beim Klick schon |
+
+🔴 **Eine Abweichung von gym-log, und warum:** **von „Neuer Fang" weg wird nicht gewischt**
+(hin schon). Der Entwurf wird erst 0,7 s nach der letzten Eingabe gespeichert, und nur, solange
+man noch auf der Seite steht — ein Wisch direkt nach dem Tippen nähme die letzte Eingabe mit.
+gym-log wischt aus demselben Grund nicht aus einer laufenden Einheit heraus.
+
+**Ausgenommen sind außerdem:** Eingabefelder, die Karten, seitlich Scrollbares, die Leiste
+selbst, und Karte/Auswertung/ein einzelner Fang (dort gibt es keine Richtung).
+
+- **Umbau dafür:** Kopf, Umschalter und alle Ansichten stehen jetzt in einem Kasten `#app` —
+  er ist das, was sich bewegt. Alles Schwebende (Leiste, Speichern-Haken, Führung, Fenster)
+  steht bewusst außerhalb, sonst würde es mitwandern.
+- **`html, body{overflow-x:clip}`** (aus gym-log v0.111): beim Hereinschieben von rechts wäre die
+  Seite sonst für 0,22 s breiter als der Bildschirm.
+  🔴 **Nebenwirkung im Prüfstand, gefunden bevor sie wirken konnte:** damit meldet
+  `documentElement.scrollWidth` nie mehr als die Fensterbreite. **Fünf Prüfungen** („passt auf
+  320 px", „ragt nichts heraus", …) haben genau so gemessen und wären ab da still grün
+  geblieben, egal was herausragt. Sie messen jetzt zusätzlich am body (`seitenBreite`), und
+  eine eigene Gegenprobe macht die Auswertung 500 px breit — sie wird rot (180 px zu breit).
+
+🧪 **Prüfstand 741 → 748**, **Gegenprobe 7 von 7** (`python gegenprobe.py Wisch`). Gewischt wird
+mit echten Touch-Ereignissen im 390-px-Rahmen.
+
 ## 27.09.2026 (v62) — Die untere Leiste wie in gym-log
 
 **Karls Ansage:** *„die Leiste unten soll die selben Regeln wie die in der gym log App haben"* —

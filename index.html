@@ -469,6 +469,29 @@ setTimeout(function(){
   #navblase.sofort{transition:none}
   @media (prefers-reduced-motion: reduce){ #navblase{transition:opacity .2s} }
 
+  /* ---- Der Seitenwechsel (27.09.2026, aus gym-log) ----
+     Karls Antwort auf die Frage, ob Wischen und Hereinschieben mitkommen: „Ja, beides
+     übernehmen". Die neue Seite kommt aus der Richtung herein, in die es geht — beim Tipp
+     auf die Leiste genauso wie beim Wischen (reiterZeigen()).
+     ⚠️ Die Bewegung sitzt am `#app`, nicht am body: Leiste, Speichern-Haken und alles
+     andere Schwebende dürfen NICHT mitwandern. Kurz (0,22 s) und ohne Nachfedern — eine
+     Seite, die man oft wechselt, darf nicht jedes Mal auf eine Animation warten lassen.
+     🔴 `overflow-x:clip`: `translateX(42px)` macht das Dokument für 0,22 s breiter als den
+     Bildschirm, und in gym-log hat genau das die Leiste auf dem iPhone mitgerissen
+     (v0.111, scrollWidth 527 bei 485). `clip` schneidet ab, ohne einen Scrollbereich
+     anzulegen. ⚠️ Folge für den Prüfstand: `documentElement.scrollWidth` meldet damit nie
+     mehr als die Fensterbreite — die Breiten-Prüfungen messen deshalb am body (seiteBreit). */
+  @keyframes blattVonRechts{ from{ transform:translateX(42px); opacity:.25 } to{ transform:none; opacity:1 } }
+  @keyframes blattVonLinks { from{ transform:translateX(-42px); opacity:.25 } to{ transform:none; opacity:1 } }
+  html, body{ overflow-x:clip }
+  #app.rein-r{ animation:blattVonRechts .22s cubic-bezier(.2,.7,.3,1) }
+  #app.rein-l{ animation:blattVonLinks  .22s cubic-bezier(.2,.7,.3,1) }
+  #app.zieht{ transition:none }
+  #app.faellt-zurueck{ transition:transform .18s cubic-bezier(.2,.7,.3,1) }
+  @media (prefers-reduced-motion: reduce){
+    #app.rein-r, #app.rein-l{ animation:none }
+    #app.faellt-zurueck{ transition:none } }
+
   /* Overlays */
   /* Am großen Bildschirm keine feste Breite mehr, sondern mitwachsend: die
      Fangliste füllt so viele Spalten, wie hineinpassen — bei 1440 px drei, bei
@@ -852,6 +875,14 @@ function splashWeg(){
      ⚠️ Die Zähler `#map-count` und `#stats-pill` sind **mit hierher gezogen**, nicht
         gelöscht: sie werden aus dem laufenden Betrieb beschrieben. Sichtbar ist
         immer nur der zur aktuellen Ansicht. -->
+<!-- ⚠️ Seit dem 27.09.2026 stehen Kopf, Umschalter und alle Ansichten in EINEM Kasten
+     `#app` — wie in gym-log. Er ist das, was beim Wischen mit dem Finger mitgeht und beim
+     Reiterwechsel hereingeschoben wird.
+     🔴 Alles, was schwebt (Leiste, Speichern-Haken, Führung, Fenster, Anmeldung, Hinweis),
+     steht bewusst DANACH, außerhalb: eine Verschiebung am Kasten macht ihn für die Dauer
+     der Bewegung zum Bezugsrahmen für `position:fixed` — ein schwebendes Element darin
+     würde mitwandern oder verspringen. -->
+<main id="app">
 <header class="head" id="kopf">
   <h1><img src="icon-192.png" alt="">Angel-Log</h1>
   <span class="pill" id="map-count" hidden>—</span>
@@ -1370,6 +1401,7 @@ function splashWeg(){
     <div id="konto" hidden></div>
   </div>
 </section>
+</main>
 
 <!-- Die Führung durch den ersten Fang (12.08.2026, Karls Ansage).
      Vier Balken decken alles ab außer dem hervorgehobenen Element; der Ring
@@ -4300,7 +4332,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v62';
+const FASSUNG = 'v63';
 
 const KONTO_KEY = 'angellog-konto';
 /* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
@@ -8085,10 +8117,109 @@ function navBlaseSetzen(){
 }
 /* Dreht sich das Handy, werden die Knöpfe breiter — die Blase muss ohne Anlauf mit. */
 window.addEventListener('resize', () => { navBlaseSteht = false; navBlaseSetzen(); });
-$$('.tab').forEach(t => t.onclick = () => {
-  if (t.dataset.go === 'new'){ state.editId = null; state.editWasSaved = false; }
-  go(t.dataset.go);
-});
+
+/* ---------- Die vier Reiter der Leiste, in ihrer Reihenfolge (27.09.2026, aus gym-log) ----------
+   Einen Reiter zeigen — mit der Bewegung in die Richtung, in die es geht.
+   ⚠️ Steht als eigene Funktion da, weil BEIDE Wege sie brauchen: der Tipp auf die Leiste
+   und der Wisch. Sonst sähe dasselbe Ziel je nach Weg anders aus — und „Neuer Fang"
+   finge nur beim Tipp mit einem leeren Formular an. */
+const REITER = ['home', 'log', 'new', 'set'];
+function reiterZeigen(ziel){
+  const el = $('#app');
+  const von = REITER.indexOf(state.view), nach = REITER.indexOf(ziel);
+  if (el){ el.classList.remove('zieht', 'faellt-zurueck', 'rein-r', 'rein-l'); el.style.transform = ''; }
+  if (ziel === 'new'){ state.editId = null; state.editWasSaved = false; }
+  go(ziel);
+  /* Bewegt wird nur zwischen zwei Reitern. Aus der Karte, der Auswertung oder einem
+     einzelnen Fang heraus gibt es keine Richtung — dort steht die Seite einfach da. */
+  if (!el || von === -1 || nach === -1 || von === nach) return;
+  /* offsetWidth lesen erzwingt einen Neuaufbau — ohne das startet die Bewegung nicht
+     neu, wenn zweimal hintereinander in dieselbe Richtung gewechselt wird. */
+  void el.offsetWidth;
+  el.classList.add(nach > von ? 'rein-r' : 'rein-l');
+}
+$$('.tab').forEach(t => t.onclick = () => reiterZeigen(t.dataset.go));
+
+/* ---------- Zwischen den Reitern wischen (27.09.2026, aus gym-log) ----------
+   Karl: „Ja, beides übernehmen" (Wischen und Hereinschieben).
+   ⚠️ Nur zwischen den vier Reitern der Leiste, und nur wenn man gerade auf einem davon
+   steht. Aus Karte, Auswertung oder einem einzelnen Fang heraus wird nicht gewischt —
+   dort wäre ein Wisch ein verlorener Platz.
+   🔴 Und NICHT weg von „Neuer Fang". Der Entwurf wird erst 0,7 s nach der letzten Eingabe
+   gespeichert (scheduleDraft), und nur, solange man noch auf der Seite steht. Ein Wisch
+   direkt nach dem Tippen nähme die letzte Eingabe mit — gym-log wischt aus demselben Grund
+   nicht aus einer laufenden Einheit heraus. HIN zu „Neuer Fang" geht.
+   ⚠️ Ausgenommen sind außerdem: Eingabefelder (dort wischt man Text), Karten (dort
+   verschiebt man die Karte), seitlich Scrollbares, und alles, was ÜBER der Seite schwebt —
+   ein Wisch über die Leiste soll nicht die Seite wegziehen.
+   Zuhörer am document, nicht am #app: die leere Fläche unter einer kurzen Seite gehört zum
+   body, und auch dort soll ein Wisch ankommen (gym-log, 15.09.). Ein Wisch darf auf einem
+   Knopf anfangen — erst nach 12 px waagerecht wird er einer, und nach so viel Bewegung löst
+   der Browser keinen Klick mehr aus.
+   Alle Zuhörer sind `passive`: es wird nichts abgefangen, nur zugehört. Ein Wisch, der das
+   normale Scrollen bremst, wäre schlimmer als keiner.
+   💡 Am Rand wird es zäh (0,18 statt 0,45): die Seite gibt ein Stück nach und federt zurück —
+   das sagt „da kommt nichts mehr", ohne einen Satz dafür zu brauchen. */
+const WISCH_NICHT = 'input,textarea,select,.tabs,#fab-save,.leaflet-container,.gate,.tour,'
+  + '.fuehrung,.pupup,.viewer,.toast,#splash';
+(function(){
+  const el = $('#app'); if (!el) return;
+  let x0 = 0, y0 = 0, t0 = 0, laeuft = false, zieht = false;
+  function darfWischen(ziel){
+    if (window.innerWidth >= 900) return false;                    // PC: Seitenleiste
+    if (REITER.indexOf(state.view) === -1) return false;
+    if (state.view === 'new') return false;                        // Entwurf, siehe oben
+    if (ziel && ziel.closest && ziel.closest(WISCH_NICHT)) return false;
+    for (let n = ziel; n && n !== el && n !== document.body && n !== document.documentElement; n = n.parentElement){
+      const st = getComputedStyle(n);
+      if ((st.overflowX === 'auto' || st.overflowX === 'scroll') && n.scrollWidth > n.clientWidth + 4) return false;
+    }
+    return true;
+  }
+  function losslassen(){
+    el.classList.remove('zieht');
+    if (zieht){ el.classList.add('faellt-zurueck'); el.style.transform = '';
+      setTimeout(() => el.classList.remove('faellt-zurueck'), 200); }
+    laeuft = false; zieht = false;
+  }
+  document.addEventListener('touchstart', e => {
+    laeuft = false; zieht = false;
+    if (e.touches.length !== 1) return;
+    if (!darfWischen(e.target)) return;
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now(); laeuft = true;
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!laeuft || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - x0, dy = e.touches[0].clientY - y0;
+    if (!zieht){
+      // Senkrecht gemeint? Dann ist es Scrollen, und wir halten uns raus — endgültig.
+      if (Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx)){ laeuft = false; return; }
+      if (Math.abs(dx) < 12) return;
+      zieht = true; el.classList.remove('faellt-zurueck'); el.classList.add('zieht');
+    }
+    const i = REITER.indexOf(state.view);
+    const amRand = (dx < 0 && i >= REITER.length - 1) || (dx > 0 && i <= 0);
+    el.style.transform = 'translateX(' + (dx * (amRand ? 0.18 : 0.45)).toFixed(1) + 'px)';
+  }, { passive: true });
+  document.addEventListener('touchcancel', losslassen, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (!laeuft){ losslassen(); return; }
+    const t = e.changedTouches && e.changedTouches[0];
+    const dx = t ? t.clientX - x0 : 0, dy = t ? t.clientY - y0 : 0, dt = Date.now() - t0;
+    const i = REITER.indexOf(state.view);
+    const weit = Math.abs(dx) >= 60 && Math.abs(dy) <= 45 && Math.abs(dx) > Math.abs(dy) * 1.8;
+    // Ein kurzer, schneller Wisch zählt auch, wenn er nicht die vollen 60 px schafft.
+    const schnell = dt < 250 && Math.abs(dx) >= 35 && Math.abs(dx) > Math.abs(dy) * 2;
+    const ziel = i + (dx < 0 ? 1 : -1);
+    if (t && dt <= 700 && (weit || schnell) && i !== -1 && ziel >= 0 && ziel < REITER.length){
+      el.classList.remove('zieht'); el.style.transform = '';
+      laeuft = false; zieht = false;
+      reiterZeigen(REITER[ziel]);
+      return;
+    }
+    losslassen();
+  }, { passive: true });
+})();
 
 $$('.segbtn').forEach(b => b.onclick = () => go(b.dataset.seg));
 
