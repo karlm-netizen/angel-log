@@ -6,6 +6,61 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 27.09.2026 (v67) — Admin-Seite: Verbindungen testen, App-Stand, Testdaten
+
+Paket 3 von 3 zu Karls Admin-Panel (Paket 1: v65, Paket 2: v66). Auf der Admin-Seite stehen
+jetzt drei neue Teile, zwischen „Tutorials" und „Admin zumachen".
+
+**Verbindungen testen:** ein Knopf fragt jeden Dienst, den die App benutzt, einmal an und zeigt
+je Zeile einen Haken mit der Antwortzeit oder den Grund, warum es nicht ging. Geprüft werden
+Konto und Fänge (Supabase), „Fehler melden", Wetter, Meerestemperatur, Wassertemperatur
+(PEGELONLINE), Gewässername (Overpass) und die Kartenkacheln (OpenStreetMap).
+
+- Gefragt wird mit einem **festen Punkt bei Kiel**, nie mit dem eigenen Standort.
+- **Es wird nichts geschrieben.** „Fehler melden" wird deshalb nur bis zur Tabelle geprüft. Ob
+  eine Meldung wirklich in Discord ankommt, sagt der Test nicht, denn dafür müsste eine echte
+  Meldung in Karls Kanal gehen.
+- Jede Anfrage hat eine Frist von 10 Sekunden. Ein hängender Dienst steht danach als
+  „Keine Antwort" da und nicht für immer als „läuft".
+- Die Kachel wird als Bild geladen, am Service Worker vorbei (`sw.js` lässt Anfragen mit
+  `verbindungstest` durch). Sonst hätte eine Kachel aus dem Cache „OpenStreetMap antwortet"
+  gemeldet, auch ganz ohne Netz.
+
+**App-Stand:** Fassung, Service Worker (aktiv / neue Fassung wartet / keiner), der Name des
+Offline-Speichers mit einem roten Hinweis, falls er zu einer anderen Fassung gehört, die Fänge
+im Gerät samt Entwürfen und Demo-Fängen, wie viele noch nicht im Konto liegen, der letzte
+Abgleich und der belegte Speicher. Dazu der Knopf **„App neu laden"**: Er fragt erst beim
+Server nach einer neuen Fassung und lädt dann neu. Nach jedem Abgleich frischt die Admin-Seite
+ihre Zahlen auf, sonst stünden nach dem Anlegen der Demo-Fänge acht „noch nicht im Konto" da.
+
+**Testdaten:** „Demo-Fänge anlegen" legt acht Fänge an Gewässern um Kiel an, über drei Wochen
+verteilt, mit verschiedenen Arten, Ködern, Tageszeiten und Wetterlagen. „Demo-Fänge entfernen"
+nimmt sie wieder weg, nach einer Rückfrage.
+
+- 🔴 Sie landen **im Konto und werden abgeglichen**, wie im Angebot gesagt. Der zweite Admin
+  sieht sie auf seiner Karte, und das steht so auch auf der Seite.
+- 🔴 **Das Entfernen ist ein Löschweg und trifft nur Demo-Fänge.** Das Kennzeichen ist die id
+  (`demo-` davor), nicht ein eigenes Feld. Die id überlebt das Bearbeiten und den Abgleich. Ein
+  Feld `demo: true` hätte ein Fang beim ersten Bearbeiten verloren, und danach wäre er für immer
+  im Konto geblieben. `uid()` erzeugt nie eine solche id.
+- Entfernt wird über `removeCatch()`, den Weg des Löschen-Knopfs, also mit Grabstein. Dadurch
+  verschwinden die Demo-Fänge auch im Konto und auf dem anderen Gerät. Ausgewählt wird aus dem
+  Speicher, nicht aus der Liste im Arbeitsspeicher.
+
+🔧 **Am Prüfstand behoben:** Eine FAIL-Zeile mit einem „✓" darin ließ `pruefungen.py` beim
+Ausgeben abstürzen, weil die Windows-Konsole auf cp1252 läuft. Rot war der Lauf trotzdem, aber
+welche Prüfung rot war, stand nirgends. Der Schutz dagegen galt seit dem 10.08. nur für den Fall
+„kein Ergebnis". Jetzt gilt er für jede Ausgabe. Aufgefallen ist es, weil die Gegenprobe
+„rot, aber an der falschen Stelle" meldete.
+
+**Datenschutz unverändert:** Der Verbindungstest schickt keinen Standort, sondern einen festen
+Punkt, und zwar an Dienste, die schon in der Erklärung stehen. Die Testdaten liegen nur im
+eigenen Konto. Die Daten anderer fasst keiner der drei Teile an.
+
+Prüfstand 755 → 775 (20 neue). Gegenprobe: 15 von 15 neuen Handgriffen werden bemerkt, alle 93
+Hebel greifen. Der Hebel „go() holt die Kontenzahl nicht mehr" aus v66 ist nachgezogen, weil er
+an der geänderten Zeile hing. Wörterbuch: 44 neue Einträge.
+
 ## 27.09.2026 (v66) — Eine eigene Admin-Seite, mit den Tutorials als Vorschau
 
 **Karls Ansage:** *„ich brauche allerdings noch ein Admin Panel ein richtiges wo man zb das

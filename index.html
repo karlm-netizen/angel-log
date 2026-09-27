@@ -665,6 +665,15 @@ setTimeout(function(){
      Einwand dort: wer sie abspielt, soll nie denken, er richte gerade sein Konto ein. */
   .vorschau-marke{display:inline-block; padding:4px 12px; border-radius:99px;
     border:1px solid var(--warn); color:var(--warn); font-size:12px; font-weight:700}
+  /* Zeilen „Name … Ergebnis" auf der Admin-Seite (v67): Verbindungen und App-Stand. */
+  .adm-liste{margin:0 0 10px; font-size:13px; line-height:1.4}
+  .adm-liste > div{display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+    padding:6px 0; border-bottom:1px solid var(--line)}
+  .adm-liste > div:last-child{border-bottom:0}
+  .adm-liste > div > span:first-child{color:var(--muted)}
+  .adm-liste > div > span:last-child{text-align:right; overflow-wrap:anywhere}
+  .adm-liste .gut{color:var(--accent)}
+  .adm-liste .schlecht{color:var(--danger)}
 
   /* Das kleine Fenster nach dem Abschicken einer Meldung (16.08.2026, Karls Ansage:
      „ich will ein kleines fenster ferstehst du pop up").
@@ -1405,7 +1414,8 @@ function splashWeg(){
      ⚠️ Einziger Eingang: fünfmal auf das Logo auf Home (Karls Entscheidung: „Nur 5× aufs
         Logo" — kein Knopf in den Einstellungen). Deshalb kein Reiter in der Leiste und kein
         Wischen hierher; unten leuchtet „Home", weil man von dort kommt.
-     Was darin steht (Konten, Karte, Tutorials, Zumachen), zeichnet renderAdmin().
+     Was darin steht (Konten, Karte, Tutorials, seit v67 Verbindungen, App-Stand und Testdaten,
+     Zumachen), zeichnet renderAdmin().
      ⚠️ Die Admin-Funktionen selbst schützt weiter nur die Datenbank — diese Seite ist, wie
         vorher der Block, ein Vorhang, keine Sperre. Siehe den Kommentar bei ADMIN_KEY. -->
 <section id="v-admin" class="hidden">
@@ -2245,7 +2255,52 @@ const EN = {
   '▶︎ Führung durch den ersten Fang': '▶︎ Guided first catch',
   'Vorschau — es wird nichts gespeichert': 'Preview — nothing is saved',
   'Vorschau — kein Fang gespeichert': 'Preview — no catch saved',
-  'Kein Netz — das kommt vom Server.': 'No connection — this comes from the server.',
+  // Die Admin-Seite, Paket 3 (v67): Verbindungen, App-Stand, Testdaten
+  'Verbindungen': 'Connections',
+  'Fragt jeden Dienst, den die App benutzt, einmal an — mit einem festen Punkt bei Kiel, nicht mit deinem Standort. Geschrieben wird dabei nichts; ob eine Fehlermeldung wirklich in Discord ankommt, sagt der Test deshalb nicht.': 'Asks every service the app uses once — with a fixed point near Kiel, not with your location. Nothing is written, so whether a bug report really arrives in Discord is something this test cannot tell.',
+  '🔌 Verbindungen testen': '🔌 Test connections',
+  'Wird getestet …': 'Testing …',
+  'Konto und Fänge (Supabase)': 'Account and catches (Supabase)',
+  'Fehler melden (bis zur Tabelle)': 'Report a problem (up to the table)',
+  'Wetter (Open-Meteo)': 'Weather (Open-Meteo)',
+  'Meerestemperatur (Open-Meteo)': 'Sea temperature (Open-Meteo)',
+  'Wassertemperatur (PEGELONLINE)': 'Water temperature (PEGELONLINE)',
+  'Gewässername (Overpass)': 'Name of the water (Overpass)',
+  'Kartenkacheln (OpenStreetMap)': 'Map tiles (OpenStreetMap)',
+  'Keine Antwort nach 10 Sekunden': 'No answer after 10 seconds',
+  'Kein Netz': 'No connection',
+  'Nicht erreichbar': 'Not reachable',
+  'Fehler': 'Error',
+  'App-Stand': 'App status',
+  'Fassung': 'Version',
+  'Service Worker': 'Service worker',
+  'aktiv': 'active',
+  'neue Fassung wartet — App einmal ganz schließen': 'new version waiting — close the app completely once',
+  'eingerichtet, übernimmt beim nächsten Start': 'installed, takes over on the next start',
+  'keiner — ohne Netz startet die App nicht': 'none — the app won’t start without a connection',
+  'nicht abfragbar': 'cannot be queried',
+  'Offline-Speicher': 'Offline cache',
+  'leer': 'empty',
+  'passt nicht zu dieser Fassung': 'does not match this version',
+  'Fänge im Gerät': 'Catches on this device',
+  'Noch nicht im Konto': 'Not yet in the account',
+  'Letzter Abgleich': 'Last sync',
+  'noch nie': 'never',
+  'Belegter Speicher': 'Storage used',
+  '↻ App neu laden': '↻ Reload the app',
+  'Neu laden holt die neueste Fassung, falls eine bereitliegt.': 'Reloading fetches the newest version if one is waiting.',
+  'Testdaten': 'Test data',
+  'Acht Demo-Fänge an Gewässern um Kiel, damit Liste, Karte und Auswertungen etwas zeigen. Sie landen in deinem Konto und auf deinen anderen Geräten, tragen „Demo“ in der Notiz und bleiben, bis du sie hier entfernst — auch wenn der Admin zu ist. Der zweite Admin sieht sie auf seiner Karte wie jeden anderen Fang. Entfernen trifft nur Demo-Fänge, nie einen echten.': 'Eight demo catches at waters around Kiel, so the list, map and charts have something to show. They land in your account and on your other devices, say “Demo” in the note and stay until you remove them here — even when admin is closed. The second admin sees them on their map like any other catch. Removing only ever hits demo catches, never a real one.',
+  'Demo-Fänge im Gerät:': 'Demo catches on this device:',
+  '🧪 Demo-Fänge anlegen': '🧪 Create demo catches',
+  'Demo-Fänge entfernen': 'Remove demo catches',
+  'Demo-Fänge angelegt': 'demo catches created',
+  'Demo-Fänge entfernt': 'demo catches removed',
+  'Alle Demo-Fänge entfernen? Echte Fänge bleiben, wie sie sind.': 'Remove all demo catches? Real catches stay as they are.',
+  'Anlegen fehlgeschlagen': 'Creating failed',
+  'Entfernen fehlgeschlagen': 'Removing failed',
+  'Demo-Fang aus der Admin-Seite — dort unter „Testdaten“ wieder entfernen.': 'Demo catch from the admin page — remove it there under “Test data”.',
+  'Kein Netz — das kommt vom Server.':'No connection — this comes from the server.',
   'Fehlt noch in der Datenbank: den Admin-Teil aus supabase.sql im SQL-Editor ausführen.': 'Still missing in the database: run the admin part of supabase.sql in the SQL editor.',
   'Dieses Konto ist kein Admin.': 'This account is not an admin.',
   'Anmeldung abgelaufen — einmal abmelden und neu anmelden.': 'Sign-in expired — sign out once and sign in again.',
@@ -4374,7 +4429,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v66';
+const FASSUNG = 'v67';
 
 const KONTO_KEY = 'angellog-konto';
 /* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
@@ -5418,6 +5473,10 @@ async function syncJetzt(still){
        mehr, wenn sie einmal stimmt. */
     renderList();
     try { localStorage.setItem(SYNC_KEY + '-zeit', String(Date.now())); } catch {}
+    /* Die Admin-Seite zeigt „Noch nicht im Konto" und „Letzter Abgleich" (v67). Ohne das
+       stünden dort nach dem Anlegen der Demo-Fänge acht ungesicherte, bis man die Seite
+       verlässt — obwohl der Abgleich sie längst hochgeladen hat. */
+    if (state.view === 'admin') renderAdmin();
     if (!still) toast(rauf || runter ? `${T('Abgeglichen')} · ${rauf} ${T('hoch')}, ${runter} ${T('runter')}` : T('Alles schon aktuell'));
   } catch (e){
     if (!still) toast(e.message || T('Abgleich fehlgeschlagen'));
@@ -5951,6 +6010,315 @@ async function adminZahlHolen(){
   adminZahl = neu; renderAdmin();
 }
 
+/* ================= Admin: Verbindungen testen (v67) =================
+   Paket 3 der Admin-Seite. Jede Leitung nach außen einmal anfragen und sagen, ob sie
+   antwortet und wie schnell — genau die Dienste, die die App ohnehin benutzt.
+
+   ⚠️ Gefragt wird mit einem FESTEN Punkt bei Kiel, nie mit dem eigenen Standort. Ob ein
+      Dienst antwortet, hängt nicht am Fangort — und die Datenschutzerklärung nennt die
+      Koordinaten nur fürs Ausfüllen eines Fangs.
+   ⚠️ Nichts davon schreibt: keine Meldung, kein Fang, keine Zeile. „Fehler melden" wird
+      deshalb nur bis zur Tabelle geprüft. Ob Discord die Nachricht zustellt, sagt dieser
+      Test NICHT — dafür müsste eine echte Meldung raus, und die landet in Karls Kanal.
+   ⚠️ Jede Anfrage hat eine Frist. Ein Dienst, der hängt, darf nicht für immer als
+      „läuft" dastehen. */
+const TEST_ORT   = { lat: 54.32, lon: 10.13 };   // Kiel
+const TEST_MEER  = { lat: 54.50, lon: 10.30 };   // Kieler Bucht — Meerestemperatur gibt es nur auf See
+const TEST_FRIST = 10000;
+const VERBINDUNGEN = ['konto', 'melden', 'wetter', 'meer', 'pegel', 'gewaesser', 'karte'];
+
+/* ⚠️ Als T()-Aufrufe mit festem Text und nicht als Tabelle — dieselbe Regel wie bei
+   adminFehlerText(): sonst sähe die Wörterbuch-Prüfung sie nicht. */
+function verbindungName(art){
+  switch (art){
+    case 'konto':     return T('Konto und Fänge (Supabase)');
+    case 'melden':    return T('Fehler melden (bis zur Tabelle)');
+    case 'wetter':    return T('Wetter (Open-Meteo)');
+    case 'meer':      return T('Meerestemperatur (Open-Meteo)');
+    case 'pegel':     return T('Wassertemperatur (PEGELONLINE)');
+    case 'gewaesser': return T('Gewässername (Overpass)');
+    case 'karte':     return T('Kartenkacheln (OpenStreetMap)');
+    default:          return art;
+  }
+}
+
+/* Die Kachel wird als BILD geladen, nicht per fetch: dafür muss OpenStreetMap keinen
+   Fremdzugriff (CORS) erlauben, und ein Bild lädt nur, wenn wirklich eins kam — eine
+   Fehlerseite zählt nicht. `verbindungstest` lässt den Service Worker vorbei (sw.js),
+   der Zeitstempel den Browser-Cache. */
+function kachelLaden(){
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload  = () => res({ ok: true, status: 200 });
+    img.onerror = () => rej(new Error('kachel'));
+    img.src = 'https://tile.openstreetmap.org/0/0/0.png?verbindungstest=' + Date.now();
+  });
+}
+
+/* Wie gewaesserNear(): erst der eine Server, dann der andere. Ein leeres `out;` kostet den
+   Spendendienst so gut wie nichts. */
+async function overpassAnfragen(){
+  let letzte = null;
+  for (const server of OVERPASS){
+    try {
+      const r = await fetch(server, { method: 'POST',
+        body: 'data=' + encodeURIComponent('[out:json][timeout:5];out;'),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+      if (r.ok) return r;
+      letzte = r;
+    } catch {}
+  }
+  if (letzte) return letzte;
+  throw new Error('overpass');
+}
+
+async function verbindungAnfragen(art){
+  const o = TEST_ORT, m = TEST_MEER;
+  switch (art){
+    case 'konto':
+      if (!konto || !konto.access_token) throw adminFehler('abgemeldet');
+      return api(TABELLE + '?select=id&limit=1');
+    case 'melden':
+      if (!konto || !konto.access_token) throw adminFehler('abgemeldet');
+      return api(MELD_TABELLE + '?select=id&limit=1');
+    case 'wetter':
+      return fetch(`https://api.open-meteo.com/v1/forecast?latitude=${o.lat}&longitude=${o.lon}&current=temperature_2m`);
+    case 'meer':
+      return fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${m.lat}&longitude=${m.lon}`
+        + '&hourly=sea_surface_temperature&forecast_days=1');
+    case 'pegel':
+      return fetch(`${PEGEL}/stations.json?latitude=${o.lat}&longitude=${o.lon}&radius=5`);
+    case 'gewaesser':
+      return overpassAnfragen();
+    case 'karte':
+      return kachelLaden();
+  }
+  throw new Error('unbekannt');
+}
+
+function mitFrist(p, ms){
+  let wecker;
+  const frist = new Promise((_, rej) => {
+    wecker = setTimeout(() => { const e = new Error('frist'); e.frist = true; rej(e); }, ms);
+  });
+  return Promise.race([p, frist]).finally(() => clearTimeout(wecker));
+}
+
+/* null = noch nicht getestet · sonst je Art 'laeuft' oder { ok, ms, text } */
+let verbindungen = null;
+let verbindungLauf = 0;
+
+/* `frist` nur, damit die Prüfung nicht zehn Sekunden auf einen hängenden Dienst warten muss. */
+async function verbindungenTesten(frist = TEST_FRIST){
+  const lauf = ++verbindungLauf;
+  verbindungen = {};
+  VERBINDUNGEN.forEach(a => { verbindungen[a] = 'laeuft'; });
+  renderAdmin();
+  await Promise.all(VERBINDUNGEN.map(async art => {
+    const t0 = Date.now();
+    let erg;
+    try {
+      const r = await mitFrist(verbindungAnfragen(art), frist);
+      erg = (r && r.ok) ? { ok: true }
+          : { ok: false, text: (r && r.status === 401 && (art === 'konto' || art === 'melden'))
+                ? T('Anmeldung abgelaufen — einmal abmelden und neu anmelden.')
+                : T('Fehler') + ' ' + (r ? r.status : '?') };
+    } catch (e){
+      erg = { ok: false, text: e && e.frist ? T('Keine Antwort nach 10 Sekunden')
+                             : e && e.art === 'abgemeldet' ? T('Nicht angemeldet.')
+                             : !navigator.onLine ? T('Kein Netz')
+                             : T('Nicht erreichbar') };
+    }
+    erg.ms = Date.now() - t0;
+    if (lauf !== verbindungLauf) return;     // Admin zu oder neu gestartet: nichts mehr zeichnen
+    verbindungen[art] = erg;
+    renderAdmin();
+  }));
+}
+
+/* ================= Admin: App-Stand (v67) =================
+   Was sich nur asynchron erfragen lässt, steht hier. Fassung, Fänge und letzter Abgleich
+   liegen ohnehin im Speicher und werden beim Zeichnen frisch gelesen.
+   null = noch nicht geholt · { sw, speicher, belegt } */
+let appStand = null;
+
+async function appStandHolen(){
+  const s = { sw: 'fehlt', speicher: null, belegt: null };
+  try {
+    if ('serviceWorker' in navigator){
+      const reg = await navigator.serviceWorker.getRegistration();
+      s.sw = !reg ? 'keiner' : reg.waiting ? 'wartet'
+           : navigator.serviceWorker.controller ? 'aktiv' : 'startet';
+    }
+  } catch { s.sw = 'unbekannt'; }
+  try { s.speicher = (await caches.keys()).filter(k => /^angellog-v\d+$/.test(k)); } catch {}
+  try { const e = await navigator.storage.estimate(); if (typeof e.usage === 'number') s.belegt = e.usage; } catch {}
+  if (!adminAn()) return;
+  appStand = s;
+  renderAdmin();
+}
+
+/* Eigene Funktion, damit die Prüfung sie ersetzen kann — location.reload selbst lässt
+   sich nicht überschreiben. */
+function seiteNeuLaden(){ location.reload(); }
+
+/* Erst beim Server nachfragen, ob es eine neue Fassung gibt, dann neu laden. Der Service
+   Worker übernimmt sofort (skipWaiting in sw.js), die eigenen Dateien kommen „Netz zuerst". */
+async function appNeuLaden(){
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (reg) await mitFrist(reg.update(), 5000);
+  } catch {}
+  seiteNeuLaden();
+}
+
+/* ================= Admin: Testdaten (v67) =================
+   Demo-Fänge, damit Liste, Karte und Auswertungen etwas zu zeigen haben.
+
+   🔴 Sie landen im KONTO und werden abgeglichen — so im Angebot gesagt und von Karl
+      gewählt. Es sind echte Einträge, nur erkennbar.
+   🔴 Das Kennzeichen ist die id: `demo-` davor. uid() erzeugt nie so etwas (eine UUID,
+      oder Ziffern und Kleinbuchstaben ohne Bindestrich) — also kann das Entfernen keinen
+      echten Fang treffen.
+   ⚠️ Die id und kein eigenes Feld: die id überlebt alles. Beim Bearbeiten behält
+      buildRecord() state.editId, und beim Abgleich ist sie die Zeile selbst. Ein Feld
+      `demo: true` hätte ein Fang beim ersten Bearbeiten verloren — danach hätte ihn das
+      Entfernen nicht mehr gefunden, und er wäre für immer im Konto geblieben.
+   ⚠️ Entfernt wird über removeCatch(), den Weg des Löschen-Knopfs: mit Grabstein, damit
+      die Demo-Fänge auch im Konto und auf den anderen Geräten verschwinden. */
+const DEMO_PRAEFIX = 'demo-';
+function istDemo(c){ return !!c && typeof c.id === 'string' && c.id.indexOf(DEMO_PRAEFIX) === 0; }
+
+/* Acht Fänge an Gewässern um Kiel, über drei Wochen verteilt — verschiedene Arten, Köder,
+   Tageszeiten und Wetter, damit jede Auswertung etwas zu unterscheiden hat. */
+const DEMO_FAENGE = [
+  { art: 'Hecht',   laenge: 78, gewicht: 3.9,  gewaesser: 'Westensee',         lat: 54.2765, lon: 9.9050,
+    tage: 1,  uhr: '07:40', phase: 'morgen', wetter: 'bedeckt',  wolken: 90, luft: 12, druck: 1011,
+    wind: 'W',   kmh: 14, wasser: 15.5, tiefe: 3.5, truebung: 'leicht', koeder: 'Gummifisch',     farben: ['Firetiger'] },
+  { art: 'Barsch',  laenge: 31, gewicht: 0.42, gewaesser: 'Großer Plöner See', lat: 54.1540, lon: 10.4130,
+    tage: 3,  uhr: '18:20', phase: 'abend',  wetter: 'heiter',   wolken: 30, luft: 16, druck: 1018,
+    wind: 'SW',  kmh: 9,  wasser: 16.0, tiefe: 4,   truebung: 'klar',   koeder: 'Dropshot-Gummi', farben: ['Motoroil'] },
+  { art: 'Zander',  laenge: 64, gewicht: 2.2,  gewaesser: 'Nord-Ostsee-Kanal', lat: 54.3480, lon: 10.0500,
+    tage: 6,  uhr: '21:45', phase: 'nacht',  wetter: 'klar',     wolken: 5,  luft: 10, druck: 1021,
+    wind: 'O',   kmh: 6,  wasser: 16.5, tiefe: 6,   truebung: 'truebe', koeder: 'Gummifisch',     farben: ['Weiß'] },
+  { art: 'Karpfen', laenge: 69, gewicht: 6.8,  gewaesser: 'Selenter See',      lat: 54.3080, lon: 10.4450,
+    tage: 9,  uhr: '05:55', phase: 'morgen', wetter: 'nebel',    wolken: 100, luft: 8, druck: 1016,
+    wind: 'N',   kmh: 4,  wasser: 16.8, tiefe: 2,   truebung: 'leicht', koeder: 'Boilie',         farben: [] },
+  { art: 'Aal',     laenge: 66, gewicht: 0.9,  gewaesser: 'Eider',             lat: 54.3000, lon: 9.6700,
+    tage: 12, uhr: '23:10', phase: 'nacht',  wetter: 'bewoelkt', wolken: 60, luft: 13, druck: 1009,
+    wind: 'SW',  kmh: 12, wasser: 17.2, tiefe: 2.5, truebung: 'truebe', koeder: 'Tauwurm',        farben: [] },
+  { art: 'Schleie', laenge: 39, gewicht: 1.1,  gewaesser: 'Dieksee',           lat: 54.1720, lon: 10.5500,
+    tage: 15, uhr: '06:30', phase: 'morgen', wetter: 'heiter',   wolken: 20, luft: 11, druck: 1019,
+    wind: 'NO',  kmh: 5,  wasser: 17.5, tiefe: 1.5, truebung: 'leicht', koeder: 'Made',           farben: [] },
+  { art: 'Hecht',   laenge: 94, gewicht: 6.3,  gewaesser: 'Großer Plöner See', lat: 54.1450, lon: 10.4400,
+    tage: 18, uhr: '11:15', phase: 'tag',    wetter: 'regen',    wolken: 100, luft: 14, druck: 1004,
+    wind: 'WSW', kmh: 22, wasser: 18.0, tiefe: 3,   truebung: 'leicht', koeder: 'Jerkbait',       farben: ['Weiß', 'Rot'] },
+  { art: 'Barsch',  laenge: 24, gewicht: 0.2,  gewaesser: 'Westensee',         lat: 54.2700, lon: 9.8950,
+    tage: 21, uhr: '16:05', phase: 'tag',    wetter: 'schauer',  wolken: 70, luft: 17, druck: 1012,
+    wind: 'W',   kmh: 17, wasser: 18.4, tiefe: 2,   truebung: 'klar',   koeder: 'Spinner',        farben: ['Silber'] }
+];
+
+async function demoAnlegen(){
+  let n = 0;
+  try {
+    for (const v of DEMO_FAENGE){
+      const d = new Date();
+      d.setDate(d.getDate() - v.tage);
+      const [h, mi] = v.uhr.split(':').map(Number);
+      d.setHours(h, mi, 0, 0);
+      await putCatch({
+        id: DEMO_PRAEFIX + uid(), entwurf: false,
+        when: `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`,
+        ts: d.getTime(),
+        art: v.art, laenge: v.laenge, gewicht: v.gewicht, gewaesser: v.gewaesser, lat: v.lat, lon: v.lon,
+        luft: v.luft, druck: v.druck, windRichtung: v.wind, windKmh: v.kmh,
+        wasser: v.wasser, wasserQuelle: 'manuell', wasserStation: '', tiefe: v.tiefe,
+        phase: v.phase, wetter: v.wetter, bewoelkung: v.wolken, truebung: v.truebung, regen24: null,
+        koeder: v.koeder, koederGroesse: null, koederGewicht: null, farben: v.farben.slice(),
+        notiz: T('Demo-Fang aus der Admin-Seite — dort unter „Testdaten“ wieder entfernen.'),
+        photos: []
+      });
+      n++;
+    }
+  } finally {
+    if (n){ await reload(); syncJetzt(true); }
+  }
+  return n;
+}
+
+/* 🔴 Der Löschweg. Ausgewählt wird aus dem SPEICHER (nicht aus state.catches, die veraltet
+   sein kann) und ausschließlich über istDemo(). */
+async function demoEntfernen(){
+  const ids = (await allCatches()).filter(istDemo).map(c => c.id);
+  let n = 0;
+  try {
+    for (const id of ids){ await removeCatch(id); n++; }
+  } finally {
+    if (n){ await reload(); syncJetzt(true); }
+  }
+  return n;
+}
+
+let demoLaeuft = false;
+
+/* Die Ergebnisliste des Verbindungstests. Vor dem ersten Test steht nichts da — eine Liste
+   voller Striche sähe aus wie sieben Ausfälle. */
+function verbindungenTeil(){
+  if (!verbindungen) return '';
+  return `<div class="adm-liste" id="admin-verbindungen">${VERBINDUNGEN.map(a => {
+    const v = verbindungen[a];
+    const erg = (!v || v === 'laeuft') ? '<span class="spin"></span>'
+      : v.ok ? `<span class="gut">✓ ${esc(v.ms)} ms</span>`
+      : `<span class="schlecht">✗ ${esc(v.text)}</span>`;
+    return `<div data-art="${a}"><span>${verbindungName(a)}</span><span>${erg}</span></div>`;
+  }).join('')}</div>`;
+}
+
+function appStandTeil(){
+  const s = appStand;
+  let sw;
+  if (!s) sw = `<span class="spin"></span>${T('wird geholt …')}`;
+  else switch (s.sw){
+    case 'aktiv':   sw = `<span class="gut">${T('aktiv')}</span>`; break;
+    case 'wartet':  sw = `<span class="schlecht">${T('neue Fassung wartet — App einmal ganz schließen')}</span>`; break;
+    case 'startet': sw = T('eingerichtet, übernimmt beim nächsten Start'); break;
+    case 'unbekannt': sw = T('nicht abfragbar'); break;
+    default:        sw = `<span class="schlecht">${T('keiner — ohne Netz startet die App nicht')}</span>`;
+  }
+  /* ⚠️ Der Offline-Speicher heißt wie die Fassung (sw.js: CACHE). Steht dort eine andere,
+     kommt ohne Netz eine andere Fassung hoch als die, die gerade läuft. */
+  let cache = '';
+  if (s && s.speicher){
+    const passt = s.speicher.indexOf('angellog-' + FASSUNG) !== -1;
+    cache = !s.speicher.length ? `<span class="schlecht">${T('leer')}</span>`
+      : passt ? esc(s.speicher.join(', '))
+      : `<span class="schlecht">${esc(s.speicher.join(', '))} · ${T('passt nicht zu dieser Fassung')}</span>`;
+  }
+  const alle = state.catches;
+  const entwuerfe = alle.filter(c => c.entwurf).length;
+  const demo = alle.filter(istDemo).length;
+  const offen = nichtGesichert().length;
+  let letzter = T('noch nie');
+  try {
+    const t = Number(localStorage.getItem(SYNC_KEY + '-zeit') || 0);
+    if (t) letzter = new Date(t).toLocaleString(SPRACHE === 'de' ? 'de-DE' : 'en-GB',
+      { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch {}
+  const zeile = (name, wert) => `<div><span>${name}</span><span>${wert}</span></div>`;
+  return `<div class="adm-liste" id="admin-stand">${
+    zeile(T('Fassung'), esc(FASSUNG))
+  }${zeile(T('Service Worker'), sw)
+  }${cache ? zeile(T('Offline-Speicher'), cache) : ''
+  }${zeile(T('Fänge im Gerät'), alle.length
+      + (entwuerfe ? ' · ' + entwuerfe + ' ' + (entwuerfe === 1 ? T('Entwurf') : T('Entwürfe')) : '')
+      + (demo ? ' · ' + demo + ' Demo' : ''))
+  }${zeile(T('Noch nicht im Konto'), offen ? `<span class="schlecht">${offen}</span>` : '<span class="gut">0</span>')
+  }${zeile(T('Letzter Abgleich'), esc(letzter))
+  }${s && s.belegt != null ? zeile(T('Belegter Speicher'),
+      (s.belegt / 1e6).toLocaleString(SPRACHE === 'de' ? 'de-DE' : 'en-GB', { maximumFractionDigits: 1 }) + ' MB') : ''
+  }</div>`;
+}
+
 function renderAdmin(){
   const box = $('#admin');
   if (!box) return;
@@ -5967,6 +6335,8 @@ function renderAdmin(){
       : `${T('Angelegte Konten:')} <b style="color:var(--txt)">${esc(z.konten)}</b><br>${
           T('Jedes Konto zählt mit — auch Test-Konten und deins.')}`;
   const karte = adminKarteAn();
+  const testLaeuft = !!verbindungen && VERBINDUNGEN.some(a => verbindungen[a] === 'laeuft');
+  const demoZahl = state.catches.filter(istDemo).length;
   /* ⚠️ Der Satz in Orange ist Karls Einwand-Regel: der Einwand steht im Bild, nicht
      in einer Rückfrage. Wer den Schalter umlegt, liest ihn — jedes Mal. */
   /* Seit v66 eine eigene Seite (Karls Ansage: „ein Admin Panel ein richtiges wo man zb das
@@ -5987,9 +6357,44 @@ function renderAdmin(){
       T('Abgespielt wie bei einem neuen Konto, aber als Vorschau: deine Antworten werden nicht gespeichert, es entsteht kein Entwurf und kein Fang, und die Einführung zählt danach nicht als gesehen.')}</p>
     <button class="btn" id="admin-tour" style="margin-bottom:8px">${T('▶︎ Einführung abspielen')}</button>
     <button class="btn" id="admin-fuehrung" style="margin-bottom:18px">${T('▶︎ Führung durch den ersten Fang')}</button>
+    <label class="f">${T('Verbindungen')}</label>
+    <p class="tiny muted" style="margin:0 0 8px; line-height:1.5">${
+      T('Fragt jeden Dienst, den die App benutzt, einmal an — mit einem festen Punkt bei Kiel, nicht mit deinem Standort. Geschrieben wird dabei nichts; ob eine Fehlermeldung wirklich in Discord ankommt, sagt der Test deshalb nicht.')}</p>
+    ${verbindungenTeil()}
+    <button class="btn" id="admin-verbindungen-los" style="margin-bottom:18px"${testLaeuft ? ' disabled' : ''}>${
+      testLaeuft ? T('Wird getestet …') : T('🔌 Verbindungen testen')}</button>
+    <label class="f">${T('App-Stand')}</label>
+    ${appStandTeil()}
+    <p class="tiny muted" style="margin:0 0 8px; line-height:1.5">${T('Neu laden holt die neueste Fassung, falls eine bereitliegt.')}</p>
+    <button class="btn" id="admin-neuladen" style="margin-bottom:18px">${T('↻ App neu laden')}</button>
+    <label class="f">${T('Testdaten')}</label>
+    <p class="tiny muted" style="margin:0 0 8px; line-height:1.5">${
+      T('Acht Demo-Fänge an Gewässern um Kiel, damit Liste, Karte und Auswertungen etwas zeigen. Sie landen in deinem Konto und auf deinen anderen Geräten, tragen „Demo“ in der Notiz und bleiben, bis du sie hier entfernst — auch wenn der Admin zu ist. Der zweite Admin sieht sie auf seiner Karte wie jeden anderen Fang. Entfernen trifft nur Demo-Fänge, nie einen echten.')}</p>
+    <p class="tiny" id="admin-demo-zahl" style="margin:0 0 8px">${T('Demo-Fänge im Gerät:')} <b>${demoZahl}</b></p>
+    <button class="btn" id="admin-demo-an" style="margin-bottom:8px"${demoLaeuft ? ' disabled' : ''}>${
+      demoLaeuft ? T('Einen Moment …') : T('🧪 Demo-Fänge anlegen')}</button>
+    <button class="btn" id="admin-demo-weg" style="margin-bottom:18px"${demoLaeuft || !demoZahl ? ' disabled' : ''}>${
+      T('Demo-Fänge entfernen')}${demoZahl ? ' (' + demoZahl + ')' : ''}</button>
     <button class="btn sm" id="admin-zu" style="margin-bottom:16px">${T('Admin zumachen')}</button>`;
   $('#admin-tour').onclick     = () => vorschauStarten('tour');
   $('#admin-fuehrung').onclick = () => vorschauStarten('fuehrung');
+  $('#admin-verbindungen-los').onclick = () => { if (!testLaeuft) verbindungenTesten(); };
+  $('#admin-neuladen').onclick = () => appNeuLaden();
+  $('#admin-demo-an').onclick = async () => {
+    if (demoLaeuft) return;
+    demoLaeuft = true; renderAdmin();
+    try { const n = await demoAnlegen(); toast(n + ' ' + T('Demo-Fänge angelegt')); }
+    catch { toast(T('Anlegen fehlgeschlagen')); }
+    finally { demoLaeuft = false; renderAdmin(); }
+  };
+  $('#admin-demo-weg').onclick = async () => {
+    if (demoLaeuft || !demoZahl) return;
+    if (!confirm(T('Alle Demo-Fänge entfernen? Echte Fänge bleiben, wie sie sind.') + ' (' + demoZahl + ')')) return;
+    demoLaeuft = true; renderAdmin();
+    try { const n = await demoEntfernen(); toast(n + ' ' + T('Demo-Fänge entfernt')); }
+    catch { toast(T('Entfernen fehlgeschlagen')); }
+    finally { demoLaeuft = false; renderAdmin(); }
+  };
   $('#admin-karte').onclick = () => {
     const an = !adminKarteAn();
     try { an ? localStorage.setItem(ADMIN_KARTE_KEY, '1') : localStorage.removeItem(ADMIN_KARTE_KEY); } catch {}
@@ -6003,6 +6408,8 @@ function renderAdmin(){
     try { localStorage.removeItem(ADMIN_KEY); localStorage.removeItem(ADMIN_KARTE_KEY); } catch {}
     adminZahl = null;
     fremdLauf++;   // eine noch laufende Kartenanfrage zeichnet danach nichts mehr
+    verbindungen = null; verbindungLauf++;   // dasselbe für einen laufenden Verbindungstest
+    appStand = null;
     renderAdmin();
     toast(T('Admin zu'));
     // Die Seite ist danach leer — zurück nach Home, wo die Geste sitzt.
@@ -8013,7 +8420,7 @@ function go(view){
   /* Admin: bei jedem Öffnen neu, aus demselben Grund wie der Push-Schalter — die Zahl
      ändert sich, während die Seite zu ist. Ohne Freischaltung zeichnet das nichts und
      fragt niemanden. Seit v66 auf der eigenen Seite, nicht mehr in den Einstellungen. */
-  if (view === 'admin'){ renderAdmin(); adminZahlHolen(); }
+  if (view === 'admin'){ renderAdmin(); adminZahlHolen(); appStandHolen(); }
 }
 /* Die Blase unter den aktiven Reiter schieben (aus gym-log) — Begründung beim CSS.
    ⚠️ Das allererste Mal OHNE Bewegung (`sofort`): sonst fliegt sie beim Öffnen der App von

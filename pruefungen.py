@@ -6306,6 +6306,277 @@ window.addEventListener('error', e => {
     } finally { putCatch = put; reload = neuLaden; vorschauAus(); }
   });
 
+  // ============ Admin-Seite, Paket 3: Verbindungen, App-Stand, Testdaten (v67) ============
+  /* Gegenprobe: python gegenprobe.py Verbindung App-Stand Testdaten */
+  const antwortOk = async () => ({ ok: true, status: 200, json: async () => ({}), text: async () => '' });
+  const mitVerbindungsAttrappe = async (fetchFn, kachelFn, fn) => {
+    const kachel = kachelLaden;
+    fetchGibt(fetchFn); kachelLaden = kachelFn;
+    try { return await fn(); }
+    finally { fetchWeg(); kachelLaden = kachel; verbindungen = null; verbindungLauf++; adminAufraeumen(); }
+  };
+  const zeilenText = art => (document.querySelector(`#admin-verbindungen [data-art="${art}"]`) || {}).textContent || '';
+
+  t('Verbindungen: vor dem ersten Test steht keine Ergebnisliste da', () => {
+    adminAufraeumen(); verbindungen = null; localStorage.setItem(ADMIN_KEY, '1'); renderAdmin();
+    const liste = !!document.querySelector('#admin-verbindungen');
+    const knopf = !!document.querySelector('#admin-verbindungen-los');
+    adminAufraeumen();
+    return (!liste && knopf) || `Liste: ${liste}, Knopf: ${knopf}`;
+  });
+  ta('Verbindungen: antworten alle, stehen sieben Haken da', async () => {
+    adminStart(false);
+    return mitVerbindungsAttrappe(antwortOk, async () => ({ ok: true, status: 200 }), async () => {
+      go('admin');
+      await verbindungenTesten();
+      const zeilen = [...document.querySelectorAll('#admin-verbindungen > div')];
+      const gut = zeilen.filter(z => /✓ \d+ ms/.test(z.textContent)).length;
+      const knopf = document.querySelector('#admin-verbindungen-los');
+      return (zeilen.length === 7 && gut === 7 && !knopf.disabled)
+          || `Zeilen: ${zeilen.length}, Haken: ${gut}, Knopf aus: ${knopf.disabled}`;
+    });
+  });
+  /* Der eigene Standort geht nur fuers Ausfuellen eines Fangs raus -- so steht es in der
+     Datenschutzerklaerung. Der Test braucht keinen Fangort. */
+  ta('Verbindungen: gefragt wird mit dem festen Punkt bei Kiel, nie mit dem eigenen Standort', async () => {
+    adminStart(false);
+    const urls = [];
+    const la = state.form.lat, lo = state.form.lon;
+    state.form.lat = 47.1234; state.form.lon = 8.5678;
+    try {
+      return await mitVerbindungsAttrappe(async (u, o) => { urls.push(String(u) + ' ' + ((o && o.body) || '')); return antwortOk(); },
+        async () => ({ ok: true }), async () => {
+          await verbindungenTesten();
+          const eigen = urls.filter(u => /47\.12|8\.567/.test(u));
+          const kiel = urls.filter(u => /latitude=54\.32&longitude=10\.13/.test(u));
+          return (eigen.length === 0 && kiel.length >= 2)
+              || `mit eigenem Standort: ${eigen.length}, mit Kiel: ${kiel.length}`;
+        });
+    } finally { state.form.lat = la; state.form.lon = lo; }
+  });
+  /* 🔴 Ein Test, der eine Meldung abschickt, landet in Karls Discord-Kanal -- und einer, der
+     schreibt, legt Zeilen im Konto an. Nur Overpass nimmt POST, und das nur als Leseabfrage. */
+  ta('Verbindungen: es wird nichts geschrieben -- keine Meldung, kein Fang', async () => {
+    adminStart(false);
+    const schreibend = [];
+    return mitVerbindungsAttrappe(async (u, o) => {
+        const m = ((o && o.method) || 'GET').toUpperCase();
+        if (m !== 'GET' && !OVERPASS.some(s => String(u).indexOf(s) === 0)) schreibend.push(m + ' ' + u);
+        return antwortOk();
+      }, async () => ({ ok: true }), async () => {
+        await verbindungenTesten();
+        return schreibend.length === 0 || schreibend.join(' | ');
+      });
+  });
+  ta('Verbindungen: ein haengender Dienst steht nach der Frist als "keine Antwort" da', async () => {
+    adminStart(false);
+    return mitVerbindungsAttrappe(u => /open-meteo\.com\/v1\/forecast/.test(String(u)) ? new Promise(() => {}) : antwortOk(),
+      async () => ({ ok: true }), async () => {
+        go('admin');
+        // Selbst begrenzt: ohne Frist im Code hinge sonst der ganze Pruefstand an dieser Stelle.
+        await Promise.race([verbindungenTesten(40), new Promise(r => setTimeout(r, 500))]);
+        const txt = zeilenText('wetter') || '(keine Zeile)';
+        return /Keine Antwort/.test(txt) || txt;
+      });
+  });
+  ta('Verbindungen: Fehler stehen als Fehler da -- 503, nicht erreichbar, nicht angemeldet', async () => {
+    adminStart(false); konto = null;
+    return mitVerbindungsAttrappe(async u => {
+        if (/open-meteo\.com\/v1\/forecast/.test(String(u))) return { ok: false, status: 503 };
+        throw new TypeError('Failed to fetch');
+      }, async () => { throw new Error('kachel'); }, async () => {
+        go('admin');
+        await verbindungenTesten();
+        const r = [/503/.test(zeilenText('wetter')), /Nicht angemeldet/.test(zeilenText('konto')),
+                   /Nicht erreichbar|Kein Netz/.test(zeilenText('pegel')),
+                   /Nicht erreichbar|Kein Netz/.test(zeilenText('karte'))];
+        const haken = document.querySelectorAll('#admin-verbindungen .gut').length;
+        return (r.every(Boolean) && haken === 0)
+            || `${r.join(',')} · Haken: ${haken} · ${zeilenText('wetter')} / ${zeilenText('konto')}`;
+      });
+  });
+  ta('Verbindungen: Admin zu waehrend des Tests -- spaetere Antworten zeichnen nichts', async () => {
+    adminStart(false);
+    let los; const warten = new Promise(r => { los = r; });
+    return mitVerbindungsAttrappe(async () => { await warten; return antwortOk(); },
+      async () => { await warten; return { ok: true }; }, async () => {
+        go('admin');
+        const lauf = verbindungenTesten();
+        document.querySelector('#admin-zu').onclick();
+        los(); await lauf;
+        return (verbindungen === null && !document.querySelector('#admin-verbindungen'))
+            || 'nach dem Zumachen: ' + JSON.stringify(verbindungen);
+      });
+  });
+  /* Die Kachel laege sonst im Cache des Service Workers, und der Test meldete "OpenStreetMap
+     antwortet" auch ganz ohne Netz. Geprueft am echten Handler aus sw.js, nicht am Text. */
+  ta('Verbindungen: der Service Worker laesst den Kachel-Test ans Netz', async () => {
+    const js = await (await fetch('sw.js')).text();
+    const hoerer = {};
+    const selbst = { addEventListener: (n, f) => { hoerer[n] = f; } };
+    const cache = { match: async () => new Response('x'), put: async () => {}, keys: async () => [] };
+    new Function('self', 'caches', 'location', js)(selbst, { open: async () => cache }, { origin: 'https://x.test' });
+    const fragen = url => {
+      let beantwortet = false;
+      hoerer.fetch({ request: { method: 'GET', url }, respondWith: () => { beantwortet = true; } });
+      return beantwortet;
+    };
+    const test   = fragen('https://tile.openstreetmap.org/0/0/0.png?verbindungstest=1');
+    const normal = fragen('https://tile.openstreetmap.org/5/17/10.png');
+    const imCode = /tile\.openstreetmap\.org\/0\/0\/0\.png\?verbindungstest=/.test(String(kachelLaden));
+    return (!test && normal && imCode)
+        || `Test aus dem Cache: ${test}, normale Kachel aus dem Cache: ${normal}, Zusatz im Test: ${imCode}`;
+  });
+
+  t('App-Stand: Fassung, Faenge samt Entwuerfen und Demo, noch nicht im Konto, letzter Abgleich', () => {
+    adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1');
+    const alt = state.catches, altZeit = localStorage.getItem(SYNC_KEY + '-zeit');
+    state.catches = [mkC('a', 5, { cloud: 5 }), mkC('b', 9, { cloud: 3 }),
+                     mkC('c', 2, { cloud: 2, entwurf: true }), mkC(DEMO_PRAEFIX + 'x', 4, { cloud: 4 })];
+    localStorage.setItem(SYNC_KEY + '-zeit', String(new Date(2026, 8, 27, 17, 5).getTime()));
+    renderAdmin();
+    const txt = (document.querySelector('#admin-stand') || {}).textContent || '(kein App-Stand)';
+    state.catches = alt; merkerSetzen(SYNC_KEY + '-zeit', altZeit); adminAufraeumen();
+    const soll = [FASSUNG, '4 · 1 Entwurf · 1 Demo', 'Noch nicht im Konto1', '27.09.2026'];
+    const fehlt = soll.filter(s => txt.indexOf(s) === -1);
+    return fehlt.length === 0 || 'fehlt: ' + fehlt.join(' | ') + ' in: ' + txt;
+  });
+  t('App-Stand: ein Offline-Speicher einer anderen Fassung faellt auf', () => {
+    adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1');
+    appStand = { sw: 'aktiv', speicher: ['angellog-v12'], belegt: null }; renderAdmin();
+    const falsch = (document.querySelector('#admin-stand') || {}).textContent || '';
+    appStand = { sw: 'aktiv', speicher: ['angellog-' + FASSUNG], belegt: null }; renderAdmin();
+    const richtig = (document.querySelector('#admin-stand') || {}).textContent || '';
+    appStand = null; adminAufraeumen();
+    return (/passt nicht/.test(falsch) && !/passt nicht/.test(richtig) && richtig.indexOf('angellog-' + FASSUNG) !== -1)
+        || `falsch: ${falsch.slice(0, 140)} / richtig: ${richtig.slice(0, 140)}`;
+  });
+  ta('App-Stand: wird beim Oeffnen der Seite geholt', async () => {
+    adminAufraeumen(); appStand = null; localStorage.setItem(ADMIN_KEY, '1');
+    go('admin');
+    await new Promise(r => setTimeout(r, 150));
+    const txt = (document.querySelector('#admin-stand') || {}).textContent || '';
+    const r = (appStand !== null && !/wird geholt/.test(txt)) || 'App-Stand: ' + JSON.stringify(appStand) + ' / ' + txt.slice(0, 80);
+    appStand = null; adminAufraeumen(); return r;
+  });
+  ta('App-Stand: "App neu laden" fragt erst nach einer neuen Fassung, dann laedt es neu', async () => {
+    const neu = seiteNeuLaden; const folge = [];
+    seiteNeuLaden = () => folge.push('neu laden');
+    const sw = navigator.serviceWorker;
+    if (sw) sw.getRegistration = async () => ({ update: async () => { folge.push('nachgefragt'); } });
+    try {
+      adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1'); go('admin');
+      document.querySelector('#admin-neuladen').click();
+      await new Promise(r => setTimeout(r, 30));
+      const soll = sw ? 'nachgefragt,neu laden' : 'neu laden';
+      return folge.join(',') === soll || 'Reihenfolge: ' + folge.join(',');
+    } finally { seiteNeuLaden = neu; if (sw) delete sw.getRegistration; appStand = null; adminAufraeumen(); }
+  });
+  /* Ohne Auffrischen stuenden nach dem Anlegen der Demo-Faenge acht "noch nicht im Konto" da,
+     bis man die Seite verlaesst -- obwohl der Abgleich sie laengst hochgeladen hat. */
+  ta('App-Stand: nach einem Abgleich zeigt die Admin-Seite den neuen Stand', async () => {
+    const f = { hochladen, herunterladen, werteAbgleichen, meldungenNachreichen, postfachHolen };
+    hochladen = async () => 0; herunterladen = async () => 0; werteAbgleichen = async () => {};
+    meldungenNachreichen = async () => 0; postfachHolen = async () => 0;
+    const altZeit = localStorage.getItem(SYNC_KEY + '-zeit');
+    try {
+      adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1'); localStorage.removeItem(SYNC_KEY + '-zeit');
+      go('admin');
+      const vorher = (document.querySelector('#admin-stand') || {}).textContent || '';
+      konto = { access_token: 'T', refresh_token: 'R' };
+      await syncJetzt(true);
+      const nachher = (document.querySelector('#admin-stand') || {}).textContent || '';
+      return (/noch nie/.test(vorher) && !/noch nie/.test(nachher))
+          || `vorher: ${vorher.slice(-50)} / nachher: ${nachher.slice(-50)}`;
+    } finally {
+      ({ hochladen, herunterladen, werteAbgleichen, meldungenNachreichen, postfachHolen } = f);
+      merkerSetzen(SYNC_KEY + '-zeit', altZeit); adminAufraeumen();
+    }
+  });
+
+  /* ---- Testdaten ----
+     🔴 Die Demo-Faenge landen im Konto und werden abgeglichen. Das Entfernen ist damit ein
+     Loeschweg -- und darf NUR Demo-Faenge treffen. */
+  ta('Testdaten: "anlegen" legt acht erkennbare Demo-Faenge an, ohne einen echten anzufassen', async () => {
+    const sync = syncJetzt; syncJetzt = async () => {};
+    try {
+      sandbox([mkC('echt-1', 5)]);
+      const n = await demoAnlegen();
+      const alle = [...fakeDB.values()];
+      const demo = alle.filter(istDemo);
+      const jetzt = Date.now();
+      const halb = demo.filter(c => c.entwurf || !c.art || c.lat == null || !(c.ts < jetzt)
+                                 || !/Demo/.test(c.notiz) || String(c.when).length !== 16);
+      return (n === 8 && demo.length === 8 && alle.length === 9 && fakeDB.has('echt-1')
+              && halb.length === 0 && state.catches.length === 9)
+          || `angelegt: ${n}, Demo: ${demo.length}, alle: ${alle.length}, unvollstaendig: ${halb.length}, Liste: ${state.catches.length}`;
+    } finally { syncJetzt = sync; }
+  });
+  ta('Testdaten (die wichtigste): "entfernen" trifft nur Demo-Faenge -- echte bleiben, auch mit "demo" im Namen', async () => {
+    const sync = syncJetzt; syncJetzt = async () => {};
+    try {
+      const echte = [mkC(uid(), 5), mkC('x-demo-1', 5), mkC('Demo-2', 5), mkC('demo', 5),
+                     mkC(uid(), 6, { art: 'Demo', notiz: 'demo-' }), mkC(uid(), 7, { entwurf: true })];
+      const demo = [mkC('demo-a', 5), mkC('demo-b', 5), mkC(DEMO_PRAEFIX + uid(), 5)];
+      sandbox([...echte, ...demo]);
+      const n = await demoEntfernen();
+      const weg  = echte.filter(c => !fakeDB.has(c.id)).map(c => c.id);
+      const noch = demo.filter(c => fakeDB.has(c.id)).map(c => c.id);
+      const graeber = [...fakeGrab.keys()].sort().join(',');
+      const soll = demo.map(c => c.id).sort().join(',');
+      return (n === 3 && !weg.length && !noch.length && graeber === soll && state.catches.length === echte.length)
+          || `entfernt: ${n}, echte weg: ${weg.join(',')}, Demo noch da: ${noch.join(',')}, Grabsteine: ${graeber}`;
+    } finally { syncJetzt = sync; }
+  });
+  /* Die Liste im Arbeitsspeicher kann veraltet sein -- etwa wenn der Abgleich gerade Demo-Faenge
+     vom anderen Geraet geholt hat. Entscheidend ist der Speicher. */
+  ta('Testdaten: "entfernen" liest den Speicher, nicht die Liste im Arbeitsspeicher', async () => {
+    const sync = syncJetzt; syncJetzt = async () => {};
+    try {
+      sandbox([mkC('demo-a', 5), mkC('echt', 5)]);
+      state.catches = [];
+      const n = await demoEntfernen();
+      return (n === 1 && !fakeDB.has('demo-a') && fakeDB.has('echt')) || `entfernt: ${n}`;
+    } finally { syncJetzt = sync; }
+  });
+  ta('Testdaten: "entfernen" fragt vorher -- ohne Ja passiert nichts', async () => {
+    const sync = syncJetzt, merkC = window.confirm; syncJetzt = async () => {};
+    let gefragt = false; window.confirm = () => { gefragt = true; return false; };
+    try {
+      sandbox([mkC('demo-a', 5), mkC('echt', 5)]);
+      adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1'); go('admin');
+      await document.querySelector('#admin-demo-weg').onclick();
+      return (gefragt && fakeDB.has('demo-a') && fakeGrab.size === 0)
+          || `gefragt: ${gefragt}, noch da: ${fakeDB.has('demo-a')}, Grabsteine: ${fakeGrab.size}`;
+    } finally { syncJetzt = sync; window.confirm = merkC; adminAufraeumen(); }
+  });
+  t('Testdaten: der Entfernen-Knopf nennt die Zahl und ist ohne Demo-Faenge aus', () => {
+    const alt = state.catches;
+    adminAufraeumen(); localStorage.setItem(ADMIN_KEY, '1');
+    state.catches = [mkC('echt', 5)]; renderAdmin();
+    const aus = document.querySelector('#admin-demo-weg').disabled;
+    state.catches = [mkC('echt', 5), mkC('demo-a', 5), mkC('demo-b', 5)]; renderAdmin();
+    const voll = document.querySelector('#admin-demo-weg');
+    const r = (aus && !voll.disabled && /\(2\)/.test(voll.textContent))
+           || `ohne: aus=${aus}; mit zwei: aus=${voll.disabled}, "${voll.textContent}"`;
+    state.catches = alt; adminAufraeumen(); return r;
+  });
+  /* Das Kennzeichen ist die id und kein eigenes Feld -- genau deshalb: buildRecord() baut beim
+     Speichern einen neuen Datensatz und behaelt nur die id. Ein Feld `demo` waere weg. */
+  t('Testdaten: ein bearbeiteter Demo-Fang bleibt ein Demo-Fang', () => {
+    const alt = state.editId; state.editId = DEMO_PRAEFIX + 'bearbeitet';
+    let r; try { r = buildRecord(false); } finally { state.editId = alt; }
+    return istDemo(r) || 'nach dem Bearbeiten: ' + JSON.stringify({ id: r.id, demo: r.demo });
+  });
+  t('Testdaten: uid() erzeugt nie eine Demo-id -- auch nicht ohne randomUUID', () => {
+    for (let i = 0; i < 500; i++) if (istDemo({ id: uid() })) return 'Demo-id aus uid()';
+    try {
+      crypto.randomUUID = undefined;
+      for (let i = 0; i < 500; i++) if (istDemo({ id: uid() })) return 'Demo-id aus dem Ersatzweg';
+    } finally { delete crypto.randomUUID; }
+    return typeof crypto.randomUUID === 'function' || 'randomUUID nicht zurueckgestellt';
+  });
+
   /* 🔴 Die wichtigste Pruefung dieses Abschnitts. Fremde tippen diese Felder ein. */
   t('Fremde Faenge: Schadcode im Fischnamen wird Text, nicht HTML', () => {
     const boese = '<img src=x onerror="window.__angelXss=1">';
@@ -6829,16 +7100,20 @@ r = subprocess.run([CHROME, '--headless=new', '--disable-gpu', '--no-sandbox',
                     '--dump-dom', (WORK / 'test.html').as_uri()],
                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=180)
 m = re.search(r'<pre id="testout">(.*?)</pre>', r.stdout, re.S)
+# ⚠️ Die Ausgabe enthaelt Umlaute und Sonderzeichen; die Windows-Konsole laeuft
+# per Vorgabe auf cp1252. Ohne dieses Ersetzen stirbt die FEHLERMELDUNG selbst
+# an einem UnicodeEncodeError und verdeckt genau das, was man sehen muesste.
+# Am 10.08.2026 passiert: der Abbruch war da, der Grund unsichtbar.
+# ⚠️ 27.09.2026: bis dahin galt das nur fuer "kein Ergebnis", die normale Ausgabe lief
+# ungeschuetzt durch print(). Eine FAIL-Zeile mit einem "✓" darin (Verbindungstest, v67)
+# liess den Pruefstand beim Ausgeben abstuerzen -- rot war er trotzdem, aber welche
+# Pruefung rot war, stand nirgends. Die Gegenprobe meldete "rot an der falschen Stelle".
+def zeigen(s):
+    enc = sys.stdout.encoding or 'utf-8'
+    print(s.encode(enc, errors='replace').decode(enc, errors='replace'))
 if not m:
-    # ⚠️ Die Ausgabe enthaelt Umlaute und Sonderzeichen; die Windows-Konsole laeuft
-    # per Vorgabe auf cp1252. Ohne dieses Ersetzen stirbt die FEHLERMELDUNG selbst
-    # an einem UnicodeEncodeError und verdeckt genau das, was man sehen muesste.
-    # Am 10.08.2026 passiert: der Abbruch war da, der Grund unsichtbar.
-    def zeigen(s):
-        enc = sys.stdout.encoding or 'utf-8'
-        print(s.encode(enc, errors='replace').decode(enc, errors='replace'))
     zeigen('Kein Ergebnis. Chrome-Ausgabe (Ende):')
     zeigen(r.stdout[-3000:]); zeigen(r.stderr[-3000:]); sys.exit(1)
 txt = m.group(1).replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&quot;', '"')
-print(txt)
+zeigen(txt)
 sys.exit(0 if ', 0 fehlgeschlagen' in txt else 1)

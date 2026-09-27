@@ -2,7 +2,7 @@
 // Eigene Dateien: Netz zuerst, damit Updates sofort ankommen — Cache nur als Offline-Rückfall.
 // Kartenkacheln und Leaflet: Cache zuerst, denn am Wasser ist oft kein Netz und einmal
 // angeschaute Gewässer sollen offline noch da sein. Wetter-API: nie cachen.
-const CACHE  = 'angellog-v66';
+const CACHE  = 'angellog-v67';
 const TILES  = 'angellog-tiles';
 /* ⚠️ Die sechs Ladebildschirm-Fotos gehören hier hinein. Ohne sie im Cache stünde am
    Wasser ohne Netz ein Ladebildschirm ohne Bild — und genau dort wird die App benutzt.
@@ -50,6 +50,10 @@ self.addEventListener('fetch', e => {
 
   // Wetterdaten immer frisch holen.
   if (url.hostname === 'api.open-meteo.com') return;
+
+  // Der Verbindungstest der Admin-Seite (v67) muss am Netz messen, nicht am Cache:
+  // eine Kachel aus dem Cache hiesse „OpenStreetMap antwortet", auch ohne jedes Netz.
+  if (url.searchParams.has('verbindungstest')) return;
 
   // Kartenkacheln: erst Cache, dann Netz — und ein Netzfehler darf die Anfrage
   // nicht platzen lassen, sonst meldet die Karte fälschlich einen Ausfall.

@@ -468,8 +468,8 @@ PROBEN = [
 
     ('Adminseite: go() holt die Kontenzahl nicht mehr',
      'index.html',
-     "  if (view === 'admin'){ renderAdmin(); adminZahlHolen(); }",
-     "  if (view === 'set'){ renderAdmin(); adminZahlHolen(); }",
+     "  if (view === 'admin'){ renderAdmin(); adminZahlHolen(); appStandHolen(); }",
+     "  if (view === 'admin'){ renderAdmin(); appStandHolen(); }",
      'beim Oeffnen wird die Kontenzahl geholt'),
 
     ('Adminseite: der Pfeil fuehrt nirgends hin',
@@ -541,6 +541,103 @@ PROBEN = [
      "$('#tour-inner').innerHTML = `${tutorialVorschau\n",
      "$('#tour-inner').innerHTML = `${false\n",
      'das Schild "Vorschau" steht da'),
+
+    # ---- Admin-Seite Paket 3: Verbindungen, App-Stand, Testdaten (27.09.2026, v67) ----
+    #   python gegenprobe.py Verbindung App-Stand Testdaten
+    ('Verbindung: der Test fragt mit dem eigenen Standort',
+     'index.html',
+     "  const o = TEST_ORT, m = TEST_MEER;",
+     "  const o = { lat: state.form.lat, lon: state.form.lon }, m = TEST_MEER;",
+     'nie mit dem eigenen Standort'),
+
+    # 🔴 Eine echte Meldung landete in Karls Discord-Kanal.
+    ('Verbindung: "Fehler melden" schickt eine echte Meldung',
+     'index.html',
+     "      return api(MELD_TABELLE + '?select=id&limit=1');",
+     "      return api(MELD_TABELLE, { method: 'POST', body: '{\"text\":\"Verbindungstest\"}' });",
+     'es wird nichts geschrieben'),
+
+    ('Verbindung: ohne Frist bleibt ein haengender Dienst fuer immer "laeuft"',
+     'index.html',
+     "      const r = await mitFrist(verbindungAnfragen(art), frist);",
+     "      const r = await verbindungAnfragen(art);",
+     'ein haengender Dienst'),
+
+    ('Verbindung: eine Fehlerantwort zaehlt als Haken',
+     'index.html',
+     "      erg = (r && r.ok) ? { ok: true }",
+     "      erg = r ? { ok: true }",
+     'Fehler stehen als Fehler da'),
+
+    ('Verbindung: Admin zu haelt den laufenden Test nicht an',
+     'index.html',
+     "    verbindungen = null; verbindungLauf++;   // dasselbe für einen laufenden Verbindungstest\n",
+     "",
+     'Admin zu waehrend des Tests'),
+
+    ('Verbindung: der Service Worker beantwortet den Kachel-Test aus dem Cache',
+     'sw.js',
+     "  if (url.searchParams.has('verbindungstest')) return;\n",
+     "",
+     'laesst den Kachel-Test ans Netz'),
+
+    ('App-Stand: ein fremder Offline-Speicher faellt nicht auf',
+     'index.html',
+     "    const passt = s.speicher.indexOf('angellog-' + FASSUNG) !== -1;",
+     "    const passt = true;",
+     'Offline-Speicher einer anderen Fassung'),
+
+    ('App-Stand: wird beim Oeffnen nicht geholt',
+     'index.html',
+     "  if (view === 'admin'){ renderAdmin(); adminZahlHolen(); appStandHolen(); }",
+     "  if (view === 'admin'){ renderAdmin(); adminZahlHolen(); }",
+     'wird beim Oeffnen der Seite geholt'),
+
+    ('App-Stand: neu laden, ohne nach einer neuen Fassung zu fragen',
+     'index.html',
+     "    if (reg) await mitFrist(reg.update(), 5000);",
+     "    if (reg) {}",
+     'App neu laden'),
+
+    ('App-Stand: nach dem Abgleich bleibt die Admin-Seite stehen',
+     'index.html',
+     "    if (state.view === 'admin') renderAdmin();\n    if (!still) toast(",
+     "    if (!still) toast(",
+     'nach einem Abgleich zeigt die Admin-Seite'),
+
+    # 🔴 Der Loeschweg: wer "demo" irgendwo im Fang findet, loescht echte Faenge.
+    ('Testdaten: Entfernen trifft alles mit "demo" darin',
+     'index.html',
+     "function istDemo(c){ return !!c && typeof c.id === 'string' && c.id.indexOf(DEMO_PRAEFIX) === 0; }",
+     "function istDemo(c){ return !!c && /demo/i.test(String(c.id) + ' ' + (c.notiz || '')); }",
+     'die wichtigste'),
+
+    # Das Kennzeichen als Feld: beim ersten Bearbeiten weg, danach bliebe der Fang fuer immer im Konto.
+    ('Testdaten: Kennzeichen als Feld statt in der id',
+     'index.html',
+     ["function istDemo(c){ return !!c && typeof c.id === 'string' && c.id.indexOf(DEMO_PRAEFIX) === 0; }",
+      "        id: DEMO_PRAEFIX + uid(), entwurf: false,"],
+     ["function istDemo(c){ return !!c && c.demo === true; }",
+      "        id: uid(), demo: true, entwurf: false,"],
+     'ein bearbeiteter Demo-Fang bleibt ein Demo-Fang'),
+
+    ('Testdaten: Demo-Faenge ohne Kennzeichen angelegt',
+     'index.html',
+     "        id: DEMO_PRAEFIX + uid(), entwurf: false,",
+     "        id: uid(), entwurf: false,",
+     'legt acht erkennbare'),
+
+    ('Testdaten: Entfernen liest die Liste im Arbeitsspeicher',
+     'index.html',
+     "  const ids = (await allCatches()).filter(istDemo).map(c => c.id);",
+     "  const ids = state.catches.filter(istDemo).map(c => c.id);",
+     'liest den Speicher'),
+
+    ('Testdaten: Entfernen ohne Rueckfrage',
+     'index.html',
+     "    if (!confirm(T('Alle Demo-Fänge entfernen? Echte Fänge bleiben, wie sie sind.') + ' (' + demoZahl + ')')) return;\n",
+     "",
+     'fragt vorher'),
 ]
 
 
