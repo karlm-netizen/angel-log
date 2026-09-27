@@ -5052,13 +5052,11 @@ window.addEventListener('error', e => {
         || 'noch ungelesen: ' + postfachUngelesen();
   });
 
-  /* ====== Home: Wetter und Fangprognose (13.08.2026, Karls Ansage) ======
+  /* ====== Home: Wetter (13.08.2026, Karls Ansage) ======
      „als erstes soll jetzt ein home button kommen wo die angelzeit steht und vorraussage
      fuer wetter (alles was in der statistik auch vorkommt) fangprognose auch."
-
-     ⚠️ Der heikle Teil ist nicht das Zeichnen, sondern die **Rechnung**. Die Prognose
-     darf nichts behaupten, was sie nicht aus Karls eigenen Faengen hat -- und sie darf
-     sich nicht wie eine Beissquote lesen. Beides wird hier gemessen. */
+     ⚠️ Die Fangprognose ist seit dem 27.09.2026 raus („Fangprognose kann ganz raus");
+     geprueft wird hier das Wetter, und weiter unten, dass von ihr nichts uebrig ist. */
   (function(){
     const pad2 = n => String(n).padStart(2, '0');
     const isoLokal = d => d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate())
@@ -5108,89 +5106,10 @@ window.addEventListener('error', e => {
       return l;
     };
 
-    t('das Modell benutzt nur Masse, die genug Faenge tragen', () => {
-      const m = prognoseModell(faengeBauen(12));
-      const keys = m.map(x => x.mass.key).sort();
-      // Uhrzeit, Tageszeit, Wetter, Luftdruck, Lufttemperatur, Mondphase - alle gedeckt.
-      return keys.length >= 5 || 'nur: ' + keys.join(',');
-    });
-    t('ein Mass mit zu wenigen Werten faellt raus', () => {
-      // Nur zwei Faenge tragen einen Luftdruck, der Rest nicht.
-      const l = faengeBauen(12, (c, k) => k < 2 ? c : { ...c, druck: null });
-      const m = prognoseModell(l);
-      return m.every(x => x.mass.key !== 'druck')
-          || 'Luftdruck rechnet mit ' + m.find(x => x.mass.key === 'druck').werte.length + ' Werten';
-    });
-    /* Die Kernzusage: passende Bedingungen ergeben einen hoeheren Wert als unpassende.
-       Ohne diese Pruefung koennte die Rechnung konstant 0,5 liefern und niemand saehe es. */
-    t('passende Bedingungen liegen hoeher als unpassende', () => {
-      const m = prognoseModell(faengeBauen(20));
-      const gut = prognoseStunde(m, { stunde: 6, druck: 1015, luft: 18,
-                                      wetter: 'bewoelkt', mond: null, phase: 'morgen' });
-      const mau = prognoseStunde(m, { stunde: 14, druck: 985, luft: 30,
-                                      wetter: 'gewitter', mond: null, phase: 'tag' });
-      return (gut.wert > mau.wert) || `gut ${gut.wert} vs. mau ${mau.wert}`;
-    });
-    t('und die passende Stunde landet in der obersten Stufe', () => {
-      const m = prognoseModell(faengeBauen(20));
-      const gut = prognoseStunde(m, { stunde: 6, druck: 1015, luft: 18,
-                                      wetter: 'bewoelkt', mond: null, phase: 'morgen' });
-      return prognoseStufe(gut.wert).icon === '🟢' || 'Wert ' + gut.wert;
-    });
-    /* Gegenprobe zur Normierung: der Wert darf nie ueber 1 liegen, sonst waere die
-       Stufengrenze 0,6 sinnlos geworden. */
-    t('kein Wert liegt ueber 1', () => {
-      const m = prognoseModell(faengeBauen(20));
-      const p = prognoseStunde(m, { stunde: 6, druck: 1015, luft: 18,
-                                    wetter: 'bewoelkt', mond: null, phase: 'morgen' });
-      return p.wert <= 1.0000001 || 'Wert ' + p.wert;
-    });
-    t('die Uhrzeit zaehlt mit einem Fenster von einer Stunde', () => {
-      const m = prognoseModell(faengeBauen(20)).find(x => x.mass.key === 'stunde');
-      const nah = m.mass.nah;
-      return (nah(6, 7) && nah(6, 5) && !nah(6, 9) && nah(23, 0))
-          || 'Fenster stimmt nicht (auch ueber Mitternacht pruefen)';
-    });
-    /* ⚠️ Die Uhr wird festgehalten, und das ist der ganze Punkt dieser Pruefung.
-       Bis zum 18.08.2026 lief sie gegen die echte Uhrzeit -- und war damit **jeden
-       Abend ab etwa 21:00 rot**, ohne dass jemand etwas geaendert hatte: fuer heute
-       bleiben dann keine drei Stunden mehr uebrig, `bestesFenster` gibt richtigerweise
-       kein Fenster zurueck, und die Pruefung meldete "kein Fenster gefunden".
-       Am 16.08. lief der Prueflauf um 19:55 und war gruen, am 18.08. um 23:04 und war
-       rot. **Gemessen hat sie die Tageszeit, nicht den Code.**
-       Der Fall selbst ist richtiges Verhalten und steht jetzt als eigene Pruefung
-       darunter, statt diese hier zufaellig umzufaerben. */
-    const mitUhr = (stunde, fn) => {
-      const echteDate = Date;
-      const t = new echteDate(); t.setHours(stunde, 0, 0, 0);
-      const fest = t.getTime();
-      // eslint-disable-next-line no-global-assign
-      Date = class extends echteDate {
-        constructor(...a){ super(...(a.length ? a : [fest])); }
-        static now(){ return fest; }
-      };
-      try { return fn(); } finally { Date = echteDate; }
-    };
-    t('das beste Fenster ist drei zusammenhaengende Stunden', () => mitUhr(8, () => {
-      const v = vorhersageBauen();
-      const m = prognoseModell(faengeBauen(20));
-      const heute = v.hourly.time[2].slice(0, 10);
-      const b = bestesFenster(m, v, heute);
-      if (!b || !b.von) return 'kein Fenster gefunden';
-      const spanne = new Date(b.bis).getTime() - new Date(b.von).getTime();
-      return spanne === 2 * 3600e3 || 'Spanne: ' + (spanne / 3600e3) + ' h';
-    }));
-    t('spaet abends wird kein Fenster mehr behauptet', () => mitUhr(23, () => {
-      /* Genau die Lage, die die Pruefung darueber jahrelang zufaellig getroffen hat:
-         um 23 Uhr ist von heute noch eine Stunde uebrig. Ein Drei-Stunden-Fenster
-         waere dann erfunden -- die App darf hoechstens die eine Stunde zurueckgeben,
-         aber kein `von`/`bis` ueber einen Zeitraum, den es nicht mehr gibt. */
-      const v = vorhersageBauen();
-      const m = prognoseModell(faengeBauen(20));
-      const heute = v.hourly.time[2].slice(0, 10);
-      const b = bestesFenster(m, v, heute);
-      return (!b || !b.von) || 'behauptet ein Fenster ' + b.von + ' bis ' + b.bis;
-    }));
+    /* ⚠️ Hier standen bis zum 27.09.2026 neun Pruefungen zur Rechnung der Fangprognose
+       (Modell, Stufen, bestes Drei-Stunden-Fenster, feste Uhr um 8 und 23). Karls Ansage:
+       „Fangprognose kann ganz raus" -- mit ihr ausgebaut. An ihre Stelle tritt unten die
+       Pruefung, dass kein Rest uebrig ist, auch nicht in einer Nachschlagetabelle. */
 
     /* ---- Die Ansicht ---- */
     const homeBauen = async (faenge, vAendern) => {
@@ -5205,7 +5124,7 @@ window.addEventListener('error', e => {
       state.view = 'home';
       try { await renderHome(); return {
         wetter: document.getElementById('home-wetter').textContent,
-        prognose: document.getElementById('home-prognose').textContent
+        home:   document.getElementById('v-home').textContent
       }; }
       finally {
         state.catches = alt;
@@ -5266,47 +5185,37 @@ window.addEventListener('error', e => {
         v => { v.hourly.wind_direction_10m = v.hourly.time.map(() => null); });
       return /\d+ km\/h(?!\s*[NSOW])/.test(r.wetter) || 'Wind: ' + r.wetter.slice(0, 200);
     });
-    /* ⚠️ Diese hier stellt die Uhr auf 00:50 (16.08.2026 gefunden, weil der Prueflauf
-       zufaellig um diese Zeit lief). `toISOString()` rechnet nach UTC -- in der
-       Sommerzeit zwei Stunden zurueck --, waehrend Open-Meteo mit `timezone=auto`
-       ORTSZEIT liefert. Zwischen 0 und 2 Uhr stand als "heute" deshalb der Vortag:
-       die Heute-Karte fiel weg, und der heutige Tag stand unter "Morgen".
-       Ohne feste Uhrzeit faellt das nur auf, wer nachts prueft. */
-    ta('auch um 00:50 heisst heute noch heute', async () => {
-      const echteDate = Date;
-      const t = new Date(); t.setHours(0, 50, 0, 0);
-      const fest = t.getTime();
-      // eslint-disable-next-line no-global-assign
-      Date = class extends echteDate {
-        constructor(...a){ super(...(a.length ? a : [fest])); }
-        static now(){ return fest; }
-      };
-      try {
-        const r = await homeBauen(faengeBauen(20));
-        return (r.prognose.indexOf('Heute') !== -1)
-            || 'keine Heute-Karte um 00:50: ' + r.prognose.slice(0, 200);
-      } finally { Date = echteDate; }
-    });
-    ta('die Prognose steht mit Heute und Morgen da', async () => {
+    /* ====== Die Fangprognose ist raus (27.09.2026, Karls Ansage) ======
+       „Fangprognose kann ganz raus". Hier standen vier Pruefungen zur Prognose-Karte
+       (Heute/Morgen, 00:50-Uhr-Fall, der Beissvorhersage-Satz, unter zehn Faengen).
+       🔴 Lehre vom 18.09. (Schluesselliste): wer etwas ausbaut, muss die
+       Nachschlagetabellen aufraeumen -- dort blieb ein Name stehen, und die halbe App war
+       weg. Gesucht wird deshalb nicht nur nach Markup, sondern nach allem: Element,
+       Funktionen, Konstanten, NICHT_UEBERSETZEN, Woerterbuch, Einfuehrung. */
+    ta('Fangprognose: kein Rest -- Element, Funktionen, Tabellen, Woerterbuch, Einfuehrung', async () => {
+      const rest = [];
+      if (document.getElementById('home-prognose')) rest.push('#home-prognose steht noch da');
+      for (const n of ['prognoseModell', 'prognoseStunde', 'prognoseStufe', 'prognoseZeichnen',
+                       'bestesFenster', 'bedingungAusFang', 'PROG_MASSE', 'PROG_MIN_FAENGE', 'PROG_MIN_JE_MASS']){
+        let da = false; try { da = typeof eval(n) !== 'undefined'; } catch (e) {}
+        if (da) rest.push(n);
+      }
+      // Eine zusammengefuegte Selektor-Zeichenkette (fuer closest()), kein Feld.
+      if (/prognose/i.test(String(NICHT_UEBERSETZEN))) rest.push('NICHT_UEBERSETZEN');
+      const woerter = Object.keys(EN).filter(k => /prognose|Beißvorhersage|zu deinen Fängen/i.test(k));
+      if (woerter.length) rest.push('Woerterbuch: ' + woerter.join(' | ').slice(0, 80));
+      if (TOUR.some(k => /am besten lief|Prognose/i.test(k.text || ''))) rest.push('Einfuehrung verspricht sie noch');
+      /* Und auf dem Schirm: Home mit 20 Faengen zeichnen und den Text lesen. */
       const r = await homeBauen(faengeBauen(20));
-      return (r.prognose.indexOf('Heute') !== -1 && r.prognose.indexOf('Morgen') !== -1)
-          || r.prognose.slice(0, 200);
+      if (/Prognose|Catch outlook|Beißvorhersage/i.test(r.home)) rest.push('Home zeigt: ' + r.home.slice(0, 80));
+      return rest.length === 0 || rest.join('; ');
     });
-    /* Der Satz, der die ganze Ansicht ehrlich haelt. Faellt er weg, liest sich die
-       Stufe wie eine Beissquote -- und die App hat den Nenner dafuer gar nicht. */
-    ta('und sie sagt dazu, dass sie keine Beissvorhersage ist', async () => {
+    /* Das Wetter muss dabei stehen bleiben -- ausgebaut ist die Prognose, nicht die Karte
+       darueber. Genau das waere beim Loeschen des gemeinsamen Codes leicht mitgegangen. */
+    ta('Fangprognose raus: das Wetter auf Home steht weiter da', async () => {
       const r = await homeBauen(faengeBauen(20));
-      return (/keine Beißvorhersage/.test(r.prognose)
-              && /Ansitze ohne Fang/.test(r.prognose))
-          || r.prognose.slice(0, 300);
-    });
-    ta('unter zehn Faengen wird gar keine Stufe gezeigt', async () => {
-      const r = await homeBauen(faengeBauen(4));
-      const stufen = ['🟢', '🟡', '⚪'].filter(s => r.prognose.indexOf(s) !== -1);
-      // Und sie sagt, wie weit es noch ist -- „zu wenig" ohne Zahl ist eine Sackgasse.
-      return (stufen.length === 0 && /zu wenige Fänge/.test(r.prognose)
-              && /4 von 10/.test(r.prognose))
-          || 'zeigt: ' + r.prognose.slice(0, 300);
+      return (/Wetter am Wasser/.test(r.wetter) && r.wetter.indexOf('1015 hPa') !== -1)
+          || r.wetter.slice(0, 200);
     });
     /* ====== Der Stand der Vorhersage (14.08.2026, Karls Ansage) ======
        „Wetterprognose aktuell (Uhrzeit Datum nach oben und in min und Stunden wielange

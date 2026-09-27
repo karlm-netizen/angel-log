@@ -386,6 +386,38 @@ PROBEN = [
      "",
      'nochmal "Neuer Fang" 0,2 s nach dem Tippen'),
 
+    # ---- Die Fangprognose ist raus (27.09.2026, v65) ----
+    #   python gegenprobe.py Prognose  -> nur diese fuenf. Jeder holt einen Rest zurueck.
+    ('Prognose: das Element steht wieder auf Home',
+     'index.html',
+     '    <div id="home-wetter"></div>\n',
+     '    <div id="home-wetter"></div>\n    <div id="home-prognose"></div>\n',
+     'Fangprognose: kein Rest'),
+
+    ('Prognose: eine ihrer Funktionen bleibt stehen',
+     'index.html',
+     "  standTicken();\n}\n",
+     "  standTicken();\n}\nfunction bestesFenster(){ return null; }\n",
+     'Fangprognose: kein Rest'),
+
+    ('Prognose: der Name bleibt in der Nachschlagetabelle',
+     'index.html',
+     "  '#home-wetter',\n",
+     "  '#home-wetter', '#home-prognose',\n",
+     'Fangprognose: kein Rest'),
+
+    ('Prognose: die Einfuehrung verspricht sie weiter',
+     'index.html',
+     "deine Angelzeit und das Wetter am Wasser mit den '\n        + 'nächsten Stunden. Unten",
+     "deine Angelzeit und das Wetter am Wasser mit den '\n        + 'nächsten Stunden, und wann es bei dir am besten lief. Unten",
+     'Fangprognose: kein Rest'),
+
+    ('Prognose: beim Ausbau geht die Wetterkarte mit',
+     'index.html',
+     "  wBox.innerHTML = `<div class=\"card\">${kopf(v)}${jetztBlock}${streifen}</div>`;",
+     "",
+     'das Wetter auf Home steht weiter da'),
+
     # ⚠️ Die zwei folgenden bauen den ALTEN Zustand nach, und der steckt an zwei Stellen je
     # Knopf: vorn nur `clearTimeout` (Nummer bleibt stehen), und vor go() gar nichts. Eine
     # Stelle allein zu aendern, faellt nicht auf -- die andere faengt es ab. Deshalb Listen.

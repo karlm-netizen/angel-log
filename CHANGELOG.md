@@ -6,6 +6,32 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 27.09.2026 (v65) — Die Fangprognose ist raus
+
+**Karls Ansage:** *„Fangprognose kann ganz raus"*.
+
+Home zeigt jetzt zwei Karten statt drei: die Angelzeit und das Wetter am Wasser. Ausgebaut ist
+**alles**, was nur die Prognose brauchte:
+
+- die Karte auf Home (`#home-prognose`) und ihr Zeichnen
+- die Rechnung: die sechs Maße, das Modell aus den eigenen Fängen, die drei Stufen, das beste
+  Drei-Stunden-Fenster, `bedingungAusFang()` und die zwei Untergrenzen
+- 17 Einträge im englischen Wörterbuch und der Eintrag in der Liste der nicht übersetzten Bereiche
+- der Satz in der Einführung, der sie versprach (*„… und sobald genug Fänge drin sind, wann es
+  bei dir bisher am besten lief"*) — samt englischer Fassung
+
+**Was bleibt:** die Wetterkarte mit allem darin. `bedingungAusStunde()` gehört zu ihr (die Werte
+für „jetzt") und ist geblieben.
+
+🔴 **Nach der Lehre vom 18.09.** (Schlüsselliste: ein Name blieb in einer Nachschlagetabelle
+stehen, und die halbe App war weg) sucht die neue Prüfung **nicht nur nach Markup**, sondern nach
+Element, Funktionen, Konstanten, der Nachschlagetabelle, dem Wörterbuch und der Einführung — und
+zeichnet Home mit 20 Fängen und liest, was dasteht.
+
+🧪 **Prüfstand 749 → 739**: zwölf Prognose-Prüfungen raus, zwei neue rein (kein Rest · das Wetter
+steht weiter da). **Gegenprobe 5 von 5** (`python gegenprobe.py Prognose`) — je ein zurückgeholter
+Rest, und einmal die Wetterkarte, die beim Ausbau versehentlich mitgeht.
+
 ## 27.09.2026 (v64) — Beim Erfassen geht beim schnellen Wechsel nichts mehr verloren
 
 **Beim Bau von v63 gefunden, nachgemessen, Karl entschieden:** *„Sofort speichern"*.

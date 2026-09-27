@@ -943,10 +943,11 @@ function splashWeg(){
       </div>
     </div>
 
-    <!-- Wetter und Prognose werden gezeichnet, nicht geschrieben — beide hängen an
-         Werten, die erst zur Laufzeit da sind. Siehe renderHome(). -->
+    <!-- Das Wetter wird gezeichnet, nicht geschrieben — es hängt an Werten, die erst
+         zur Laufzeit da sind. Siehe renderHome().
+         ⚠️ Hier stand bis zum 27.09.2026 auch die Fangprognose (#home-prognose). Karls
+         Ansage: „Fangprognose kann ganz raus" — samt Rechnung, Wörterbuch und Prüfungen. -->
     <div id="home-wetter"></div>
-    <div id="home-prognose"></div>
   </div>
 </section>
 
@@ -1887,7 +1888,7 @@ const EN = {
   + 'nächsten Abgleich von selbst hoch; unten kannst du ihn auch sofort schicken.']:
     'this catch is so far only on this device. Once you are online it goes up with the next '
   + 'sync by itself; the button below sends it right away.',
-  /* Home — Wetter und Fangprognose (13.08.2026). */
+  /* Home — Wetter (13.08.2026; die Fangprognose daneben ist seit dem 27.09.2026 raus). */
   'Home': 'Home',
   'Wetter am Wasser': 'Weather at the water',
   'Vorhersage wird geholt …': 'Fetching the forecast …',
@@ -1897,7 +1898,7 @@ const EN = {
   /* Wie lange die Vorhersage schon steht (14.08.2026).
      ⚠️ **Ganze Sätze mit Platzhalter, keine zusammengeklebten Wortstücke.** „vor" + Zahl
      + „Min" ergibt auf Englisch „ago 3 min" — im Deutschen steht das Wort vorn, im
-     Englischen hinten. Dieselbe Falle wie bei der Fangprognose. */
+     Englischen hinten. Dieselbe Falle hatte die (inzwischen entfernte) Fangprognose. */
   'gerade eben': 'just now',
   'vor {n} Min': '{n} min ago',
   'vor {h} Std': '{h} h ago',
@@ -1915,31 +1916,8 @@ const EN = {
   + 'water appears here — or set the place by hand right now.',
   ['Keine Vorhersage — und auch keine gespeicherte. Sobald wieder Netz da ist, steht sie hier.']:
     'No forecast — and no saved one either. It appears here as soon as you are back online.',
-  'Fangprognose': 'Catch outlook',
-  'Heute': 'Today',
-  'Morgen': 'Tomorrow',
-  'Uhr': '',
-  'Verglichen an': 'Compared on',
-  'am ehesten wegen': 'mostly because of',
-  'Dafür sind es noch zu wenige Fänge.': 'There are still too few catches for that.',
-  'Erst {a} von {b} Fängen sind eingetragen.': 'Only {a} of {b} catches are recorded.',
-  ['Die Prognose vergleicht die Vorhersage mit deinen eigenen Fängen — vorher hätte sie '
-  + 'nichts, womit sie vergleichen könnte.']:
-    'The outlook compares the forecast against your own catches — before that it would have '
-  + 'nothing to compare with.',
-  ['Deine Fänge tragen noch zu wenige automatische Werte — hol beim Erfassen einmal die '
-  + 'Bedingungen, dann rechnet die Prognose damit.']:
-    'Your catches carry too few automatic values yet — fetch the conditions once while '
-  + 'recording, then the outlook can work with them.',
-  'passt gut zu deinen Fängen': 'a good match for your catches',
-  'durchwachsen': 'mixed',
-  'eher untypisch für dich': 'rather untypical for you',
-  ['Das ist keine Beißvorhersage. Die App zählt nur Fänge, keine Ansitze ohne Fang — die '
-  + 'Prognose sagt also, wie sehr die Bedingungen denen ähneln, unter denen du bisher gefangen '
-  + 'hast. Wer meistens samstags früh losfährt, bekommt samstags früh die besten Werte.']:
-    'This is not a bite forecast. The app only counts catches, never blank sessions — so the '
-  + 'outlook says how closely the conditions resemble those you have caught in before. If you '
-  + 'mostly head out on Saturday mornings, Saturday mornings will score best.',
+  /* ⚠️ Hier standen bis zum 27.09.2026 die Sätze der Fangprognose. Karls Ansage:
+     „Fangprognose kann ganz raus". */
   /* Das ⓘ am Baukasten (13.08.2026). Die Absätze stehen als ganze Sätze in der
      Tabelle — im HTML daneben trägt deshalb kein Satz ein <b> in seiner Mitte. */
   'Auswertung bauen': 'Build a chart',
@@ -2032,8 +2010,8 @@ const EN = {
   'Du trägst jeden Fang ein: Art, Länge, Gewicht, Köder und Fotos. Unter „Fänge" stehen sie danach als Bildkacheln nebeneinander — mit Suche, Sortierung und Karte, statt verstreut in der Kamerarolle.':
     'You log every catch: species, length, weight, bait and photos. Under “Catches” they then sit side by side as picture tiles — with search, sorting and a map, instead of scattered through your camera roll.',
   'Beim nächsten Öffnen landest du hier': 'Next time you open the app, you land here',
-  'Home ist die erste Ansicht: deine Angelzeit, das Wetter am Wasser mit den nächsten Stunden — und sobald genug Fänge drin sind, wann es bei dir bisher am besten lief. Unten kommst du in vier Schritten überall hin: Home, Fänge, Neuer Fang, Einstellungen.':
-    'Home is the first view: your fishing time, the weather at the water with the hours ahead — and once there are enough catches, when things went best for you so far. The bar at the bottom takes you anywhere in four steps: Home, Catches, New catch, Settings.',
+  'Home ist die erste Ansicht: deine Angelzeit und das Wetter am Wasser mit den nächsten Stunden. Unten kommst du in vier Schritten überall hin: Home, Fänge, Neuer Fang, Einstellungen.':
+    'Home is the first view: your fishing time and the weather at the water with the hours ahead. The bar at the bottom takes you anywhere in four steps: Home, Catches, New catch, Settings.',
   'Beißt der Hecht wirklich bei fallendem Luftdruck? Welche Köderfarbe bringt bei dir mehr? Solche Fragen stellst du dir unter „Fänge" selbst zusammen — du wählst, was gezählt wird und worüber. Gerechnet wird ausschließlich mit deinen eigenen Fängen.':
     'Does pike really bite on falling pressure? Which bait colour works better for you? You put questions like that together yourself under “Catches” — you choose what gets counted and against what. The maths uses your own catches and nothing else.',
   '🐞 Fehler melden': '🐞 Report a problem',
@@ -2268,7 +2246,7 @@ function T(de){
    würde beim Umschalten ein „Pike", der so nie eingetippt wurde. Alles darin
    wird beim Umschalten ohnehin neu gezeichnet, dort steht T() im Quelltext. */
 const NICHT_UEBERSETZEN = ['#list', '#stats-body', '#detail-body', '#konto', '#admin', '#gate-inner',
-  '#home-wetter', '#home-prognose',
+  '#home-wetter',
   '#tour-inner', '#ds-text', '#g-ds-text', '#map', '#splash', '#toast',
   '#viewer', '#zeit-gesamt', '#zeit-laeuft', '#zeit-warnung', '#korr-start',
   '#st-count', '#st-waters', '#st-cloud', '#map-count', '#stats-pill',
@@ -4359,7 +4337,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v64';
+const FASSUNG = 'v65';
 
 const KONTO_KEY = 'angellog-konto';
 /* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
@@ -6246,12 +6224,13 @@ const TOUR = [
     fuehrung: true, knopf: 'Ersten Fang eintragen' },
 
   /* ⚠️ Diese Karte steht **direkt hinter der Führung**, und das mit Absicht: davor ist
-     die App leer, und eine Home-Ansicht ohne einen einzigen Fang kann weder Angelzeit
-     noch Prognose zeigen. Sie käme sonst als Versprechen auf einen leeren Bildschirm. */
+     die App leer, und eine Home-Ansicht ohne einen einzigen Fang hat noch keinen Ort
+     fürs Wetter. Sie käme sonst als Versprechen auf einen leeren Bildschirm.
+     ⚠️ Bis zum 27.09.2026 versprach die Karte auch, „wann es bei dir bisher am besten
+     lief" — das war die Fangprognose, und die ist raus. */
   { bild: '🏠', titel: 'Beim nächsten Öffnen landest du hier',
-    text: 'Home ist die erste Ansicht: deine Angelzeit, das Wetter am Wasser mit den '
-        + 'nächsten Stunden — und sobald genug Fänge drin sind, wann es bei dir bisher '
-        + 'am besten lief. Unten kommst du in vier Schritten überall hin: Home, Fänge, '
+    text: 'Home ist die erste Ansicht: deine Angelzeit und das Wetter am Wasser mit den '
+        + 'nächsten Stunden. Unten kommst du in vier Schritten überall hin: Home, Fänge, '
         + 'Neuer Fang, Einstellungen.' },
 
   { bild: '📈', titel: 'Und dann wird es interessant',
@@ -7603,19 +7582,13 @@ function renderStats(){
    und vorraussage für wetter (alles was in der statistik auch vorkommt) fangprognose
    auch."
 
-   Drei Karten: die Angelzeit (umgezogen, siehe HTML), das Wetter am Wasser und die
-   Fangprognose.
+   Zwei Karten: die Angelzeit (umgezogen, siehe HTML) und das Wetter am Wasser.
 
-   ⚠️ **Die Prognose rechnet ausschließlich mit Karls eigenen Fängen.** Es steckt keine
-   Beißformel darin, keine „Solunar"-Tabelle, keine geliehene Faustregel. Sie fragt eine
-   einzige Sache: *wie ähnlich sind die vorhergesagten Bedingungen denen, unter denen
-   dieser Angler bisher gefangen hat?* Alles andere wäre geraten und sähe nur so aus,
-   als wüsste die App etwas.
-
-   ⚠️ **Und sie ist deshalb keine Beißquote.** Die App erfasst keine Ansitze ohne Fang —
-   der Nenner fehlt. Wer meistens samstags früh losfährt, bekommt samstags früh die
-   besten Werte, weil er dann da war. Genau das steht auch in der Karte; es unter den
-   Tisch fallen zu lassen wäre die eine Unehrlichkeit, die diese Ansicht kaputt macht. */
+   ⚠️ **Bis zum 27.09.2026 stand darunter eine dritte: die Fangprognose.** Sie verglich
+   die Vorhersage mit den eigenen Fängen (sechs Maße, bestes Drei-Stunden-Fenster für
+   heute und morgen). Karls Ansage: „Fangprognose kann ganz raus". Ausgebaut samt
+   Rechnung, Wörterbuch, Einführungstext und Prüfungen; wer sie zurückhaben will,
+   findet sie in v64. */
 
 const HEIM_KEY      = 'angellog-heimat';
 const VORHER_KEY    = 'angellog-vorhersage';
@@ -7632,7 +7605,7 @@ const VORHER_FRISCH = 30 * 60e3;      // so lange gilt eine geholte Vorhersage a
    dieselbe Sorte stille Strecke, die diese Woche dreimal zugeschlagen hat: es sieht
    alles normal aus, nur die Zahlen sind von gestern.
    ⚠️ Zwei Stufen statt einer: Gelb heißt „schau drauf", Rot heißt „das ist die
-   Wetterlage von vorgestern, und die Prognose darunter rechnet damit". */
+   Wetterlage von vorgestern". */
 const VORHER_GELB = 6  * 3600e3;
 const VORHER_ROT  = 12 * 3600e3;
 
@@ -7649,12 +7622,6 @@ function seitWann(ms){
     ? T('vor {h} Std {m} Min').replace('{h}', std).replace('{m}', rest)
     : T('vor {h} Std').replace('{h}', std);
 }
-/* Unter so vielen Fängen wird gar keine Prognose gezeigt. Eine aus vier Fängen gerechnete
-   Zahl ist keine Aussage, sondern ein Zufall mit Nachkommastelle. */
-const PROG_MIN_FAENGE = 10;
-/* Und je Maß: ein Wert, den nur drei Fänge tragen, geht nicht in die Rechnung ein. */
-const PROG_MIN_JE_MASS = 6;
-
 function heimatLesen(){
   try {
     const j = JSON.parse(localStorage.getItem(HEIM_KEY) || 'null');
@@ -7709,22 +7676,9 @@ async function vorhersageHolen(force){
   }
 }
 
-/* ---- Bedingungen, einmal aus einem Fang und einmal aus einer vorhergesagten Stunde ----
-   ⚠️ Beide Seiten laufen durch dieselben Felder. Käme die eine Seite in °C und die andere
-   in Zehntelgrad, verglichen die Eimer unten stillschweigend Unsinn — ohne Fehlermeldung,
-   es sähe nur nach „passt nie" aus. */
-function bedingungAusFang(c){
-  const d = new Date(c.when);
-  const m = mondFor(c.when);
-  return {
-    stunde: isNaN(d) ? null : d.getHours(),
-    druck:  c.druck != null && c.druck !== '' ? Number(c.druck) : null,
-    luft:   c.luft  != null && c.luft  !== '' ? Number(c.luft)  : null,
-    wetter: c.wetter || null,
-    mond:   m ? m.key : null,
-    phase:  c.phase || null
-  };
-}
+/* ---- Die Bedingungen einer vorhergesagten Stunde (für „jetzt" auf Home) ----
+   ⚠️ Bis zum 27.09.2026 stand daneben `bedingungAusFang()` — das Gegenstück aus einem
+   Fang, gebraucht nur von der Fangprognose. Mit ihr ausgebaut. */
 function bedingungAusStunde(v, i){
   const iso = v.hourly.time[i];
   const d = new Date(iso);
@@ -7738,92 +7692,6 @@ function bedingungAusStunde(v, i){
     mond:   m ? m.key : null,
     phase:  phaseFor(iso, v.daily)
   };
-}
-
-/* ---- Die sechs Maße, an denen verglichen wird ----
-   Alle sechs stehen auch in der Auswertung auf der X-Achse — Karls Klammer
-   („alles was in der statistik auch vorkommt") ist hier wörtlich gemeint.
-
-   ⚠️ Wassertemperatur, Wassertiefe und Trübung fehlen bewusst: für die gibt es **keine
-   Vorhersage**. Die Pegel der WSV melden Messwerte, keine Prognose, und die Trübung
-   trägt Karl von Hand ein. Ein geschätzter Wert an dieser Stelle wäre eine erfundene
-   Zahl in einer Rechnung, die sonst nur mit echten arbeitet. */
-const PROG_MASSE = [
-  /* Die Uhrzeit mit einem Fenster von ±1 h statt auf die Stunde genau: wer um 5:50
-     gefangen hat, hat nicht „um 5" gefangen. Ohne Fenster wäre die Achse ein Kamm. */
-  { key:'stunde', kurz:'Uhrzeit', eimer: b => b.stunde,
-    nah: (a, z) => { const d = Math.abs(a - z); return Math.min(d, 24 - d) <= 1; } },
-  { key:'phase',  kurz:'Tageszeit',      eimer: b => b.phase },
-  { key:'wetter', kurz:'Wetter',         eimer: b => b.wetter },
-  { key:'mond',   kurz:'Mondphase',      eimer: b => b.mond },
-  // Dieselben Stufen wie in der Auswertung: 5 hPa und 2 °C.
-  { key:'druck',  kurz:'Luftdruck',      eimer: b => b.druck == null ? null : Math.round(b.druck / 5) * 5 },
-  { key:'luft',   kurz:'Lufttemperatur', eimer: b => b.luft  == null ? null : Math.round(b.luft  / 2) * 2 }
-];
-
-/* Was dieser Angler bisher gefangen hat, je Maß zusammengefasst. Einmal gerechnet und
-   dann für alle 72 Stunden benutzt — sonst liefe je Stunde die ganze Fangliste durch. */
-function prognoseModell(faenge){
-  const bed = faenge.map(bedingungAusFang);
-  return PROG_MASSE.map(m => {
-    const werte = bed.map(m.eimer).filter(v => v != null && v !== '');
-    if (werte.length < PROG_MIN_JE_MASS) return null;
-    const passt = (v, z) => m.nah ? m.nah(v, z) : v === z;
-    /* Der stärkste Eimer ist der Maßstab: 1,0 heißt „so oft wie in deiner besten Stufe".
-       Gegen den Durchschnitt zu normieren hätte Werte über 1 erzeugt, und gegen die
-       Gesamtzahl wären alle Werte winzig, sobald es viele Stufen gibt. */
-    let max = 0;
-    for (const z of new Set(werte)) max = Math.max(max, werte.filter(v => passt(v, z)).length);
-    return { mass: m, werte, max, passt };
-  }).filter(Boolean);
-}
-
-/* Wie gut passt eine einzelne vorhergesagte Stunde zu diesem Modell? 0 bis 1. */
-function prognoseStunde(modell, ziel){
-  const teile = [];
-  for (const m of modell){
-    const z = m.mass.eimer(ziel);
-    if (z == null) continue;
-    const treffer = m.werte.filter(v => m.passt(v, z)).length;
-    teile.push({ kurz: m.mass.kurz, anteil: m.max ? treffer / m.max : 0, treffer });
-  }
-  if (!teile.length) return null;
-  return { wert: teile.reduce((s, x) => s + x.anteil, 0) / teile.length, teile };
-}
-
-/* Drei Stufen, mehr nicht. Eine Prozentzahl auf dieser Grundlage vorzugaukeln wäre
-   Scheingenauigkeit — „73 %" liest sich wie eine Messung und ist keine. */
-function prognoseStufe(w){
-  if (w >= 0.60) return { icon:'🟢', text:'passt gut zu deinen Fängen' };
-  if (w >= 0.30) return { icon:'🟡', text:'durchwachsen' };
-  return { icon:'⚪', text:'eher untypisch für dich' };
-}
-
-/* Das beste zusammenhängende Drei-Stunden-Fenster eines Tages. Drei Stunden, weil
-   niemand für eine einzelne Stunde ans Wasser fährt. */
-function bestesFenster(modell, v, tag){
-  const stunden = [];
-  for (let i = 0; i < v.hourly.time.length; i++){
-    const iso = v.hourly.time[i];
-    if (iso.slice(0, 10) !== tag) continue;
-    if (new Date(iso).getTime() < Date.now() - 3600e3) continue;   // Vergangenes nicht vorschlagen
-    const p = prognoseStunde(modell, bedingungAusStunde(v, i));
-    if (p) stunden.push({ iso, i, wert: p.wert, teile: p.teile });
-  }
-  if (stunden.length < 3) return stunden.length ? stunden[0] : null;
-  let bestes = null;
-  for (let k = 0; k + 2 < stunden.length; k++){
-    /* ⚠️ Nur zusammenhängende Stunden. Ohne diese Prüfung würde bei einem angebrochenen
-       Tag über eine Lücke hinweg gemittelt und ein Fenster „19–06 Uhr" ausgegeben. */
-    const a = new Date(stunden[k].iso).getTime();
-    const c = new Date(stunden[k + 2].iso).getTime();
-    if (c - a !== 2 * 3600e3) continue;
-    const wert = (stunden[k].wert + stunden[k + 1].wert + stunden[k + 2].wert) / 3;
-    if (!bestes || wert > bestes.wert)
-      bestes = { wert, von: stunden[k].iso, bis: stunden[k + 2].iso,
-                 teile: stunden[k + 1].teile };
-  }
-  return bestes || stunden[0];
 }
 
 /* ---------------------------- Home zeichnen ---------------------------- */
@@ -7877,7 +7745,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) stan
 let homeLaeuft = false;
 async function renderHome(){
   renderZeit();
-  const wBox = $('#home-wetter'), pBox = $('#home-prognose');
+  const wBox = $('#home-wetter');
   const h = heimatLesen();
 
   if (!h){
@@ -7888,7 +7756,6 @@ async function renderHome(){
       + 'mit Standort erfasst ist, steht hier die Vorhersage für dieses Gewässer — oder du '
       + 'setzt den Ort jetzt von Hand.')}</div>
       <button class="btn sm primary" id="home-gps">📍 ${T('Standort jetzt holen')}</button></div>`;
-    pBox.innerHTML = '';
     return;
   }
 
@@ -7918,15 +7785,15 @@ async function renderHome(){
     wBox.innerHTML = `<div class="card">${kopf(null)}
       <div class="hint" style="margin:0">${T('Keine Vorhersage — und auch keine gespeicherte. '
       + 'Sobald wieder Netz da ist, steht sie hier.')}</div></div>`;
-    pBox.innerHTML = '';
     return;
   }
 
   const i = jetztIndex(v);
   const nun = i >= 0 ? bedingungAusStunde(v, i) : null;
   const mond = mondFor(new Date().toISOString());
-  /* ⚠️ Dieselbe Falle wie bei der Prognose weiter unten, hier für Sonnenauf- und
-     -untergang: `v.hourly.time[i]` IST schon der lokale Tag ("2026-08-16T05:00"). Der
+  /* ⚠️ Dieselbe Falle, die am 16.08.2026 die (inzwischen entfernte) Fangprognose traf,
+     hier für Sonnenauf- und -untergang: `v.hourly.time[i]` IST schon der lokale Tag
+     ("2026-08-16T05:00"). Der
      Umweg über `new Date(...).toISOString()` hat ihn nach UTC zurückgerechnet und
      zwischen 0 und 2 Uhr den Vortag getroffen — also die Sonnenzeiten von gestern.
      Die ersten zehn Zeichen direkt zu nehmen ist nicht nur richtig, sondern auch
@@ -7985,79 +7852,6 @@ async function renderHome(){
      sondern durch dieselbe Funktion wie der Wecker: eine zweite Stelle, an der dasselbe
      Datum formatiert wird, ist eine Stelle, an der es irgendwann auseinanderläuft. */
   standTicken();
-
-  prognoseZeichnen(v);
-}
-
-function prognoseZeichnen(v){
-  const pBox = $('#home-prognose');
-  const fertig = state.catches.filter(c => !c.entwurf);
-
-  /* ⚠️ Die Untergrenze steht **vor** der Rechnung, nicht als Fußnote darunter. Eine
-     Prognose aus vier Fängen wäre nicht ungenau, sondern bedeutungslos — und sie sähe
-     genauso aus wie eine aus vierhundert. */
-  if (fertig.length < PROG_MIN_FAENGE){
-    pBox.innerHTML = `<div class="card"><h2>${T('Fangprognose')}</h2>
-      <div class="hint" style="margin:0">${T('Dafür sind es noch zu wenige Fänge.')} ${
-        /* ⚠️ Zahl über einen Platzhalter, nicht über zusammengeklebte Satzstücke.
-           „… sind eingetragen, gerechnet wird ab 10" ist auf Deutsch ein Satz und auf
-           Englisch drei Bruchstücke in anderer Reihenfolge — übersetzbar ist nur der
-           ganze Satz. */
-        T('Erst {a} von {b} Fängen sind eingetragen.')
-          .replace('{a}', fertig.length).replace('{b}', PROG_MIN_FAENGE)
-      } ${T('Die Prognose vergleicht die Vorhersage mit deinen eigenen Fängen — vorher hätte sie '
-      + 'nichts, womit sie vergleichen könnte.')}</div></div>`;
-    return;
-  }
-
-  const modell = prognoseModell(fertig);
-  if (!modell.length){
-    pBox.innerHTML = `<div class="card"><h2>${T('Fangprognose')}</h2>
-      <div class="hint" style="margin:0">${T('Deine Fänge tragen noch zu wenige automatische Werte '
-      + '— hol beim Erfassen einmal die Bedingungen, dann rechnet die Prognose damit.')}</div></div>`;
-    return;
-  }
-
-  /* ⚠️ **Ortszeit, nicht UTC** (behoben am 16.08.2026, gefunden vom Prüfrahmen um 00:50).
-     Open-Meteo liefert mit `timezone=auto` lokale Zeitstempel ohne Zonenangabe
-     ("2026-08-16T05:00"), und `bestesFenster()` vergleicht die ersten zehn Zeichen davon
-     mit dem Tag hier. Ein `toISOString()` rechnet aber nach UTC um — in der Sommerzeit
-     also zwei Stunden zurück.
-     ➡️ **Zwischen 0:00 und 2:00 stand hier deshalb der VORTAG.** Die Folge war nicht etwa
-     eine falsche Zahl, sondern: die Heute-Karte fiel ganz weg (ihr Tag lag in der
-     Vergangenheit und wurde gefiltert), und der heutige Tag stand unter der Überschrift
-     „Morgen". Im Winter ist das Fenster 0:00–1:00.
-     ⚠️ Und es trifft genau die Stunden, in denen jemand nachts nachsieht, wann er
-     morgens los soll. */
-  const tagKey = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-  const heute  = tagKey(new Date());
-  const morgen = tagKey(new Date(Date.now() + 864e5));
-  const karte = (tag, titel) => {
-    const b = bestesFenster(modell, v, tag);
-    if (!b) return '';
-    const s = prognoseStufe(b.wert);
-    /* Die zwei stärksten Gründe dazuschreiben. Eine Stufe ohne Begründung ist ein
-       Orakel — mit Begründung kann Karl ihr widersprechen, und das soll er können. */
-    const gruende = (b.teile || []).slice().sort((x, y) => y.anteil - x.anteil).slice(0, 2)
-      .map(x => T(x.kurz)).join(' · ');
-    return `<div style="padding:10px 0; border-top:1px solid var(--line)">
-      <div class="row between" style="display:flex; align-items:baseline; gap:10px">
-        <div style="font-weight:700">${titel}</div>
-        <div class="tiny muted">${b.von ? hhmm(b.von) + '–' + hhmm(b.bis) + ' ' + T('Uhr') : ''}</div>
-      </div>
-      <div style="margin-top:4px">${s.icon} ${T(s.text)}</div>
-      ${gruende ? `<div class="tiny muted" style="margin-top:3px">${T('am ehesten wegen')}: ${gruende}</div>` : ''}
-    </div>`;
-  };
-
-  const benutzt = modell.map(m => T(m.mass.kurz)).join(', ');
-  pBox.innerHTML = `<div class="card"><h2>${T('Fangprognose')}</h2>
-    <div class="tiny muted" style="margin:-2px 0 4px">${T('Verglichen an')}: ${benutzt}</div>
-    ${karte(heute, T('Heute'))}${karte(morgen, T('Morgen'))}
-    <div class="hint" style="margin:10px 0 0">${T('Das ist keine Beißvorhersage. Die App zählt nur '
-    + 'Fänge, keine Ansitze ohne Fang — die Prognose sagt also, wie sehr die Bedingungen denen '
-    + 'ähneln, unter denen du bisher gefangen hast. Wer meistens samstags früh losfährt, bekommt '
-    + 'samstags früh die besten Werte.')}</div></div>`;
 }
 
 /* Standort von Hand setzen. ⚠️ Nur auf Tippen, nie von selbst — siehe heimatLesen(). */
