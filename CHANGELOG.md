@@ -6,6 +6,39 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 27.09.2026 (v62) — Die untere Leiste wie in gym-log
+
+**Karls Ansage:** *„die Leiste unten soll die selben Regeln wie die in der gym log App haben"* —
+dazu *„und aussehen"* und *„auch das gleiche"*.
+
+Übernommen ist, was in gym-log über v0.079, v0.081, v0.083, v0.087 und v0.111 entstanden ist:
+
+| | Was jetzt gilt |
+|---|---|
+| 🫧 **Aussehen** | Eine schwebende Kapsel, 10 px vom Rand, durchscheinend mit Milchglas dahinter, Schatten darunter |
+| 🔣 **Nur Symbole** | Die Beschriftungen sind auf dem Handy weg, die Symbole etwas größer (25 statt 22 px) |
+| 🔵 **Blase** | Um den aktiven Reiter liegt eine Blase, die beim Wechsel leicht nachfedernd mitgleitet (bei „Bewegung reduzieren" springt sie) |
+| 📏 **Abstand nach unten gedeckelt** | Höchstens 26 px, egal was das iPhone als Sicherheitsabstand meldet — in gym-log gemessen: angefordert 44 pt, gekommen 108 |
+| 📐 **Jede Seite mindestens bildschirmhoch** | Sonst steht die Leiste auf kurzen Seiten anders hoch als auf langen (iOS blendet seine eigene Leiste nur auf Seiten aus, die scrollen) |
+| ⬆️ **Nach oben, bevor die neue Seite steht** | Vorher erst danach — der Sprung dazwischen hat in gym-log die Leiste auf dem iPhone kurz mitgerissen. Ein Tipp auf den Reiter, auf dem man schon ist, springt nicht mehr nach oben |
+| 🖥️ **PC** | Ab 900 px Breite eine 232 px breite Seitenleiste links, mit Schrift — das Schweben wird dort vollständig zurückgenommen |
+
+- **Die rote Zahl am Zahnrad** sitzt jetzt rechts oben neben dem Symbol. Die Beschriftung ist
+  auf dem Handy nicht *weg*, sondern auf Schriftgröße 0 geschrumpft — die Zahl hängt darin.
+  ⚠️ Mit `display:none` wäre sie lautlos mitverschwunden. Eine Prüfung misst sie.
+- **Der Speichern-Haken** beim Erfassen steht auf einer festen Höhe über der Leiste
+  (vorher aus derselben unzuverlässigen Meldung gerechnet wie die alte Leiste).
+- **Was nicht mitgekommen ist:** Wischen zwischen den Reitern und die Einschiebe-Bewegung.
+  Beides gehört in gym-log nicht zur Leiste, sondern zu den Seiten.
+
+🧪 **Prüfstand 724 → 741** (17 Leisten-Prüfungen, aus gym-log übernommen und angepasst).
+**Gegenprobe: 6 von 6 neuen Handgriffen werden bemerkt** (`python gegenprobe.py Leiste`) —
+Hochscrollen erst danach, Blase nicht nachgezogen, Beschriftung mit `display:none`, Deckel weg,
+PC nimmt das Schweben nicht zurück, Mindesthöhe weg.
+⚠️ **Das Zeitbudget des Prüfstands ist von 45.000 auf 120.000 gestiegen.** Mit den neuen
+Prüfungen endete der Lauf mitten in einem Messrahmen, ohne Ergebnis — mit dem größeren Budget
+liefen alle 741 grün. Virtuelle Zeit kostet keine echte.
+
 ## 22.09.2026 (v61) — Tibo ist zweiter Admin, rote Nadeln, alle Angaben im Popup
 
 **Karls Ansagen, am selben Abend nach v60:**

@@ -70,8 +70,19 @@ setTimeout(function(){
   html,body{margin:0; background:var(--bg); color:var(--txt);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     -webkit-font-smoothing:antialiased}
-  body{max-width:560px; margin:0 auto; padding:0 0 96px;
+  /* 94 px unten: die Leiste steht höchstens 26 px über dem Rand und ist rund 55 px hoch —
+     ihre Oberkante liegt also nie höher als gut 80 px. Eine feste Zahl statt
+     `env(safe-area-inset-bottom)`, aus demselben Grund wie beim Deckel an der Leiste. */
+  body{max-width:560px; margin:0 auto; padding:0 0 94px;
     padding-top:calc(env(safe-area-inset-top) + 14px)}
+  /* ---- Jede Seite mindestens bildschirmhoch (27.09.2026, Regel aus gym-log v0.087) ----
+     Auf einer Seite, die scrollt, schrumpft iOS die Browserleiste weg und gibt der Seite
+     mehr Platz; auf einer kurzen Seite nicht. Die Leiste hängt am unteren Rand des
+     NUTZBAREN Bereichs — sie stünde damit je nach Seitenlänge verschieden hoch
+     (in gym-log gemessen: 58,7 pt Unterschied zwischen zwei Seiten).
+     `100vh` und nicht `100dvh`: `dvh` ist der geschrumpfte Bereich, die Seite wäre darin
+     genau bildschirmhoch und scrollte nicht. Der eine Pixel sorgt dafür, dass sie scrollt. */
+  body{min-height:calc(100vh + 1px)}
   h1,h2,h3{margin:0; font-weight:700}
   button{font-family:inherit; cursor:pointer; border:none; color:var(--txt)}
   input,select,textarea{font-family:inherit}
@@ -339,7 +350,9 @@ setTimeout(function(){
   #st-cloud[hidden]{display:none}
 
   /* Speichern-Haken — spart das Scrollen ans Formularende */
-  .fab{position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom) + 76px);
+  /* Über der Leiste: deren Oberkante liegt nie höher als gut 80 px (Deckel dort). Feste
+     Zahl statt env(), sonst hinge der Knopf an derselben unzuverlässigen Meldung. */
+  .fab{position:fixed; right:16px; bottom:92px;
     width:58px; height:58px; border-radius:99px; background:var(--accent);
     color:var(--accent-ink); display:none; place-items:center; z-index:950;
     box-shadow:0 8px 22px rgba(0,0,0,.45)}
@@ -384,8 +397,7 @@ setTimeout(function(){
   .gal{display:grid; grid-template-columns:1fr 1fr; gap:8px}
   .gal img{width:100%; border-radius:12px; display:block}
 
-  /* Tableiste */
-  /* deckend statt durchscheinend — sonst passt die Leiste nicht zu hellen Paletten */
+  /* Tableiste — die untere Leiste selbst steht weiter unten bei `.tabs`. */
   /* Der Umschalter zwischen Liste, Karte und Auswertung (12.08.2026).
      ⚠️ Drei gleich breite Felder statt Reitern: die drei sind gleichrangig, und
         ein Reiter, der breiter ist als der daneben, behauptet eine Rangfolge,
@@ -399,19 +411,63 @@ setTimeout(function(){
   #kopf[hidden]{display:none}
   @media (min-width:760px){ .seg{max-width:760px} }
 
-  .tabs{position:fixed; left:0; right:0; bottom:0; background:var(--bg);
-    border-top:1px solid var(--line); display:flex;
-    padding:8px 10px calc(env(safe-area-inset-bottom) + 8px); gap:6px; z-index:900}
-  .tabs > div{max-width:560px; margin:0 auto; width:100%; display:flex; gap:5px}
-  /* ⚠️ Seit der vierten Kachel (13.08.2026) bleiben auf 320 px noch rund 70 px je
-     Kachel. „Einstellungen" ist in 11 px breiter als das — deshalb 10 px und
-     `min-width:0`. Ohne das Zweite ist eine Flex-Kachel mindestens so breit wie ihr
-     Inhalt und schiebt die Leiste seitlich aus dem Bild, statt sich zu fügen. */
-  .tab{flex:1 1 0; min-width:0; background:transparent; border-radius:12px; padding:8px 2px;
-    font-size:10px; font-weight:600; color:var(--muted); display:grid; gap:3px;
-    justify-items:center; overflow:hidden}
+  /* ---- Die untere Leiste wie in gym-log (27.09.2026, Karls Ansage) ----
+     „die Leiste unten soll die selben Regeln wie die in der gym log App haben" — dazu
+     „und aussehen" und „auch das gleiche". Übernommen ist, was dort über v0.079, v0.081,
+     v0.083, v0.087 und v0.111 entstanden ist:
+       · eine schwebende Kapsel, 10 px vom Rand, durchscheinend mit Milchglas dahinter
+       · nur Symbole, keine Beschriftung (der Text bleibt im DOM, siehe .navtxt)
+       · eine Blase um den aktiven Reiter, die beim Wechsel mitgleitet
+       · der Abstand nach unten ist GEDECKELT, nicht aus env() gerechnet
+       · jede Seite mindestens bildschirmhoch (beim body), damit sie überall gleich hoch steht
+       · beim Wechsel nach oben, BEVOR die neue Seite steht (in go())
+       · auf dem PC eine 232 px breite Seitenleiste links
+     ⚠️ Bis heute stand hier „deckend statt durchscheinend — sonst passt die Leiste nicht zu
+     hellen Paletten". `color-mix` mischt aber die Kartenfarbe DER JEWEILIGEN Palette an:
+     auf einer hellen Palette ist die Leiste hell, auf einer dunklen dunkel.
+     🔴 Der Deckel, gemessen in gym-log an Karls Bildschirmfoto (11.09.2026): angefordert
+     waren 44 pt Abstand nach unten, gekommen sind 108 — `env(safe-area-inset-bottom)` meldet
+     auf dem Gerät viel mehr als die 34 pt, mit denen man rechnet. Deshalb höchstens 26 px.
+     ⚠️ `min()` und `color-mix` stehen jeweils in einer ZWEITEN Zeile mit einfacher Vorgabe
+     davor: ein Browser, der sie nicht kennt, überspringt die Zeile — ohne Vorgabe stünde
+     `bottom` auf `auto` und die Leiste klebte OBEN, oder sie hätte keinen Hintergrund. */
+  .tabs{position:fixed; left:10px; right:10px;
+    bottom:14px;
+    bottom:min(calc(env(safe-area-inset-bottom) + 10px), 26px);
+    z-index:900; max-width:500px; margin:0 auto; display:flex; border-radius:99px; padding:5px;
+    background:var(--card);
+    background:color-mix(in srgb, var(--card) 76%, transparent);
+    -webkit-backdrop-filter:blur(18px) saturate(170%); backdrop-filter:blur(18px) saturate(170%);
+    border:1px solid var(--line);
+    border:1px solid color-mix(in srgb, var(--line) 65%, transparent);
+    box-shadow:0 10px 28px rgba(0,0,0,.30), 0 2px 8px rgba(0,0,0,.16)}
+  /* `min-width:0` bleibt: ohne das ist eine Flex-Kachel mindestens so breit wie ihr Inhalt
+     und schiebt die Leiste auf 320 px seitlich aus dem Bild, statt sich zu fügen. */
+  .tab{flex:1 1 0; min-width:0; position:relative; z-index:1; background:none;
+    padding:8px 0 7px; border-radius:99px; color:var(--muted); display:flex;
+    flex-direction:column; align-items:center; gap:3px; font-size:11px; font-weight:600}
   .tab.on{color:var(--accent)}
-  .tab svg{width:22px; height:22px}
+  .tab svg{width:25px; height:25px}
+  /* 🔴 `font-size:0` und NICHT `display:none` — die rote Zahl am Zahnrad hängt IM Wort-Span.
+     Mit `display:none` verschwände sie mit: eine Nachricht im Postfach, die niemand sieht,
+     und nirgends würde etwas rot. So bleibt der Span stehen, schrumpft auf null und trägt
+     die Zahl weiter; jeder Knopf behält nebenbei seinen Namen für eine Vorlesehilfe.
+     Die PC-Fassung unten holt die Schrift zurück. */
+  .navtxt{position:static; font-size:0; line-height:0}
+  /* Die Zahl rechts oben neben dem Symbol, nicht am Rand eines breiten Knopfes. */
+  .tab .badge{top:5px; left:50%; right:auto; margin-left:4px; box-shadow:0 0 0 2px var(--card)}
+  /* ---- Die Blase um den aktiven Reiter (aus gym-log, dort seit dem 15.09.2026) ----
+     EIN Element, das wandert — nicht eine Blase je Knopf, die an- und ausgeht; nur so
+     „kommt sie mit". Wohin, rechnet navBlaseSetzen() aus dem aktiven Knopf aus.
+     Leichtes Nachfedern; wer Bewegung abgestellt hat, bekommt einen Sprung. */
+  #navblase{position:absolute; top:5px; bottom:5px; left:0; width:0; border-radius:99px;
+    background:rgba(127,127,127,.18);
+    background:color-mix(in srgb, var(--txt) 12%, transparent);
+    pointer-events:none; opacity:0;
+    transition:transform .42s cubic-bezier(.3,1.25,.5,1), width .42s cubic-bezier(.3,1.25,.5,1), opacity .2s}
+  #navblase.da{opacity:1}
+  #navblase.sofort{transition:none}
+  @media (prefers-reduced-motion: reduce){ #navblase{transition:opacity .2s} }
 
   /* Overlays */
   /* Am großen Bildschirm keine feste Breite mehr, sondern mitwachsend: die
@@ -425,9 +481,35 @@ setTimeout(function(){
      die Zeile mit Timer und Suche über der Liste. */
   @media (min-width: 900px){
     :root{--sp:20px}
-    body{max-width:none}
-    /* Die Reiter dürfen nicht über einen Meter auseinanderlaufen. */
-    .tabs > div{max-width:760px}
+    /* Links Platz für die Seitenleiste. Die Mindesthöhe wird zurückgenommen: am PC gibt es
+       keine Browserleiste, die wegschrumpft — der eine Pixel wäre nur ein Rollbalken, der
+       immer dasteht und nichts tut. */
+    body{max-width:none; padding-left:232px; padding-bottom:40px; min-height:auto}
+
+    /* ---- Untere Leiste wird zur Seitenleiste (wie gym-log) ----
+       ⚠️ Das Schweben wird hier VOLLSTÄNDIG zurückgenommen: eine 232 px breite Seitenleiste
+       mit runden Ecken, Schatten und Milchglas wäre ein Kasten, der im Nichts hängt.
+       Jede Eigenschaft der Handy-Fassung muss hier auftauchen — was fehlt, bleibt stehen.
+       `border:none` vor `border-right`, sonst hat sie rundum einen Rahmen. */
+    .tabs{top:0; bottom:0; right:auto; left:0; width:232px; max-width:none; flex-direction:column;
+      justify-content:flex-start; gap:4px; padding:26px 14px;
+      border-radius:0; box-shadow:none; background:var(--card);
+      -webkit-backdrop-filter:none; backdrop-filter:none;
+      border:none; border-right:1px solid var(--line)}
+    .tabs:before{content:'Angel-Log'; display:block; font-size:17px; font-weight:800;
+      color:var(--txt); padding:0 12px 18px}
+    .tab{flex:0 0 auto; flex-direction:row; justify-content:flex-start; gap:12px;
+      font-size:14.5px; padding:11px 12px; border-radius:12px; width:100%}
+    .tab.on{background:var(--card2)}
+    .tab svg{width:22px; height:22px}
+    /* Hier markiert der Hintergrund des Knopfs selbst — eine wandernde Blase in einer
+       senkrechten Leiste wäre eine zweite Markierung für dieselbe Sache. */
+    #navblase{display:none}
+    /* ⚠️ Schrift ZURÜCKSETZEN: die Handy-Regel dreht sie im Span auf 0, und ein
+       `.tab{font-size}` hilft dagegen nichts. Ohne das wäre die Seitenleiste unbeschriftet.
+       `relative`, damit die rote Zahl am Wort klebt und nicht an der Knopfbreite. */
+    .navtxt{position:relative; font-size:inherit; line-height:normal}
+    .tab .badge{top:-7px; left:auto; right:-15px; margin-left:0}
     /* Fangliste mehrspaltig — der eigentliche Gewinn am großen Bildschirm.
        ⚠️ Seit dem 13.08.2026 sind die Kacheln hochkant und stehen schon am Handy zu
        zweit. Hier geht es deshalb nur noch um **mehr als zwei** Spalten; 330 px waren
@@ -444,7 +526,7 @@ setTimeout(function(){
     #v-new .head, #v-detail .head{max-width:640px; margin:0 auto}
     #map{height:calc(100vh - 190px)}
     .gal{grid-template-columns:repeat(auto-fill, minmax(220px, 1fr))}
-    .fab{right:24px}
+    .fab{right:24px; bottom:24px}
 
     /* Statistik am großen Bildschirm: mehrere Auswertungen nebeneinander statt
        einer breiten. Das ist der Punkt, an dem Vergleichen überhaupt geht —
@@ -1371,31 +1453,33 @@ function splashWeg(){
 <!-- ⚠️ Seit dem 13.08.2026 vier Kacheln statt drei (Karls Ansage): Home steht vorn.
      Die Leiste beantwortet weiter „was will ich tun?" — und das Erste, was man beim
      Aufmachen will, ist nicht die Liste von gestern, sondern ob es sich heute lohnt. -->
+<!-- ⚠️ Seit dem 27.09.2026 wie in gym-log: die Knöpfe stehen direkt in der Leiste (kein
+     innerer Kasten mehr), davor die Blase, und jede Beschriftung in einem eigenen Span —
+     auf dem Handy auf null geschrumpft, auf dem PC wieder da. Die rote Zahl steckt IM
+     Wort-Span, damit sie auf dem PC am Wort klebt. -->
 <nav class="tabs">
-  <div>
-    <button class="tab on" data-go="home">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3.5 10.5 12 4l8.5 6.5"/><path d="M5.8 9.4V19h12.4V9.4"/><path d="M10 19v-4.6h4V19"/>
-      </svg>Home
-    </button>
-    <button class="tab" data-go="log">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 6h16M4 12h16M4 18h10"/>
-      </svg>Fänge
-    </button>
-    <button class="tab" data-go="new">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-        <path d="M12 5v14M5 12h14"/>
-      </svg>Neuer Fang
-    </button>
-    <button class="tab" id="tab-set" data-go="set" style="position:relative">
-      <span class="badge" id="badge-set" hidden></span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3.1"/>
-        <path d="M19.2 13.2a7.4 7.4 0 0 0 0-2.4l2-1.5-2-3.4-2.3 1a7.4 7.4 0 0 0-2.1-1.2L14.4 3H9.6l-.4 2.7a7.4 7.4 0 0 0-2.1 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7.4 7.4 0 0 0 2.1 1.2l.4 2.7h4.8l.4-2.7a7.4 7.4 0 0 0 2.1-1.2l2.3 1 2-3.4z"/>
-      </svg>Einstellungen
-    </button>
-  </div>
+  <span id="navblase" aria-hidden="true"></span>
+  <button class="tab on" data-go="home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3.5 10.5 12 4l8.5 6.5"/><path d="M5.8 9.4V19h12.4V9.4"/><path d="M10 19v-4.6h4V19"/>
+    </svg><span class="navtxt">Home</span>
+  </button>
+  <button class="tab" data-go="log">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 6h16M4 12h16M4 18h10"/>
+    </svg><span class="navtxt">Fänge</span>
+  </button>
+  <button class="tab" data-go="new">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+      <path d="M12 5v14M5 12h14"/>
+    </svg><span class="navtxt">Neuer Fang</span>
+  </button>
+  <button class="tab" id="tab-set" data-go="set">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3.1"/>
+      <path d="M19.2 13.2a7.4 7.4 0 0 0 0-2.4l2-1.5-2-3.4-2.3 1a7.4 7.4 0 0 0-2.1-1.2L14.4 3H9.6l-.4 2.7a7.4 7.4 0 0 0-2.1 1.2l-2.3-1-2 3.4 2 1.5a7.4 7.4 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a7.4 7.4 0 0 0 2.1 1.2l.4 2.7h4.8l.4-2.7a7.4 7.4 0 0 0 2.1-1.2l2.3 1 2-3.4z"/>
+    </svg><span class="navtxt">Einstellungen<span class="badge" id="badge-set" hidden></span></span>
+  </button>
 </nav>
 
 <script>
@@ -4216,7 +4300,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v61';
+const FASSUNG = 'v62';
 
 const KONTO_KEY = 'angellog-konto';
 /* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
@@ -7934,6 +8018,14 @@ const SAMMEL = ['log', 'map', 'stats'];
 
 function go(view){
   freeURLs();
+  /* 🔴 Nach oben, BEVOR die neue Ansicht steht (27.09.2026, Regel aus gym-log v0.111).
+     Bis heute stand das scrollTo am Ende: einen Augenblick lang stand die neue, vielleicht
+     kurze Seite an der Scrollposition der alten, der Browser musste sie in einem Bild
+     kappen — und auf dem iPhone reißt genau dieser Sprung die Leiste kurz mit nach oben.
+     ⚠️ Nur bei einem echten Wechsel: ein Tipp auf den Reiter, auf dem man schon steht,
+     soll nicht wegspringen. („Neuer Fang" auf „Neuer Fang" fängt trotzdem oben an —
+     resetForm() leert das Formular und scrollt dabei selbst hoch.) */
+  if (state.view !== view) window.scrollTo(0, 0);
   state.view = view;
   ['home', 'log', 'new', 'map', 'stats', 'detail', 'set'].forEach(v => $('#v-' + v).classList.toggle('hidden', v !== view));
   $('#fab-save').classList.toggle('on', view === 'new');
@@ -7953,6 +8045,7 @@ function go(view){
      unten nichts, und die Leiste sähe aus, als sei man nirgends. */
   $$('.tab').forEach(t => t.classList.toggle('on',
     t.dataset.go === view || ((sammel || view === 'detail') && t.dataset.go === 'log')));
+  navBlaseSetzen();
 
   if (view === 'home')   renderHome();
   if (view === 'log')    renderList();
@@ -7968,8 +8061,30 @@ function go(view){
      ändert sich, während die Seite zu ist. Ohne Freischaltung zeichnet das nichts und
      fragt niemanden. */
   if (view === 'set'){ renderAdmin(); adminZahlHolen(); }
-  window.scrollTo(0, 0);
 }
+/* Die Blase unter den aktiven Reiter schieben (aus gym-log) — Begründung beim CSS.
+   ⚠️ Das allererste Mal OHNE Bewegung (`sofort`): sonst fliegt sie beim Öffnen der App von
+   ganz links herein, obwohl niemand etwas gewechselt hat. Dasselbe, solange die Leiste
+   keine Breite hat: dort misst jeder Knopf 0 px, und die Blase müsste beim Einblenden erst
+   hinfliegen. Die Lage kommt aus dem aktiven Knopf, nicht aus „Index mal ein Viertel" —
+   so stimmt sie auch, wenn ein Knopf einmal breiter wird. */
+let navBlaseSteht = false;
+function navBlaseSetzen(){
+  const blase = document.getElementById('navblase');
+  const knopf = document.querySelector('.tabs .tab.on');
+  if (!blase) return;
+  if (!knopf || !knopf.offsetWidth){ blase.classList.remove('da'); navBlaseSteht = false; return; }
+  const rand = 4;
+  const sofort = !navBlaseSteht;
+  blase.classList.toggle('sofort', sofort);
+  blase.style.width = Math.max(0, knopf.offsetWidth - 2 * rand) + 'px';
+  blase.style.transform = 'translateX(' + (knopf.offsetLeft + rand) + 'px)';
+  if (sofort){ void blase.offsetWidth; blase.classList.remove('sofort'); }
+  blase.classList.add('da');
+  navBlaseSteht = true;
+}
+/* Dreht sich das Handy, werden die Knöpfe breiter — die Blase muss ohne Anlauf mit. */
+window.addEventListener('resize', () => { navBlaseSteht = false; navBlaseSetzen(); });
 $$('.tab').forEach(t => t.onclick = () => {
   if (t.dataset.go === 'new'){ state.editId = null; state.editWasSaved = false; }
   go(t.dataset.go);

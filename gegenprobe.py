@@ -286,6 +286,44 @@ PROBEN = [
      "Außer ihnen sieht niemand deine Fänge.",
      "Andere Nutzer sehen deine Fänge nicht.",
      'der zweite Admin IST'),
+
+    # ---- Die untere Leiste wie in gym-log (27.09.2026) ----
+    #   python gegenprobe.py Leiste   -> nur diese sechs
+    ('Leiste: scrollt erst nach dem Umschalten, und auch beim selben Reiter',
+     'index.html',
+     "  if (state.view !== view) window.scrollTo(0, 0);\n  state.view = view;",
+     "  state.view = view; window.scrollTo(0, 0);",
+     'ein Wechsel scrollt nach oben'),
+
+    ('Leiste: go() zieht die Blase nicht nach',
+     'index.html',
+     "t.dataset.go === 'log')));\n  navBlaseSetzen();\n",
+     "t.dataset.go === 'log')));\n",
+     'die Blase steht unter dem aktiven Reiter'),
+
+    ('Leiste: Beschriftung mit display:none statt font-size:0',
+     'index.html',
+     ".navtxt{position:static; font-size:0; line-height:0}",
+     ".navtxt{display:none}",
+     'die rote Zahl am Zahnrad bleibt'),
+
+    ('Leiste: Abstand nach unten wieder aus env() gerechnet',
+     'index.html',
+     "    bottom:min(calc(env(safe-area-inset-bottom) + 10px), 26px);\n    z-index:900",
+     "    bottom:calc(env(safe-area-inset-bottom) + 10px);\n    z-index:900",
+     'der Abstand nach unten ist gedeckelt'),
+
+    ('Leiste: der PC nimmt das Schweben nicht zurueck',
+     'index.html',
+     "      border-radius:0; box-shadow:none; background:var(--card);",
+     "      background:var(--card);",
+     'Seitenleiste das Schweben'),
+
+    ('Leiste: kurze Seiten sind wieder kuerzer als der Bildschirm',
+     'index.html',
+     "  body{min-height:calc(100vh + 1px)}",
+     "",
+     'mindestens bildschirmhoch'),
 ]
 
 

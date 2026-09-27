@@ -4434,6 +4434,203 @@ window.addEventListener('error', e => {
     go('log');
     return true;
   });
+
+  /* ====== Die untere Leiste wie in gym-log (27.09.2026, Karls Ansage) ======
+     "die Leiste unten soll die selben Regeln wie die in der gym log App haben", dazu
+     "und aussehen" und "auch das gleiche". Die Pruefungen sind aus gym-log uebernommen:
+     dort halten sie fest, was ueber v0.079 bis v0.111 an mehreren Tagen erarbeitet wurde.
+     Gemessen wird im Rahmen fester Breite (390 Handy, 1000 PC) -- Chrome headless haelt
+     sich hier nicht an die Fenstergroesse, siehe imRahmen. */
+  const cssRegel = (selektor, pc, eig) => {
+    let gefunden = null;
+    const suche = (regeln, imPC) => {
+      for (const r of Array.from(regeln)){
+        const istPC = imPC || !!(r.media && String(r.media.mediaText).indexOf('900px') >= 0);
+        const sel = (r.selectorText || '').split(',').map(x => x.trim());
+        if (istPC === pc && sel.indexOf(selektor) >= 0 && r.style && (!eig || r.style[eig]))
+          gefunden = r.style;
+        if (r.cssRules && r.cssRules.length) suche(r.cssRules, istPC);
+      }
+    };
+    for (const bl of Array.from(document.styleSheets)){
+      try { suche(bl.cssRules, false); } catch (e) {}
+    }
+    return gefunden;
+  };
+  const stilText = () => Array.from(document.querySelectorAll('style')).map(s => s.textContent).join('\n');
+
+  /* Auf einer kurzen Seite schrumpft iOS die Browserleiste nicht weg -- die Leiste stuende
+     dort anders hoch als auf einer langen (gym-log v0.087: 58,7 pt Unterschied).
+     `dvh` waere unsichtbar falsch: der geschrumpfte Bereich, die Seite scrollte darin nicht.
+     Der Browser schreibt `calc(100vh + 1px)` um -- gefragt wird nur, OB der Pixel drin ist. */
+  t('Leiste: jede Seite ist mindestens bildschirmhoch (vh + 1px, nicht dvh)', () => {
+    const s = cssRegel('body', false, 'minHeight');
+    if (!s) return 'keine Mindesthoehe am body in der Handy-Fassung';
+    const m = s.minHeight;
+    if (/dvh/.test(m)) return 'mit dvh gerechnet statt vh: ' + m;
+    if (m.indexOf('vh') < 0) return 'haengt nicht am Bildschirm: ' + m;
+    return /1px/.test(m) || 'ohne den einen Pixel scrollt die Seite nicht: ' + m;
+  });
+  t('Leiste: rund, und sie klebt nicht unten an', () => {
+    const s = cssRegel('.tabs', false);
+    if (!s) return 'keine .tabs-Regel in der Handy-Fassung';
+    if (!(parseFloat(s.borderRadius) > 8)) return 'Eckenradius ' + (s.borderRadius || 'nicht gesetzt');
+    const b = s.bottom || '';
+    if (!b || b === '0px' || b === '0') return 'die Leiste klebt unten an: bottom=' + (b || 'leer');
+    return b.indexOf('safe-area-inset-bottom') >= 0 || 'der Geraete-Balken fehlt im Abstand: ' + b;
+  });
+  /* 🔴 In gym-log an Karls Bildschirmfoto gemessen: angefordert 44 pt, gekommen 108 --
+     env() meldet auf dem Geraet viel mehr, als man rechnet. Ohne Deckel haengt die Lage
+     der Leiste wieder an einer Zahl, die niemand nachmessen kann. */
+  t('Leiste: der Abstand nach unten ist gedeckelt', () => {
+    const s = cssRegel('.tabs', false);
+    const b = (s && s.bottom) || '';
+    return b.indexOf('min(') >= 0 || 'ohne Deckel: bottom=' + (b || 'nicht gesetzt');
+  });
+  /* Ein Browser ohne min() ueberspringt die Zeile -- ohne Vorgabe davor stuende `bottom`
+     auf `auto` und die Leiste klebte OBEN. Im Regelwerk ist die Vorgabe nicht mehr zu
+     sehen (zwei gleiche Eigenschaften fallen zu einer zusammen), deshalb der Quelltext. */
+  t('Leiste: vor dem Deckel steht eine einfache Vorgabe', () => {
+    const q = stilText();
+    const i = q.indexOf('bottom:min(calc(env(safe-area-inset-bottom)');
+    if (i < 0) return 'die gedeckelte Zeile steht nicht im CSS';
+    return q.slice(Math.max(0, i - 120), i).indexOf('bottom:14px') >= 0
+      || 'keine einfache Vorgabe vor der min()-Zeile';
+  });
+  t('Leiste: ein bisschen durchscheinend', () => {
+    const s = cssRegel('.tabs', false);
+    const bg = s ? (s.background || s.backgroundColor || '') : '';
+    return bg.indexOf('color-mix') >= 0 || 'der Hintergrund ist deckend: ' + (bg || 'nicht gesetzt');
+  });
+  /* Die Gegenrichtung: auf dem PC wird die Leiste zur Seitenleiste. Was dort nicht
+     ausdruecklich zurueckgenommen wird, bleibt stehen -- ein Kasten, der im Nichts haengt. */
+  t('Leiste: auf dem PC nimmt die Seitenleiste das Schweben zurueck', () => {
+    const s = cssRegel('.tabs', true);
+    if (!s) return 'keine .tabs-Regel in der PC-Fassung';
+    const fehlt = [];
+    if (parseFloat(s.borderRadius) !== 0) fehlt.push('Eckenradius ' + (s.borderRadius || 'nicht gesetzt'));
+    if ((s.boxShadow || '') !== 'none') fehlt.push('Schatten ' + (s.boxShadow || 'nicht gesetzt'));
+    const bg = s.background || s.backgroundColor || '';
+    if (bg.indexOf('color-mix') >= 0) fehlt.push('Hintergrund noch durchscheinend');
+    if (s.width !== '232px') fehlt.push('Breite ' + (s.width || 'nicht gesetzt'));
+    return fehlt.length === 0 || fehlt.join(', ');
+  });
+  /* 🔴 gym-log v0.111, Karls Meldung: "die Leiste ist ganz kurz oben und dann geht sie erst
+     runter". Die Scrollposition der alten Seite blieb stehen, der Browser musste sie auf der
+     neuen in einem Bild kappen. Geprueft am Einbau: ein echter Wechsel scrollt, SOLANGE noch
+     die alte Ansicht gilt; ein Tipp auf den Reiter, auf dem man steht, scrollt gar nicht. */
+  t('Leiste: ein Wechsel scrollt nach oben, bevor die neue Ansicht steht', () => {
+    const mS = window.scrollTo, vorher = state.view, log = [];
+    window.scrollTo = (x, y) => log.push(x + ',' + y + '@' + state.view);
+    try {
+      go('home'); log.length = 0;
+      go('log');
+      const wechsel = log.slice(); log.length = 0;
+      go('log');
+      const gleich = log.slice();
+      if (wechsel.length !== 1) return 'beim Wechsel ' + wechsel.length + 'x gescrollt';
+      if (wechsel[0] !== '0,0@home') return 'falsch oder zu spaet: ' + wechsel[0];
+      return gleich.length === 0 || 'derselbe Reiter springt trotzdem nach oben';
+    } finally { window.scrollTo = mS; go(vorher || 'home'); }
+  });
+  t('Leiste: jeder Knopf traegt seine Beschriftung in einem eigenen Span', () => {
+    const ohne = Array.from(document.querySelectorAll('.tabs .tab')).filter(b => {
+      const s = b.querySelector('.navtxt');
+      return !s || s.textContent.trim().length < 3;
+    }).map(b => b.dataset.go);
+    return ohne.length === 0 || 'ohne Beschriftung: ' + ohne.join(', ');
+  });
+  ta('Leiste: auf dem Handy nur Symbole, keine Schrift', async () => {
+    return await imRahmen(390, (w, d) => {
+      const breit = Array.from(d.querySelectorAll('.tabs .navtxt'))
+        .filter(s => s.getBoundingClientRect().width > 1);
+      return breit.length === 0 || breit.length + ' Beschriftungen sichtbar';
+    });
+  });
+  /* 🔴 font-size:0 statt display:none -- die rote Zahl haengt IM Wort-Span. Mit
+     display:none waere sie lautlos mitverschwunden. Hier wird sie gemessen. */
+  ta('Leiste: die rote Zahl am Zahnrad bleibt auf dem Handy sichtbar', async () => {
+    return await imRahmen(390, (w, d) => {
+      const z = d.getElementById('badge-set'), k = d.getElementById('tab-set');
+      if (!z || !k) return 'Zahl oder Knopf fehlt';
+      z.textContent = '2'; z.hidden = false;
+      const r = z.getBoundingClientRect(), rk = k.getBoundingClientRect();
+      if (!(r.width > 5 && r.height > 5)) return 'die Zahl ist ' + Math.round(r.width) + 'x' + Math.round(r.height) + ' px';
+      return (r.left >= rk.left - 1 && r.right <= rk.right + 1 && r.top >= rk.top - 8)
+        || 'die Zahl sitzt ausserhalb ihres Knopfes';
+    });
+  });
+  ta('Leiste: auf dem PC ist die Schrift wieder da', async () => {
+    return await imRahmen(1000, (w, d) => {
+      if (w.innerWidth < 900) return 'Rahmen ist nur ' + w.innerWidth + ' px breit';
+      const leer = Array.from(d.querySelectorAll('.tabs .navtxt'))
+        .filter(s => s.getBoundingClientRect().width < 20);
+      return leer.length === 0 || leer.length + ' Knoepfe ohne sichtbare Schrift';
+    });
+  });
+  /* Karls Ansage in gym-log mit dem WhatsApp-Bild: eine Blase um den aktiven Reiter, die
+     beim Wechsel mitkommt -- also gleitet, nicht springt. */
+  ta('Leiste: die Blase steht unter dem aktiven Reiter und gleitet beim Wechsel mit', async () => {
+    return await imRahmen(390, (w, d) => {
+      const messen = () => {
+        const b = d.getElementById('navblase'), k = d.querySelector('.tabs .tab.on');
+        return { b, k, tr: b ? b.style.transform : '', w: b ? parseFloat(b.style.width) : NaN,
+                 soll: k ? 'translateX(' + (k.offsetLeft + 4) + 'px)' : '', sollW: k ? k.offsetWidth - 8 : NaN };
+      };
+      w.go('home');
+      const a = messen();
+      if (!a.b) return 'keine Blase in der Leiste';
+      if (!a.k || !a.k.offsetWidth) return 'die Leiste ist im Rahmen nicht sichtbar';
+      if (!a.b.classList.contains('da')) return 'die Blase ist nicht eingeblendet';
+      if (a.tr !== a.soll) return 'Home: ' + a.tr + ' statt ' + a.soll;
+      if (Math.abs(a.w - a.sollW) > 0.5) return 'Home: Breite ' + a.w + ' statt ' + a.sollW;
+      w.go('set');
+      const p = messen();
+      if (p.k.dataset.go !== 'set') return 'Einstellungen ist nicht aktiv';
+      if (p.tr === a.tr) return 'die Blase ist beim Wechsel stehengeblieben';
+      if (p.tr !== p.soll) return 'Einstellungen: ' + p.tr + ' statt ' + p.soll;
+      return !p.b.classList.contains('sofort') || 'beim Wechsel springt sie, statt zu gleiten';
+    });
+  });
+  t('Leiste: die Blase gleitet (Uebergang im CSS), ausser bei reduzierter Bewegung', () => {
+    const b = document.getElementById('navblase'); if (!b) return 'keine Blase';
+    const tr = getComputedStyle(b).transitionProperty || '';
+    if (tr.indexOf('transform') < 0) return 'kein Uebergang auf transform: ' + tr;
+    return /prefers-reduced-motion[^{]*\{\s*#navblase\{/.test(stilText()) || 'keine Ausnahme fuer reduzierte Bewegung';
+  });
+  /* Das Verhaeltnis, an dem beim naechsten Umbau am ehesten etwas verrutscht: der Inhalt
+     endet UEBER der Leiste, und der Speichern-Haken steht nicht auf ihr. Gemessen. */
+  ta('Leiste: der Inhalt endet oberhalb der Leiste', async () => {
+    return await imRahmen(390, (w, d) => {
+      const r = d.querySelector('.tabs').getBoundingClientRect();
+      const luft = parseFloat(w.getComputedStyle(d.body).paddingBottom) || 0;
+      if (!(r.height > 10)) return 'die Leiste ist ' + Math.round(r.height) + ' px hoch';
+      const braucht = w.innerHeight - r.top;
+      return luft >= braucht || ('Luft ' + Math.round(luft) + ' px, Leiste braucht ' + Math.round(braucht) + ' px');
+    });
+  });
+  ta('Leiste: der Speichern-Haken steht ueber ihr, nicht darauf', async () => {
+    return await imRahmen(390, (w, d) => {
+      w.go('new');
+      const f = d.getElementById('fab-save').getBoundingClientRect();
+      const r = d.querySelector('.tabs').getBoundingClientRect();
+      if (!(f.height > 10)) return 'der Haken ist beim Erfassen nicht zu sehen';
+      return f.bottom <= r.top || ('Haken unten ' + Math.round(f.bottom) + ', Leiste oben ' + Math.round(r.top));
+    });
+  });
+  for (const breite of [320, 390]){
+    ta(`Leiste: auf ${breite} px bleibt jeder Knopf in der Leiste`, async () => {
+      return await imRahmen(breite, (w, d) => {
+        const r = d.querySelector('.tabs').getBoundingClientRect();
+        if (r.left < 0 || r.right > w.innerWidth + 0.5) return 'die Leiste ragt heraus: ' + Math.round(r.left) + '..' + Math.round(r.right);
+        const raus = Array.from(d.querySelectorAll('.tabs .tab')).filter(b => {
+          const k = b.getBoundingClientRect();
+          return k.left < r.left - 0.5 || k.right > r.right + 0.5 || k.width < 30;
+        }).map(b => b.dataset.go);
+        return raus.length === 0 || 'passt nicht: ' + raus.join(', ');
+      });
+    });
+  }
   t('beim Erfassen sind Kopf und Umschalter weg', () => {
     go('new');
     const k = document.getElementById('kopf').hidden, s = document.getElementById('seg').hidden;
@@ -6378,8 +6575,12 @@ if HAENGT not in html:
 # nicht der Code, sondern die Decke: die letzten (asynchronen) Pruefungen kamen
 # nicht mehr unter die Grenze. Virtuelle Zeit kostet keine echte Zeit, ein
 # groesseres Budget also nichts ausser Luft nach oben.
+# ⚠️ 27.09.2026: dasselbe noch einmal, 45000 -> 120000. Mit den 17 Leisten-Pruefungen
+# (neun davon laden die App in einem eigenen Rahmen) endete der Lauf mitten in einem
+# 320-px-Rahmen, ohne Ergebnis. Mit 120000 liefen alle 741 gruen durch -- gemessen,
+# nicht geschaetzt. Ohne Ergebnis heisst hier also zuerst: Decke, nicht Code.
 r = subprocess.run([CHROME, '--headless=new', '--disable-gpu', '--no-sandbox',
-                    '--virtual-time-budget=45000', '--allow-file-access-from-files',
+                    '--virtual-time-budget=120000', '--allow-file-access-from-files',
                     '--dump-dom', (WORK / 'test.html').as_uri()],
                    capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=180)
 m = re.search(r'<pre id="testout">(.*?)</pre>', r.stdout, re.S)
