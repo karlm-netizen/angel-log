@@ -339,7 +339,7 @@ PROBEN = [
      "  go(ziel);",
      'bleibt der alte Fang offen'),
 
-    ('Wisch: weg von "Neuer Fang" ist erlaubt (Entwurf geht verloren)',
+    ('Wisch: weg von "Neuer Fang" ist erlaubt (Karl: gesperrt lassen)',
      'index.html',
      "    if (state.view === 'new') return false;                        // Entwurf, siehe oben\n",
      "",
@@ -371,6 +371,39 @@ PROBEN = [
      "  .seg[hidden]{display:none}\n",
      "  .seg[hidden]{display:none}\n  #v-stats{min-width:500px}\n",
      'Statistik passt auf 320 px'),
+
+    # ---- Entwurf: beim Verlassen sofort speichern (27.09.2026, v64) ----
+    #   python gegenprobe.py Entwurf  -> nur diese vier
+    ('Entwurf: go() speichert beim Verlassen nicht sofort',
+     'index.html',
+     "  if (state.view === 'new' && view !== 'new') entwurfSofort();\n",
+     "",
+     'Reiterwechsel 0,2 s nach dem Tippen'),
+
+    ('Entwurf: nochmal "Neuer Fang" leert, ohne vorher zu speichern',
+     'index.html',
+     "  if (ziel === 'new' && state.view === 'new') entwurfSofort();\n",
+     "",
+     'nochmal "Neuer Fang" 0,2 s nach dem Tippen'),
+
+    # ⚠️ Die zwei folgenden bauen den ALTEN Zustand nach, und der steckt an zwei Stellen je
+    # Knopf: vorn nur `clearTimeout` (Nummer bleibt stehen), und vor go() gar nichts. Eine
+    # Stelle allein zu aendern, faellt nicht auf -- die andere faengt es ab. Deshalb Listen.
+    ('Entwurf: der Haken stoppt den Wecker, ohne ihn zu leeren (wie vor v64)',
+     'index.html',
+     ["  entwurfWeckerAus();\n  const war = state.editWasSaved;",
+      "    entwurfWeckerAus();\n    state.editId = null;\n    state.editWasSaved = false;\n    go('log');"],
+     ["  clearTimeout(draftTimer);\n  const war = state.editWasSaved;",
+      "    state.editId = null;\n    state.editWasSaved = false;\n    go('log');"],
+     'Haken direkt nach dem Tippen'),
+
+    ('Entwurf: Loeschen stoppt den Wecker, ohne ihn zu leeren (wie vor v64)',
+     'index.html',
+     ["  entwurfWeckerAus();\n  try {\n    await removeCatch(state.editId);",
+      "    entwurfWeckerAus();   // sonst legte go() den gelöschten Fang als Entwurf wieder an\n"],
+     ["  clearTimeout(draftTimer);\n  try {\n    await removeCatch(state.editId);",
+      ""],
+     'wieder angelegt'),
 ]
 
 
@@ -418,12 +451,18 @@ for name, datei, alt, neu, erwartet in PROBEN:
                 continue
         else:
             text = pfad.read_text(encoding='utf-8')
-            if alt not in text:
+            # Seit 27.09.2026 darf ein Hebel mehrere Stellen zugleich aendern (alt/neu als
+            # Listen gleicher Laenge) -- fuer Fehler, die erst an zwei Stellen zusammen einer sind.
+            paare = list(zip(alt, neu)) if isinstance(alt, list) else [(alt, neu)]
+            fehlt = [a for a, _ in paare if a not in text]
+            if fehlt:
                 zeigen(f'HEBEL GRIFF NICHT: {name}\n   Textstelle nicht gefunden in {datei} — '
                        f'die Gegenprobe zeigt ins Leere.')
                 fehler += 1
                 continue
-            pfad.write_text(text.replace(alt, neu, 1), encoding='utf-8')
+            for a, n in paare:
+                text = text.replace(a, n, 1)
+            pfad.write_text(text, encoding='utf-8')
 
         code, aus = lauf(ziel)
         zeilen = aus.splitlines()

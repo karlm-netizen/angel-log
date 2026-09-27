@@ -4732,6 +4732,61 @@ window.addEventListener('error', e => {
     const hat = el => regeln.some(r => r.selectorText && new RegExp('(^|,)\\s*' + el + '\\s*(,|$)').test(r.selectorText) && r.style.overflowX === 'clip');
     return (hat('html') && hat('body')) || 'overflow-x:clip fehlt an ' + (hat('html') ? '' : 'html ') + (hat('body') ? '' : 'body');
   });
+  /* ====== Entwurf: beim Verlassen sofort speichern (27.09.2026, Karls Entscheidung) ======
+     Nachgemessen vorher: wer weniger als 0,7 s nach dem Tippen auf einen anderen Reiter
+     tippte, verlor die Eingabe (0,2 s -> nichts gespeichert). Karl: "Sofort speichern".
+     🔴 Die zwei Faelle, an denen "sofort speichern" selbst Schaden anrichten kann, stehen
+     mit drin: nach dem Haken darf kein ZWEITER Eintrag entstehen, nach dem Loeschen der
+     geloeschte nicht wiederkommen. Der Speicher ist ersetzt (im Rahmen antwortet der
+     echte nicht), gezaehlt wird, was ankommt.
+     ⚠️ Eigener Rahmen-Helfer: imRahmen nimmt den Rahmen weg, sobald die Pruefung
+     zurueckkehrt -- hier muss auf Wecker gewartet werden. */
+  const imRahmenWartend = (breite, was) => new Promise((fertig, schief) => {
+    const f = document.createElement('iframe');
+    f.style.cssText = `width:${breite}px;height:720px;border:0;position:absolute;left:-9999px`;
+    f.src = 'index.html';
+    f.onload = () => setTimeout(async () => {
+      try { const r = await was(f.contentWindow, f.contentDocument); f.remove(); fertig(r); }
+      catch (e){ f.remove(); schief(e); }
+    }, 350);
+    f.onerror = () => { f.remove(); schief(new Error('iframe laedt nicht')); };
+    document.body.appendChild(f);
+  });
+  const pausieren = ms => new Promise(r => setTimeout(r, ms));
+  ta('Entwurf: schnell weg von "Neuer Fang" verliert nichts, Haken und Loeschen legen nichts doppelt an', async () => {
+    return await imRahmenWartend(390, async (w, d) => {
+      w.eval("window.__gesp = []; window.__weg = [];"
+        + "putCatch = async rec => { window.__gesp.push({ id: rec.id, art: rec.art, entwurf: rec.entwurf }); return rec; };"
+        + "removeCatch = async id => { window.__weg.push(id); };"
+        + "reload = async () => {}; syncJetzt = () => {};");
+      w.confirm = () => true;
+      const tippe = art => { const f = d.getElementById('f-art'); f.value = art;
+        f.dispatchEvent(new w.Event('input', { bubbles: true })); };
+      const neu = () => { w.eval("state.editId = null; state.editWasSaved = false"); w.go('new'); };
+      const gesp = art => w.__gesp.filter(r => r.art === art);
+
+      neu(); tippe('Hecht'); await pausieren(200); w.go('log'); await pausieren(1200);
+      if (gesp('Hecht').length !== 1)
+        return 'Reiterwechsel 0,2 s nach dem Tippen: ' + gesp('Hecht').length + 'x gespeichert statt 1x';
+
+      neu(); tippe('Zander'); await pausieren(200);
+      d.querySelector('.tabs .tab[data-go="new"]').click(); await pausieren(1200);
+      if (gesp('Zander').length !== 1)
+        return 'nochmal "Neuer Fang" 0,2 s nach dem Tippen: ' + gesp('Zander').length + 'x gespeichert statt 1x';
+      if (d.getElementById('f-art').value !== '') return 'das Formular ist danach nicht leer';
+
+      neu(); tippe('Barsch'); await w.eval('saveNow()'); await pausieren(1200);
+      const b = gesp('Barsch'), ids = [...new Set(b.map(r => r.id))];
+      if (ids.length !== 1) return 'Haken direkt nach dem Tippen: ' + ids.length + ' verschiedene Eintraege statt einem';
+      if (b[b.length - 1].entwurf) return 'Haken: der letzte Stand ist ein Entwurf';
+
+      neu(); w.eval("state.editId = 'loeschmich'"); tippe('Aal');
+      await d.getElementById('btn-del').onclick(); await pausieren(1200);
+      if (w.__weg.indexOf('loeschmich') === -1) return 'Loeschen hat nicht geloescht';
+      return gesp('Aal').length === 0
+        || 'der geloeschte Fang wurde als Entwurf wieder angelegt (' + gesp('Aal').length + 'x)';
+    });
+  });
   t('Hereinschieben: bei reduzierter Bewegung steht die Seite einfach da', () => {
     return /prefers-reduced-motion[^{]*\{\s*#app\.rein-r,\s*#app\.rein-l\{\s*animation:none/.test(stilText())
       || 'keine Ausnahme fuer reduzierte Bewegung';

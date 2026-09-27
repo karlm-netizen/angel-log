@@ -3670,7 +3670,29 @@ function formHatInhalt(){
 function scheduleDraft(){
   if (state.view !== 'new') return;
   clearTimeout(draftTimer);
-  draftTimer = setTimeout(saveDraft, 700);
+  draftTimer = setTimeout(() => { draftTimer = null; saveDraft(); }, 700);
+}
+/* ---- Beim Verlassen sofort speichern (27.09.2026, Karls Entscheidung) ----
+   Nachgemessen: wer weniger als 0,7 s nach dem Tippen auf einen anderen Reiter tippte,
+   verlor die Eingabe — der Wecker lief ab, sah „nicht mehr auf Neuer Fang" und tat nichts
+   (0,2 s → nichts gespeichert, 1 s → gespeichert). Karl: „Sofort speichern".
+   ➡️ Wer „Neuer Fang" verlässt, während der Wecker noch läuft, speichert jetzt sofort.
+   🔴 `draftTimer` heißt deshalb ab jetzt: „es wartet WIRKLICH etwas". Gestoppt wird er
+   nur noch über entwurfWeckerAus(), das ihn auch LEERT. Vorher stand an zwei Stellen nur
+   `clearTimeout(draftTimer)` — die Nummer blieb stehen, und „sofort speichern" hätte
+   nach dem Haken den gerade gespeicherten Fang als zweiten Entwurf angelegt und nach dem
+   Löschen den gerade gelöschten wieder. Beides hat eine Prüfung. */
+function entwurfWeckerAus(){ clearTimeout(draftTimer); draftTimer = null; }
+async function entwurfSofort(){
+  if (!draftTimer || state.view !== 'new') return;
+  entwurfWeckerAus();
+  /* saveDraft() liest das Formular SOFORT, noch vor dem ersten await — also solange
+     state.view noch 'new' ist und editId noch zum offenen Fang gehört. */
+  await saveDraft();
+  /* Die Ansicht, in die man gewechselt ist, ist schon gezeichnet und kennt den Entwurf
+     noch nicht. */
+  if (state.view === 'log') renderList();
+  else if (state.view === 'detail') renderDetail();
 }
 async function saveDraft(){
   if (state.view !== 'new' || !formHatInhalt()) return;
@@ -3691,7 +3713,7 @@ async function saveNow(){
   if (!when) return toast(T('Datum & Uhrzeit fehlen'));
   if (!art && !$('#f-laenge').value) return toast(T('Mindestens Fischart oder Länge angeben'));
 
-  clearTimeout(draftTimer);
+  entwurfWeckerAus();
   const war = state.editWasSaved;
   const rec = buildRecord(false);
   const btn = $('#fab-save');
@@ -3700,6 +3722,10 @@ async function saveNow(){
     await putCatch(rec);
     await reload();
     toast(war ? T('Gespeichert') : T('Fang gespeichert 🎣'));
+    /* Noch einmal: wer während des Speicherns weitergetippt hat, hat einen neuen Wecker
+       gestellt — go() würde ihn sonst „sofort speichern", mit editId null, also als
+       ZWEITEN Eintrag neben dem gerade gespeicherten. */
+    entwurfWeckerAus();
     state.editId = null;
     state.editWasSaved = false;
     go('log');
@@ -3719,13 +3745,14 @@ $('#fab-save').onclick = () => { if (fuNr >= 0) fuehrungBeenden(); saveNow(); };
 $('#btn-del').onclick = async () => {
   if (!state.editId) return;
   if (!confirm(T('Diesen Fang wirklich löschen?'))) return;
-  clearTimeout(draftTimer);
+  entwurfWeckerAus();
   try {
     await removeCatch(state.editId);
     state.editId = null;
     state.editWasSaved = false;
     await reload();
     toast(T('Gelöscht'));
+    entwurfWeckerAus();   // sonst legte go() den gelöschten Fang als Entwurf wieder an
     go('log');
     syncJetzt(true);
   } catch {
@@ -4332,7 +4359,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v63';
+const FASSUNG = 'v64';
 
 const KONTO_KEY = 'angellog-konto';
 /* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
@@ -8049,6 +8076,10 @@ document.addEventListener('click', async e => {
 const SAMMEL = ['log', 'map', 'stats'];
 
 function go(view){
+  /* Wer „Neuer Fang" verlässt, während der Entwurfs-Wecker noch läuft: sofort speichern
+     (Karls Entscheidung vom 27.09.2026, Begründung bei entwurfSofort). VOR allem anderen —
+     saveDraft() liest das Formular, solange state.view noch 'new' ist. */
+  if (state.view === 'new' && view !== 'new') entwurfSofort();
   freeURLs();
   /* 🔴 Nach oben, BEVOR die neue Ansicht steht (27.09.2026, Regel aus gym-log v0.111).
      Bis heute stand das scrollTo am Ende: einen Augenblick lang stand die neue, vielleicht
@@ -8128,6 +8159,9 @@ function reiterZeigen(ziel){
   const el = $('#app');
   const von = REITER.indexOf(state.view), nach = REITER.indexOf(ziel);
   if (el){ el.classList.remove('zieht', 'faellt-zurueck', 'rein-r', 'rein-l'); el.style.transform = ''; }
+  /* Nochmal „Neuer Fang", während man dort steht: das Formular wird gleich geleert.
+     Eine wartende Eingabe wird VORHER gespeichert — und zwar noch mit dem alten editId. */
+  if (ziel === 'new' && state.view === 'new') entwurfSofort();
   if (ziel === 'new'){ state.editId = null; state.editWasSaved = false; }
   go(ziel);
   /* Bewegt wird nur zwischen zwei Reitern. Aus der Karte, der Auswertung oder einem
@@ -8145,10 +8179,11 @@ $$('.tab').forEach(t => t.onclick = () => reiterZeigen(t.dataset.go));
    ⚠️ Nur zwischen den vier Reitern der Leiste, und nur wenn man gerade auf einem davon
    steht. Aus Karte, Auswertung oder einem einzelnen Fang heraus wird nicht gewischt —
    dort wäre ein Wisch ein verlorener Platz.
-   🔴 Und NICHT weg von „Neuer Fang". Der Entwurf wird erst 0,7 s nach der letzten Eingabe
-   gespeichert (scheduleDraft), und nur, solange man noch auf der Seite steht. Ein Wisch
-   direkt nach dem Tippen nähme die letzte Eingabe mit — gym-log wischt aus demselben Grund
-   nicht aus einer laufenden Einheit heraus. HIN zu „Neuer Fang" geht.
+   🔴 Und NICHT weg von „Neuer Fang". Anfangs (v63) war der Grund, dass eine Eingabe in den
+   letzten 0,7 s verlorenging. Seit v64 wird beim Verlassen sofort gespeichert — die Sperre
+   bleibt trotzdem, auf Karls Entscheidung: das Formular ist lang, und wer darin scrollt,
+   soll nicht mit einem schiefen Wisch mitten aus dem Erfassen fallen. gym-log wischt aus
+   demselben Grund nicht aus einer laufenden Einheit heraus. HIN zu „Neuer Fang" geht.
    ⚠️ Ausgenommen sind außerdem: Eingabefelder (dort wischt man Text), Karten (dort
    verschiebt man die Karte), seitlich Scrollbares, und alles, was ÜBER der Seite schwebt —
    ein Wisch über die Leiste soll nicht die Seite wegziehen.

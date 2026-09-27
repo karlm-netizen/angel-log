@@ -6,6 +6,31 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 27.09.2026 (v64) — Beim Erfassen geht beim schnellen Wechsel nichts mehr verloren
+
+**Beim Bau von v63 gefunden, nachgemessen, Karl entschieden:** *„Sofort speichern"*.
+
+Der Entwurf beim Erfassen wird 0,7 s nach der letzten Eingabe gespeichert — aber nur, solange
+man noch auf „Neuer Fang" steht. **Wer vorher auf einen anderen Reiter getippt hat, hat die
+Eingabe verloren** (gemessen: 0,2 s → nichts gespeichert, 1 s → gespeichert). Das war schon
+lange so, nicht erst seit v62.
+
+- **Wer „Neuer Fang" verlässt, während noch etwas wartet, speichert jetzt sofort.** Genauso,
+  wenn man auf „Neuer Fang" steht und nochmal auf „Neuer Fang" tippt (das leert das Formular —
+  vorher wird gespeichert, und zwar noch zum richtigen Fang).
+- 🔴 **Dabei zwei Fallen entschärft, bevor sie zuschnappen konnten:** nach dem Haken und nach
+  dem Löschen wurde der Wecker nur *gestoppt*, seine Nummer blieb stehen. Mit „sofort speichern"
+  hätte das nach dem Haken **einen zweiten Eintrag** neben dem gespeicherten angelegt und nach
+  dem Löschen **den gelöschten Fang wieder**. Der Wecker wird jetzt beim Stoppen auch geleert.
+- **Wischen weg von „Neuer Fang" bleibt gesperrt** (Karls Entscheidung) — der ursprüngliche
+  Grund ist weg, aber das Formular ist lang, und ein schiefer Wisch beim Scrollen soll einen nicht
+  mitten aus dem Erfassen werfen.
+
+🧪 **Prüfstand 748 → 749** — eine Prüfung mit vier Fällen: schnell weg, nochmal „Neuer Fang",
+Haken direkt nach dem Tippen, Löschen direkt nach dem Tippen. **Gegenprobe 5 von 5**
+(`python gegenprobe.py Entwurf`); zwei davon bauen den alten Zustand an **beiden** Stellen
+zugleich nach — ein Handgriff darf dafür jetzt mehrere Stellen ändern.
+
 ## 27.09.2026 (v63) — Wischen zwischen den Reitern, und die Seite schiebt sich herein
 
 **Karls Antwort** auf die Frage nach v62, ob das auch mitkommt: *„Ja, beides übernehmen"*.
