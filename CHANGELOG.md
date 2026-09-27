@@ -16,7 +16,8 @@ Home zeigt jetzt zwei Karten statt drei: die Angelzeit und das Wetter am Wasser.
 - die Karte auf Home (`#home-prognose`) und ihr Zeichnen
 - die Rechnung: die sechs Maße, das Modell aus den eigenen Fängen, die drei Stufen, das beste
   Drei-Stunden-Fenster, `bedingungAusFang()` und die zwei Untergrenzen
-- 17 Einträge im englischen Wörterbuch und der Eintrag in der Liste der nicht übersetzten Bereiche
+- 14 Einträge im englischen Wörterbuch (gezählt: 590 → 576) und der Eintrag in der Liste der
+  nicht übersetzten Bereiche
 - der Satz in der Einführung, der sie versprach (*„… und sobald genug Fänge drin sind, wann es
   bei dir bisher am besten lief"*) — samt englischer Fassung
 
