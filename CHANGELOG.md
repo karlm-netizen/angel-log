@@ -6,6 +6,19 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 22.10.2026 (v68) — eigene Nadeln auf der Karte sind keine Fragezeichen mehr
+
+Meldung #19 von tibo: *„Meine Pins auf der Karte werden nur als Fragezeichen angezeigt"* (v67, iPhone).
+
+- **Ursache:** Leaflet sucht das Bild der Standard-Nadel über die schon angewendete `leaflet.css`.
+  Die Karte startet aber, sobald `leaflet.js` geladen ist, und das CSS kann ein paar Augenblicke
+  später kommen. Dann rät Leaflet einen falschen Pfad (`…/angel-log/leafletmarker-icon.png`, ohne
+  `/images/`) und behält ihn für die ganze Sitzung. Jede eigene Nadel ist dann ein kaputtes Bild,
+  am iPhone ein Fragezeichen. Die roten Nadeln im Admin-Teil haben ihren Pfad schon immer fest
+  und waren nicht betroffen.
+- **Jetzt:** Der Ordner `leaflet/images/` ist fest vorgegeben, sobald Leaflet geladen ist. Es wird
+  nichts mehr geraten.
+
 ## 27.09.2026 (v67) — Admin-Seite: Verbindungen testen, App-Stand, Testdaten
 
 Paket 3 von 3 zu Karls Admin-Panel (Paket 1: v65, Paket 2: v66). Auf der Admin-Seite stehen

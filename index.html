@@ -3015,7 +3015,12 @@ function ladeKarte(){
     document.head.appendChild(css);
     const s = document.createElement('script');
     s.src = 'leaflet/leaflet.js';
-    s.onload  = () => res(window.L);
+    /* Den Ordner der Standard-Nadel fest vorgeben (v68). Leaflet liest ihn sonst aus der schon
+       angewendeten leaflet.css — das Skript ist aber oft vor dem CSS da. Dann rät Leaflet
+       „…/angel-log/leafletmarker-icon.png", merkt sich das für die ganze Sitzung, und jede
+       eigene Nadel ist ein kaputtes Bild (am iPhone ein Fragezeichen; Meldung #19, 22.10.2026).
+       Die rote Admin-Nadel hat ihren Pfad schon immer fest, darum traf es nur die eigenen. */
+    s.onload  = () => { window.L.Icon.Default.imagePath = 'leaflet/images/'; res(window.L); };
     s.onerror = () => { _leafletP = null; rej(new Error(T('Karte nicht ladbar'))); };
     document.head.appendChild(s);
   });
@@ -4429,7 +4434,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v67';
+const FASSUNG = 'v68';
 
 const KONTO_KEY = 'angellog-konto';
 /* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
