@@ -4435,7 +4435,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v69';
+const FASSUNG = 'v70';
 
 const KONTO_KEY = 'angellog-konto';
 /* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
@@ -7534,6 +7534,13 @@ const ACHSEN = [
   { key:'trueb', kurz:'Wassertrübung',
     reihe: () => TRUEBUNG.map(t => T(t[1])),
     schluessel: c => truebLabel(c.truebung) || null },
+  /* 24.10.2026, Karl: *„Ja, auch einbauen"* (zur Windrichtung, nach der Windgeschwindigkeit).
+     Reihenfolge = Kompass ab Norden im Uhrzeigersinn. Beide Seiten ohne T(), weil auch das
+     Formular die Kürzel unübersetzt speichert. Was nicht in DIRS steht (alte Importe), fällt
+     heraus statt eine eigene Stufe zu bekommen. */
+  { key:'windrichtung', kurz:'Windrichtung',
+    reihe: () => DIRS.slice(),
+    schluessel: c => DIRS.includes(c.windRichtung) ? c.windRichtung : null },
   // Ohne feste Liste — die Reihenfolge kommt aus der Häufigkeit.
   { key:'art',       kurz:'Fischart',   kat: c => c.art },
   { key:'koeder',    kurz:'Köder',      kat: c => c.koeder },

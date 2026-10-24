@@ -6,6 +6,15 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 24.10.2026 (v70) — Auswertung über Windrichtung
+
+Nach v69 gefragt, ob die Windrichtung auch dazukommt — Karl: *„Ja, auch einbauen"*.
+
+- **Jetzt:** „Windrichtung" steht unter „Mit fester Reihenfolge", nach der Wassertrübung. Die
+  16 Richtungen laufen wie auf dem Kompass von N über O, S und W zurück bis NNW; Richtungen
+  ohne Fang stehen mit null drin. Englisch: „Wind direction" (die Kürzel bleiben deutsch, wie
+  im Formular).
+
 ## 24.10.2026 (v69) — Auswertung über Windgeschwindigkeit
 
 Karl: *„Mann kann beim angellog bei der Auswertung kein e Windgeschwindigkeit auswählen"*.
