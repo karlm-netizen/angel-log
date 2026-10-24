@@ -6,6 +6,15 @@ Jede Änderung an der App kommt hier hinein, im selben Commit wie die Änderung 
 > Commit-Nachrichten und der Projektnotiz im ki-os-Vault (`04-projects/angel-log.md`)
 > hier drin — knapper als dort, aber vollständig.
 
+## 24.10.2026 (v69) — Auswertung über Windgeschwindigkeit
+
+Karl: *„Mann kann beim angellog bei der Auswertung kein e Windgeschwindigkeit auswählen"*.
+
+- **Ursache:** Die Windgeschwindigkeit wird bei jedem Fang gespeichert (von Hand oder aus dem
+  Wetter), stand aber nie in der Liste der Größen für „Über".
+- **Jetzt:** „Windgeschwindigkeit (km/h)" steht unter „Mit fester Reihenfolge", zwischen Luftdruck
+  und Regen, in Stufen zu 5 km/h. Englisch: „Wind speed".
+
 ## 22.10.2026 (v68) — eigene Nadeln auf der Karte sind keine Fragezeichen mehr
 
 Meldung #19 von tibo: *„Meine Pins auf der Karte werden nur als Fragezeichen angezeigt"* (v67, iPhone).

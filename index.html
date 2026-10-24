@@ -1840,6 +1840,7 @@ const EN = {
   'Wassertiefe': 'Water depth',
   'Lufttemperatur': 'Air temperature',
   'Luftdruck': 'Air pressure',
+  'Windgeschwindigkeit': 'Wind speed',
   'Luftfeuchtigkeit': 'Humidity',
   'Bewölkung': 'Cloud cover',
   'Regen davor (24 h)': 'Rain before (24 h)',
@@ -4434,7 +4435,7 @@ const SUPA_KEY = 'sb_publishable_O4y_6usvex1qBRrCX9z0ww_Ib6XwuGZ';
    nicht" nicht zuzuordnen, weil eine PWA am iPhone wochenlang eine alte Seite
    zeigen kann (siehe der Fall vom 08.08.).
    ⚠️ Muss zum Cache-Namen in sw.js passen; eine Prüfung wacht darüber. */
-const FASSUNG = 'v68';
+const FASSUNG = 'v69';
 
 const KONTO_KEY = 'angellog-konto';
 /* Die zuletzt an diesem Gerät benutzte E-Mail. Karls Ansage vom 18.08.2026:
@@ -7495,6 +7496,10 @@ const ACHSEN = [
   { key:'luft',   kurz:'Lufttemperatur',   einheit:'°C',       stufe:2, hol: c => c.luft },
   { key:'tiefe',  kurz:'Wassertiefe',      einheit:'m',        stufe:1, hol: c => c.tiefe },
   { key:'druck',  kurz:'Luftdruck',        einheit:'hPa',      stufe:5, hol: c => c.druck },
+  /* 24.10.2026, Karl: *„Mann kann beim angellog bei der Auswertung kein e Windgeschwindigkeit
+     auswählen"*. Der Wert wurde bei jedem Fang gespeichert, stand hier aber nie. Stufe 5 km/h:
+     das ist ungefähr der Sprung einer Beaufort-Stufe im Bereich, in dem geangelt wird. */
+  { key:'wind',   kurz:'Windgeschwindigkeit', einheit:'km/h',  stufe:5, hol: c => c.windKmh },
   { key:'regen',  kurz:'Regen davor',      einheit:'mm/24 h',  stufe:2, hol: c => c.regen24 },
   { key:'laenge', kurz:'Fischlänge',       einheit:'cm',       stufe:5, hol: c => c.laenge },
   { key:'koedergroesse', kurz:'Ködergröße', einheit:'cm',      stufe:2, hol: c => c.koederGroesse },
